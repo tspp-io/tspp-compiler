@@ -21,8 +21,6 @@
  *   token types (identifiers, numbers, operators, etc.)
  *****************************************************************************/
 #pragma once
-#include <cstddef>
-#include <memory>
 
 #include "lexer/state/lexer_state.h"
 #include "tokens/tokens.h"

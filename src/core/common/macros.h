@@ -1,5 +1,6 @@
 #pragma once
 #include <cassert>
+#include <memory>
 
 /**
  * Debug assertion macros
@@ -99,4 +100,9 @@
 #define LIKELY(x) (x)
 #define UNLIKELY(x) (x)
 #define FORCE_INLINE inline
+#endif
+
+#ifndef SHARED_PTR_ALIAS
+#define SHARED_PTR_ALIAS
+#define Shared(T) std::shared_ptr<T>
 #endif

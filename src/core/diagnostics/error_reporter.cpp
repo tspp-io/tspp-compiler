@@ -16,18 +16,18 @@ const String BLUE = "\033[1;34m";    // Info
 const String RESET = "\033[0m";      // Reset color
 }  // namespace
 
-void ErrorReporter::error(const SourceLocation &location, const String &message,
+void ErrorReporter::error(const Location &location, const String &message,
                           const String &code) {
   report(Diagnostic::Severity::Error, location, message, code);
   errorCount_++;
 }
 
-void ErrorReporter::warning(const SourceLocation &location,
-                            const String &message, const String &code) {
+void ErrorReporter::warning(const Location &location, const String &message,
+                            const String &code) {
   report(Diagnostic::Severity::Warning, location, message, code);
 }
 
-void ErrorReporter::info(const SourceLocation &location, const String &message,
+void ErrorReporter::info(const Location &location, const String &message,
                          const String &code) {
   report(Diagnostic::Severity::Info, location, message, code);
 }
@@ -38,8 +38,8 @@ void ErrorReporter::clear() {
 }
 
 void ErrorReporter::report(Diagnostic::Severity severity,
-                           const SourceLocation &location,
-                           const String &message, const String &code) {
+                           const Location &location, const String &message,
+                           const String &code) {
   // Store diagnostic
   diagnostics_.emplace_back(severity, location, message, code);
   // auto &diag = diagnostics_.back(); // Unused variable removed

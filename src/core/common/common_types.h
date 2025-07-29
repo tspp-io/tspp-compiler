@@ -27,15 +27,14 @@ using String = std::string;
 /*****************************************************************************
  * Source Location & Error Display
  *****************************************************************************/
-class SourceLocation {
+class Location {
  public:
   // Constants for error highlighting
   static constexpr const char *RED = "\033[1;31m";
   static constexpr const char *RESET = "\033[0m";
 
   // Constructors matching TokenLocation interface
-  SourceLocation(unsigned int ln = 0, unsigned int col = 0,
-                 std::string file = "")
+  Location(unsigned int ln = 0, unsigned int col = 0, std::string file = "")
       : line_(ln), column_(col), filename_(std::move(file)) {
     loadLineContent();
   }
@@ -57,7 +56,7 @@ class SourceLocation {
   }
 
   // Comparison operator
-  bool operator==(const SourceLocation &other) const {
+  bool operator==(const Location &other) const {
     return filename_ == other.filename_ && line_ == other.line_ &&
            column_ == other.column_;
   }
@@ -132,9 +131,9 @@ union LiteralValue {
  *****************************************************************************/
 struct Error {
   String message;
-  SourceLocation location;
+  Location location;
 
-  Error(String msg, SourceLocation loc)
+  Error(String msg, Location loc)
       : message(std::move(msg)), location(std::move(loc)) {}
 
   String toString() const {

@@ -121,8 +121,8 @@ void TokenScanner::skipBlockComment() {
 }
 
 tokens::Token TokenScanner::makeEndToken() {
-  core::SourceLocation location(state_->getLine(), state_->getColumn(),
-                                state_->getFileName());
+  core::Location location(state_->getLine(), state_->getColumn(),
+                          state_->getFileName());
   return tokens::Token(tokens::TokenType::END_OF_FILE, "", location);
 }
 

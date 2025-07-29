@@ -17,28 +17,28 @@ struct Diagnostic {
     Info      // Informational messages for the user
   };
 
-  Diagnostic(Severity sev, const SourceLocation &loc, String msg, String c = "")
+  Diagnostic(Severity sev, const Location &loc, String msg, String c = "")
       : severity(sev),
         location(loc),
         message(std::move(msg)),
         code(std::move(c)) {}
 
-  Severity severity;        // Message severity level
-  SourceLocation location;  // Source code location
-  String message;           // Descriptive message
-  String code;              // Optional diagnostic code (e.g., "E001")
+  Severity severity;  // Message severity level
+  Location location;  // Source code location
+  String message;     // Descriptive message
+  String code;        // Optional diagnostic code (e.g., "E001")
 };
 
 class ErrorReporter {
  public:
   // Report different types of diagnostics
-  void error(const SourceLocation &location, const String &message,
+  void error(const Location &location, const String &message,
              const String &code = "");
 
-  void warning(const SourceLocation &location, const String &message,
+  void warning(const Location &location, const String &message,
                const String &code = "");
 
-  void info(const SourceLocation &location, const String &message,
+  void info(const Location &location, const String &message,
             const String &code = "");
 
   // Access collected diagnostics
@@ -63,7 +63,7 @@ class ErrorReporter {
   int errorCount_ = 0;                   // Number of errors encountered
 
   // Common reporting logic
-  void report(Diagnostic::Severity severity, const SourceLocation &location,
+  void report(Diagnostic::Severity severity, const Location &location,
               const String &message, const String &code);
 };
 

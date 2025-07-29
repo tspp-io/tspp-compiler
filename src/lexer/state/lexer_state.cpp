@@ -104,7 +104,7 @@ void LexerState::newLine() {
         lastToken.getType() != tokens::TokenType::LEFT_BRACE &&
         lastToken.getType() != tokens::TokenType::RIGHT_BRACE) {
       addToken(tokens::Token(tokens::TokenType::SEMICOLON, ";",
-                             core::SourceLocation(line_ - 1, column_)));
+                             core::Location(line_ - 1, column_)));
     }
   }
 }

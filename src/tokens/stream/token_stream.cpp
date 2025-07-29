@@ -5,8 +5,10 @@
  *****************************************************************************/
 
 #include "token_stream.h"
-#include "core/common/common_types.h"
+
 #include <iostream>
+
+#include "core/common/common_types.h"
 
 namespace tokens {
 
@@ -17,8 +19,7 @@ TokenStream::TokenStream(std::vector<Token> tokens)
     : tokens_(std::move(tokens)), current_(0) {
   // Safety: Ensure stream always ends with EOF token
   if (tokens_.empty() || tokens_.back().getType() != TokenType::END_OF_FILE) {
-    tokens_.push_back(
-        Token(TokenType::END_OF_FILE, "", core::SourceLocation(0, 0)));
+    tokens_.push_back(Token(TokenType::END_OF_FILE, "", core::Location(0, 0)));
   }
 }
 
@@ -51,10 +52,10 @@ const Token &TokenStream::peekNext(int n) const {
 const Token &TokenStream::previous() const {
   // Handle boundary cases
   if (current_ <= 0) {
-    return tokens_[0]; // At start: return first token
+    return tokens_[0];  // At start: return first token
   }
   if (current_ >= tokens_.size()) {
-    return tokens_[tokens_.size() - 2]; // Return last real token, not EOF
+    return tokens_[tokens_.size() - 2];  // Return last real token, not EOF
   }
   return tokens_[current_ - 1];
 }
@@ -114,20 +115,26 @@ bool TokenStream::matchAny(const std::vector<TokenType> &types) {
  *****************************************************************************/
 void TokenStream::setPosition(size_t position) {
   // Ensure position stays within valid bounds
-  if (position < tokens_.size() - 1) { // Subtract 1 to avoid EOF
+  if (position < tokens_.size() - 1) {  // Subtract 1 to avoid EOF
     current_ = position;
   } else {
-    current_ = tokens_.size() - 2; // Set to last real token, not EOF
+    current_ = tokens_.size() - 2;  // Set to last real token, not EOF
   }
 }
 
-size_t TokenStream::getCurrentPosition() const { return current_; }
+size_t TokenStream::getCurrentPosition() const {
+  return current_;
+}
 
 // New method: Save current position
-size_t TokenStream::savePosition() const { return current_; }
+size_t TokenStream::savePosition() const {
+  return current_;
+}
 
 // New method: Restore saved position
-void TokenStream::restorePosition(size_t position) { setPosition(position); }
+void TokenStream::restorePosition(size_t position) {
+  setPosition(position);
+}
 
 /*****************************************************************************
  * Error Recovery
@@ -147,16 +154,16 @@ void TokenStream::synchronize() {
 
     // Or at the start of major declarations/statements
     switch (peek().getType()) {
-    case TokenType::FUNCTION:    // Function declaration
-    case TokenType::LET:         // Variable declaration
-    case TokenType::FOR:         // For loop
-    case TokenType::IF:          // If statement
-    case TokenType::WHILE:       // While loop
-    case TokenType::RETURN:      // Return statement
-    case TokenType::RIGHT_BRACE: // End of block - added for better recovery
-      return;
-    default:
-      advance(); // Skip tokens until sync point found
+      case TokenType::FUNCTION:     // Function declaration
+      case TokenType::LET:          // Variable declaration
+      case TokenType::FOR:          // For loop
+      case TokenType::IF:           // If statement
+      case TokenType::WHILE:        // While loop
+      case TokenType::RETURN:       // Return statement
+      case TokenType::RIGHT_BRACE:  // End of block - added for better recovery
+        return;
+      default:
+        advance();  // Skip tokens until sync point found
     }
   }
 }
@@ -165,7 +172,7 @@ Token TokenStream::getCurrentToken() {
   if (current_ < tokens_.size()) {
     return tokens_[current_];
   }
-  return tokens_.back(); // Return EOF if beyond bounds
+  return tokens_.back();  // Return EOF if beyond bounds
 }
 
-} // namespace tokens
+}  // namespace tokens

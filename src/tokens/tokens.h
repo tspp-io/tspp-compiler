@@ -15,7 +15,7 @@ class Token {
   /**
    * Regular token constructor
    */
-  Token(TokenType type, std::string lexeme, core::SourceLocation location)
+  Token(TokenType type, std::string lexeme, core::Location location)
       : type_(type),
         lexeme_(std::move(lexeme)),
         location_(std::move(location)) {}
@@ -23,7 +23,7 @@ class Token {
   /**
    * Factory method for creating error tokens
    */
-  static Token createError(std::string lexeme, core::SourceLocation location,
+  static Token createError(std::string lexeme, core::Location location,
                            std::string errorMessage) {
     Token token(TokenType::ERROR_TOKEN, std::move(lexeme), std::move(location));
     token.errorMessage_ = std::move(errorMessage);
@@ -39,7 +39,7 @@ class Token {
   const std::string &getLexeme() const {
     return lexeme_;
   }
-  const core::SourceLocation &getLocation() const {
+  const core::Location &getLocation() const {
     return location_;
   }
   const std::optional<std::string> &getErrorMessage() const {
@@ -85,7 +85,7 @@ class Token {
  private:
   TokenType type_;                           // Type of token
   std::string lexeme_;                       // Actual text of token
-  core::SourceLocation location_;            // Position in source
+  core::Location location_;                  // Position in source
   std::optional<std::string> errorMessage_;  // Error information if any
 };
 

@@ -1,6 +1,6 @@
 {
   "[cpp]": {
-    "editor.defaultFormatter": "ms-vscode.cpptools",  // Valid formatter for C++
+    "editor.defaultFormatter": "ms-vscode.cpptools", // Valid formatter for C++
     "editor.formatOnSave": true
   },
   "files.associations": {
@@ -82,6 +82,5 @@
     "typeinfo": "cpp",
     "valarray": "cpp",
     "variant": "cpp"
-  },
-  "C_Cpp.errorSquiggles": "disabled"
+  }
 }

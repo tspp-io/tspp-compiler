@@ -2,7 +2,7 @@
 #include <any>
 #include <string>
 
-#include "../core/Location.h"
+#include "../core/common/common_types.h"
 #include "TokenType.h"
 /**
  * Token - Represents a lexical token in TSPP++.
@@ -15,8 +15,8 @@ struct Token {
   int line;
   int column;
   std::any literalValue;
-  common::Location location() const {
-    return common::Location(line, column);
+  core::Location location() const {
+    return core::Location(line, column);
   }
 
   Token(TokenType t, std::string l, int ln, int col, std::any val = {})
