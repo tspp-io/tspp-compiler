@@ -1,8 +1,9 @@
+#include <iostream>
 #include "core/utils/log_utils.h"
 
 #include <iomanip>
 
-#include "ast_printer.h"
+// #include "ast_printer.h"
 #include "lexer/patterns/token_maps.h"
 
 void printToken(const tokens::Token &token) {
@@ -37,13 +38,13 @@ void printTokenStream(const std::vector<tokens::Token> &tokens) {
             << "Total tokens: " << tokens.size() << "\n";
 }
 
-void printAST(const parser::AST &ast) {
-  core::ASTPrinter printer;
-  printer.print(ast);
-}
+// void printAST(const parser::AST &ast) {
+//   core::ASTPrinter printer;
+//   printer.print(ast);
+// }
 
-void printASTNode(const nodes::NodePtr &node, int indent) {
-  (void)indent;  // Suppress unused parameter warning
-  core::ASTPrinter printer;
-  printer.print(node);
-}
+// void printASTNode(const nodes::NodePtr &node, int indent) {
+//   (void)indent;  // Suppress unused parameter warning
+//   core::ASTPrinter printer;
+//   printer.print(node);
+// }

@@ -19,6 +19,8 @@ enum class TokenType {
   TYPEDEF,           // 'typedef' keyword for type aliases
   NAMESPACE,         // 'namespace' keyword for namespace declarations
   TEMPLATE,          // 'template' keyword for template declarations
+  IMPORT,            // 'import' keyword for module imports
+  FROM,              // 'from' keyword for module imports
   NEW,               // 'new' keyword to create new class instance
   GET,
   SET,

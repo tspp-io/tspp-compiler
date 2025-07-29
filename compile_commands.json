@@ -1,0 +1,86 @@
+[
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/tokens.dir/tokens/stream/token_stream.cpp.o -c /home/hiren/tspp/src/tokens/stream/token_stream.cpp",
+  "file": "/home/hiren/tspp/src/tokens/stream/token_stream.cpp",
+  "output": "src/CMakeFiles/tokens.dir/tokens/stream/token_stream.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/diagnostics/error_reporter.cpp.o -c /home/hiren/tspp/src/core/diagnostics/error_reporter.cpp",
+  "file": "/home/hiren/tspp/src/core/diagnostics/error_reporter.cpp",
+  "output": "src/CMakeFiles/core.dir/core/diagnostics/error_reporter.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/file_utils.cpp.o -c /home/hiren/tspp/src/core/utils/file_utils.cpp",
+  "file": "/home/hiren/tspp/src/core/utils/file_utils.cpp",
+  "output": "src/CMakeFiles/core.dir/core/utils/file_utils.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/log_utils.cpp.o -c /home/hiren/tspp/src/core/utils/log_utils.cpp",
+  "file": "/home/hiren/tspp/src/core/utils/log_utils.cpp",
+  "output": "src/CMakeFiles/core.dir/core/utils/log_utils.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/string_utils.cpp.o -c /home/hiren/tspp/src/core/utils/string_utils.cpp",
+  "file": "/home/hiren/tspp/src/core/utils/string_utils.cpp",
+  "output": "src/CMakeFiles/core.dir/core/utils/string_utils.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/lexer.cpp.o -c /home/hiren/tspp/src/lexer/lexer.cpp",
+  "file": "/home/hiren/tspp/src/lexer/lexer.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/lexer.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/base/scanner_base.cpp.o -c /home/hiren/tspp/src/lexer/scanner/base/scanner_base.cpp",
+  "file": "/home/hiren/tspp/src/lexer/scanner/base/scanner_base.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/scanner/base/scanner_base.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/identifier_scanner.cpp.o -c /home/hiren/tspp/src/lexer/scanner/specialized/identifier_scanner.cpp",
+  "file": "/home/hiren/tspp/src/lexer/scanner/specialized/identifier_scanner.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/identifier_scanner.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/number_scanner.cpp.o -c /home/hiren/tspp/src/lexer/scanner/specialized/number_scanner.cpp",
+  "file": "/home/hiren/tspp/src/lexer/scanner/specialized/number_scanner.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/number_scanner.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/operator_scanner.cpp.o -c /home/hiren/tspp/src/lexer/scanner/specialized/operator_scanner.cpp",
+  "file": "/home/hiren/tspp/src/lexer/scanner/specialized/operator_scanner.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/operator_scanner.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/string_scanner.cpp.o -c /home/hiren/tspp/src/lexer/scanner/specialized/string_scanner.cpp",
+  "file": "/home/hiren/tspp/src/lexer/scanner/specialized/string_scanner.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/string_scanner.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/token_scanner.cpp.o -c /home/hiren/tspp/src/lexer/scanner/token_scanner.cpp",
+  "file": "/home/hiren/tspp/src/lexer/scanner/token_scanner.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/scanner/token_scanner.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/state/lexer_state.cpp.o -c /home/hiren/tspp/src/lexer/state/lexer_state.cpp",
+  "file": "/home/hiren/tspp/src/lexer/state/lexer_state.cpp",
+  "output": "src/CMakeFiles/lexer.dir/lexer/state/lexer_state.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/tspp.dir/main.cpp.o -c /home/hiren/tspp/src/main.cpp",
+  "file": "/home/hiren/tspp/src/main.cpp",
+  "output": "src/CMakeFiles/tspp.dir/main.cpp.o"
+}
+]

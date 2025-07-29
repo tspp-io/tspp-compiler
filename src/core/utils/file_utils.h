@@ -2,7 +2,7 @@
 
 #include <optional>
 
-#include "../core/common_types.h"
+#include "../common/common_types.h"
 
 namespace core::utils {
 
@@ -14,7 +14,7 @@ namespace core::utils {
  * such as reading, writing, checking existence, and managing directories.
  */
 class FileUtils {
-  NON_COPYABLE(FileUtils);
+ public:
   FileUtils() = delete;
   ~FileUtils() = delete;
 

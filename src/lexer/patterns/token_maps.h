@@ -132,6 +132,13 @@ class TokenMapUtils {
     // Storage modifiers should come before typeModifier check
     else if (isMemoryManagement(type)) {
       return "StorageModifier";
+    } else if (isControlFlow(type)) {
+      return "ControlFlow";
+    }
+    // Statement-level keywords (import, from, return, break, continue, etc.)
+    else if (type == tokens::TokenType::IMPORT ||
+             type == tokens::TokenType::FROM) {
+      return "Statement";
     }
     // Rest of the existing checks
     else if (isPrimitiveType(type)) {

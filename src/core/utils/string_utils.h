@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "../core/common_types.h"
+#include "../common/common_types.h"
 
 namespace core::utils {
 
@@ -15,7 +15,7 @@ namespace core::utils {
  * properties.
  */
 class StringUtils {
-  NON_COPYABLE(StringUtils);
+ public:
   StringUtils() = delete;
   ~StringUtils() = delete;
 
