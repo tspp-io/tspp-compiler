@@ -1,19 +1,22 @@
 #pragma once
+#include <functional>
+#include <iostream>
+#include <ostream>
+#include <string>
+
 #include "parser/ast.h"
 #include "parser/nodes/declaration_nodes.h"
 #include "parser/nodes/expression_nodes.h"
 #include "parser/nodes/statement_nodes.h"
 #include "parser/nodes/type_nodes.h"
 #include "tokens/token_type.h"
-#include <functional>
-#include <iostream>
-#include <ostream>
-#include <string>
 
 namespace core {
 
 class ASTPrinter {
-private:
+  NON_COPYABLE(ASTPrinter);
+
+ private:
   // ANSI color codes for terminal output
   static constexpr const char *RESET = "\033[0m";
   static constexpr const char *RED = "\033[31m";
@@ -25,7 +28,9 @@ private:
   int indentLevel_ = 0;
 
   // Helper: Print indentation spaces based on indentLevel_
-  void indent() const { std::cout << std::string(indentLevel_ * 2, ' '); }
+  void indent() const {
+    std::cout << std::string(indentLevel_ * 2, ' ');
+  }
 
   // Helper: Print a line with a label and optional color, and a newline.
   void printLine(const std::string &label, const char *color = RESET) {
@@ -90,8 +95,7 @@ private:
       if (!interfaces.empty()) {
         printLine("Interfaces:");
         withIndent([&]() {
-          for (const auto &iface : interfaces)
-            visitType(iface.get());
+          for (const auto &iface : interfaces) visitType(iface.get());
         });
       }
       const auto &members = node->getMembers();
@@ -99,7 +103,7 @@ private:
         printLine("Members:");
         withIndent([&]() {
           for (const auto &member : members)
-            print(member); // Dispatch to correct visitor method.
+            print(member);  // Dispatch to correct visitor method.
         });
       }
     });
@@ -114,8 +118,7 @@ private:
       if (!parameters.empty()) {
         printLine("Parameters:");
         withIndent([&]() {
-          for (const auto &param : parameters)
-            visitParameter(param.get());
+          for (const auto &param : parameters) visitParameter(param.get());
         });
       }
       if (node->getReturnType()) {
@@ -152,8 +155,7 @@ private:
       if (!params.empty()) {
         printLine("Parameters:");
         withIndent([&]() {
-          for (const auto &param : params)
-            visitParameter(param.get());
+          for (const auto &param : params) visitParameter(param.get());
         });
       }
       if (node->getBody()) {
@@ -167,8 +169,7 @@ private:
     printLine("FieldDecl " + getLocationString(node->getLocation()), GREEN);
     withIndent([&]() {
       printLine("Access: " + tokenTypeToString(node->getAccessModifier()));
-      if (node->isConst())
-        printLine("Const: true");
+      if (node->isConst()) printLine("Const: true");
       printLine("Name: '" + node->getName() + "'");
       if (node->getType()) {
         printLine("Type:");
@@ -231,8 +232,7 @@ private:
         printLine("Body:");
         withIndent([&]() { visitBlock(node->getBody().get()); });
       }
-      if (node->isAsync())
-        printLine("Async: true");
+      if (node->isAsync()) printLine("Async: true");
     });
   }
 
@@ -244,22 +244,21 @@ private:
       indent();
       std::cout << "Storage: ";
       switch (node->getStorageClass()) {
-      case tokens::TokenType::HEAP:
-        std::cout << "#heap";
-        break;
-      case tokens::TokenType::STACK:
-        std::cout << "#stack";
-        break;
-      case tokens::TokenType::STATIC:
-        std::cout << "#static";
-        break;
-      default:
-        std::cout << "none";
-        break;
+        case tokens::TokenType::HEAP:
+          std::cout << "#heap";
+          break;
+        case tokens::TokenType::STACK:
+          std::cout << "#stack";
+          break;
+        case tokens::TokenType::STATIC:
+          std::cout << "#static";
+          break;
+        default:
+          std::cout << "none";
+          break;
       }
       std::cout << "\n";
-      if (node->isConst())
-        printLine("Qualifier: const");
+      if (node->isConst()) printLine("Qualifier: const");
       if (node->getType()) {
         printLine("Type:");
         withIndent([&]() { visitType(node->getType().get()); });
@@ -268,8 +267,7 @@ private:
       if (!attributes.empty()) {
         printLine("Attributes:");
         withIndent([&]() {
-          for (const auto &attr : attributes)
-            visitAttribute(attr.get());
+          for (const auto &attr : attributes) visitAttribute(attr.get());
         });
       }
       if (node->getInitializer()) {
@@ -373,10 +371,8 @@ private:
         printLine("Type:");
         withIndent([&]() { visitType(node->getType().get()); });
       }
-      if (node->isRef())
-        printLine("Modifier: ref");
-      if (node->isConst())
-        printLine("Modifier: const");
+      if (node->isRef()) printLine("Modifier: ref");
+      if (node->isConst()) printLine("Modifier: const");
       if (node->getDefaultValue()) {
         printLine("Default Value:");
         withIndent([&]() { visitExpr(node->getDefaultValue().get()); });
@@ -414,8 +410,7 @@ private:
   void visitBlock(const nodes::BlockNode *node) {
     printLine("Block " + getLocationString(node->getLocation()));
     withIndent([&]() {
-      for (const auto &stmt : node->getStatements())
-        visitStmt(stmt.get());
+      for (const auto &stmt : node->getStatements()) visitStmt(stmt.get());
     });
   }
 
@@ -618,16 +613,14 @@ private:
   void visitBreakStmt(const nodes::BreakStmtNode *node) {
     indent();
     std::cout << "Break";
-    if (!node->getLabel().empty())
-      std::cout << " " << node->getLabel();
+    if (!node->getLabel().empty()) std::cout << " " << node->getLabel();
     std::cout << " " << getLocationString(node->getLocation()) << "\n";
   }
 
   void visitContinueStmt(const nodes::ContinueStmtNode *node) {
     indent();
     std::cout << "Continue";
-    if (!node->getLabel().empty())
-      std::cout << " " << node->getLabel();
+    if (!node->getLabel().empty()) std::cout << " " << node->getLabel();
     std::cout << " " << getLocationString(node->getLocation()) << "\n";
   }
 
@@ -911,8 +904,7 @@ private:
       if (!parameters.empty()) {
         printLine("Parameters:");
         withIndent([&]() {
-          for (const auto &param : parameters)
-            visitParameter(param.get());
+          for (const auto &param : parameters) visitParameter(param.get());
         });
       }
 
@@ -943,10 +935,8 @@ private:
         withIndent([&]() { visitType(node->getType().get()); });
       }
 
-      if (node->hasGetter())
-        printLine("Has Getter: true");
-      if (node->hasSetter())
-        printLine("Has Setter: true");
+      if (node->hasGetter()) printLine("Has Getter: true");
+      if (node->hasSetter()) printLine("Has Setter: true");
     });
   }
 
@@ -962,7 +952,7 @@ private:
         printLine("Declarations:");
         withIndent([&]() {
           for (const auto &decl : declarations) {
-            print(decl); // Recursively print each declaration
+            print(decl);  // Recursively print each declaration
           }
         });
       }
@@ -975,97 +965,97 @@ private:
 
   static std::string tokenTypeToString(tokens::TokenType type) {
     switch (type) {
-    case tokens::TokenType::PLUS:
-      return "+";
-    case tokens::TokenType::MINUS:
-      return "-";
-    case tokens::TokenType::STAR:
-      return "*";
-    case tokens::TokenType::SLASH:
-      return "/";
-    case tokens::TokenType::EQUALS:
-      return "=";
-    case tokens::TokenType::GREATER:
-      return ">";
-    case tokens::TokenType::LESS:
-      return "<";
-    case tokens::TokenType::GREATER_EQUALS:
-      return ">=";
-    case tokens::TokenType::LESS_EQUALS:
-      return "<=";
-    case tokens::TokenType::PLUS_EQUALS:
-      return "+=";
-    case tokens::TokenType::MINUS_EQUALS:
-      return "-=";
-    case tokens::TokenType::STAR_EQUALS:
-      return "*=";
-    case tokens::TokenType::SLASH_EQUALS:
-      return "/=";
-    case tokens::TokenType::PLUS_PLUS:
-      return "++";
-    case tokens::TokenType::MINUS_MINUS:
-      return "--";
-    case tokens::TokenType::PERCENT:
-      return "%";
-    case tokens::TokenType::OF:
-      return "of";
-    case tokens::TokenType::STACK:
-      return "#stack";
-    case tokens::TokenType::HEAP:
-      return "#heap";
-    case tokens::TokenType::STATIC:
-      return "#static";
-    case tokens::TokenType::INT:
-      return "int";
-    case tokens::TokenType::FLOAT:
-      return "float";
-    case tokens::TokenType::BOOLEAN:
-      return "bool";
-    case tokens::TokenType::STRING:
-      return "string";
-    case tokens::TokenType::VOID:
-      return "void";
-    case tokens::TokenType::PUBLIC:
-      return "public";
-    case tokens::TokenType::PRIVATE:
-      return "private";
-    case tokens::TokenType::PROTECTED:
-      return "protected";
-    case tokens::TokenType::INLINE:
-      return "#inline";
-    case tokens::TokenType::VIRTUAL:
-      return "#virtual";
-    case tokens::TokenType::UNSAFE:
-      return "#unsafe";
-    case tokens::TokenType::SIMD:
-      return "#simd";
-    case tokens::TokenType::PACKED:
-      return "#packed";
-    case tokens::TokenType::ABSTRACT:
-      return "#abstract";
-    case tokens::TokenType::ALIGNED:
-      return "#aligned";
-    default:
-      return std::to_string(static_cast<int>(type));
+      case tokens::TokenType::PLUS:
+        return "+";
+      case tokens::TokenType::MINUS:
+        return "-";
+      case tokens::TokenType::STAR:
+        return "*";
+      case tokens::TokenType::SLASH:
+        return "/";
+      case tokens::TokenType::EQUALS:
+        return "=";
+      case tokens::TokenType::GREATER:
+        return ">";
+      case tokens::TokenType::LESS:
+        return "<";
+      case tokens::TokenType::GREATER_EQUALS:
+        return ">=";
+      case tokens::TokenType::LESS_EQUALS:
+        return "<=";
+      case tokens::TokenType::PLUS_EQUALS:
+        return "+=";
+      case tokens::TokenType::MINUS_EQUALS:
+        return "-=";
+      case tokens::TokenType::STAR_EQUALS:
+        return "*=";
+      case tokens::TokenType::SLASH_EQUALS:
+        return "/=";
+      case tokens::TokenType::PLUS_PLUS:
+        return "++";
+      case tokens::TokenType::MINUS_MINUS:
+        return "--";
+      case tokens::TokenType::PERCENT:
+        return "%";
+      case tokens::TokenType::OF:
+        return "of";
+      case tokens::TokenType::STACK:
+        return "#stack";
+      case tokens::TokenType::HEAP:
+        return "#heap";
+      case tokens::TokenType::STATIC:
+        return "#static";
+      case tokens::TokenType::INT:
+        return "int";
+      case tokens::TokenType::FLOAT:
+        return "float";
+      case tokens::TokenType::BOOLEAN:
+        return "bool";
+      case tokens::TokenType::STRING:
+        return "string";
+      case tokens::TokenType::VOID:
+        return "void";
+      case tokens::TokenType::PUBLIC:
+        return "public";
+      case tokens::TokenType::PRIVATE:
+        return "private";
+      case tokens::TokenType::PROTECTED:
+        return "protected";
+      case tokens::TokenType::INLINE:
+        return "#inline";
+      case tokens::TokenType::VIRTUAL:
+        return "#virtual";
+      case tokens::TokenType::UNSAFE:
+        return "#unsafe";
+      case tokens::TokenType::SIMD:
+        return "#simd";
+      case tokens::TokenType::PACKED:
+        return "#packed";
+      case tokens::TokenType::ABSTRACT:
+        return "#abstract";
+      case tokens::TokenType::ALIGNED:
+        return "#aligned";
+      default:
+        return std::to_string(static_cast<int>(type));
     }
   }
 
   std::string modifierToString(tokens::TokenType modifier) {
     switch (modifier) {
-    case tokens::TokenType::INLINE:
-      return "#inline";
-    case tokens::TokenType::VIRTUAL:
-      return "#virtual";
-    case tokens::TokenType::UNSAFE:
-      return "#unsafe";
-    case tokens::TokenType::SIMD:
-      return "#simd";
-    default:
-      return "unknown";
+      case tokens::TokenType::INLINE:
+        return "#inline";
+      case tokens::TokenType::VIRTUAL:
+        return "#virtual";
+      case tokens::TokenType::UNSAFE:
+        return "#unsafe";
+      case tokens::TokenType::SIMD:
+        return "#simd";
+      default:
+        return "unknown";
     }
   }
 
-public:
+ public:
   void print(const parser::AST &ast) {
     std::cout << "\nAbstract Syntax Tree:\n" << std::string(80, '-') << "\n";
     const auto &nodes = ast.getNodes();
@@ -1221,4 +1211,4 @@ public:
   }
 };
 
-} // namespace core
+}  // namespace core

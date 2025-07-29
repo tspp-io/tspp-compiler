@@ -5,10 +5,11 @@
  *****************************************************************************/
 
 #pragma once
-#include "../../tokens/tokens.h"
-#include <cassert>
 #include <string>
 #include <vector>
+
+#include "../../tokens/tokens.h"
+#include "core/common/macros.h"
 
 namespace lexer {
 
@@ -23,15 +24,19 @@ namespace lexer {
  * - Error location reporting
  */
 class LexerState {
-public:
+ public:
   /**
    * @brief Constructs lexer state with source code
    * @param source Source code to tokenize
    * @param fileName Source file name for error reporting
    */
   LexerState(std::string source, std::string fileName)
-      : source_(std::move(source)), fileName_(std::move(fileName)),
-        position_(0), line_(1), column_(1), tokens_() {}
+      : source_(std::move(source)),
+        fileName_(std::move(fileName)),
+        position_(0),
+        line_(1),
+        column_(1),
+        tokens_() {}
 
   /*****************************************************************************
    * Source Inspection Methods
@@ -103,12 +108,16 @@ public:
   /**
    * @brief Check if reached end of source
    */
-  bool isAtEnd() const { return position_ > source_.length(); }
+  bool isAtEnd() const {
+    return position_ > source_.length();
+  }
 
   /**
    * @brief Check if any tokens collected
    */
-  bool hasTokens() const { return !tokens_.empty(); }
+  bool hasTokens() const {
+    return !tokens_.empty();
+  }
 
   /**
    * @brief Get last collected token
@@ -118,20 +127,32 @@ public:
   const tokens::Token &getLastToken() const;
 
   // Basic accessors
-  const std::string &getSource() const { return source_; }
-  const std::string &getFileName() const { return fileName_; }
-  size_t getPosition() const { return position_; }
-  unsigned int getLine() const { return line_; }
-  unsigned int getColumn() const { return column_; }
-  const std::vector<tokens::Token> &getTokens() const { return tokens_; }
+  const std::string &getSource() const {
+    return source_;
+  }
+  const std::string &getFileName() const {
+    return fileName_;
+  }
+  size_t getPosition() const {
+    return position_;
+  }
+  unsigned int getLine() const {
+    return line_;
+  }
+  unsigned int getColumn() const {
+    return column_;
+  }
+  const std::vector<tokens::Token> &getTokens() const {
+    return tokens_;
+  }
 
-private:
-  std::string source_;                ///< Source code being tokenized
-  std::string fileName_;              ///< Source file name for errors
-  size_t position_;                   ///< Current position in source
-  unsigned int line_;                 ///< Current line number (1-based)
-  unsigned int column_;               ///< Current column number (1-based)
-  std::vector<tokens::Token> tokens_; ///< Collected tokens
+ private:
+  std::string source_;                 ///< Source code being tokenized
+  std::string fileName_;               ///< Source file name for errors
+  size_t position_;                    ///< Current position in source
+  unsigned int line_;                  ///< Current line number (1-based)
+  unsigned int column_;                ///< Current column number (1-based)
+  std::vector<tokens::Token> tokens_;  ///< Collected tokens
 };
 
-} // namespace lexer
+}  // namespace lexer

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../core/common_types.h"
 #include <optional>
+
+#include "../core/common_types.h"
 
 namespace core::utils {
 
@@ -13,7 +14,11 @@ namespace core::utils {
  * such as reading, writing, checking existence, and managing directories.
  */
 class FileUtils {
-public:
+  NON_COPYABLE(FileUtils);
+  FileUtils() = delete;
+  ~FileUtils() = delete;
+
+ public:
   // File Reading and Writing
   /**
    * @brief Reads the entire content of a file into a string
@@ -59,4 +64,4 @@ public:
   static bool createDirectories(const String &path);
 };
 
-} // namespace core::utils
+}  // namespace core::utils

@@ -6,6 +6,8 @@
 
 #include "lexer_state.h"
 
+#include "core/common/macros.h"
+
 namespace lexer {
 
 /*****************************************************************************
@@ -108,9 +110,8 @@ void LexerState::newLine() {
 }
 
 void LexerState::addToken(tokens::Token token) {
-  // Validate token location
-  assert(token.getLocation().getLine() <= line_);
-  assert(token.getLocation().getColumn() <= column_);
+  ASSERT(token.getLocation().getLine() <= line_);
+  ASSERT(token.getLocation().getColumn() <= column_);
 
   tokens_.push_back(std::move(token));
 }
@@ -127,7 +128,7 @@ void LexerState::reset() {
  *****************************************************************************/
 
 const tokens::Token &LexerState::getLastToken() const {
-  assert(!tokens_.empty() && "Cannot get last token from empty collection");
+  ASSERT_MSG(!tokens_.empty(), "Cannot get last token from empty collection");
   return tokens_.back();
 }
 

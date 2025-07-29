@@ -23,7 +23,7 @@
 
 #include "scanner_base.h"
 
-#include <cassert>
+#include "core/common/macros.h"
 
 namespace lexer {
 
@@ -32,7 +32,7 @@ namespace lexer {
  *****************************************************************************/
 ScannerBase::ScannerBase(std::shared_ptr<LexerState> state)
     : state_(std::move(state)) {
-  assert(state_ && "Lexer state cannot be null");
+  ASSERT_MSG(state_, "Lexer state cannot be null");
 }
 
 /*****************************************************************************

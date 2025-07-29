@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../core/common_types.h"
 #include <vector>
+
+#include "../core/common_types.h"
 
 namespace core::utils {
 
@@ -14,7 +15,11 @@ namespace core::utils {
  * properties.
  */
 class StringUtils {
-public:
+  NON_COPYABLE(StringUtils);
+  StringUtils() = delete;
+  ~StringUtils() = delete;
+
+ public:
   // String Parsing and Transformation
   /**
    * @brief Splits a string into tokens using a specified delimiter
@@ -72,4 +77,4 @@ public:
   static bool endsWith(const String &str, const String &suffix);
 };
 
-} // namespace core::utils
+}  // namespace core::utils
