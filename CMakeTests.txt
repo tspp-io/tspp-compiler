@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.10)
+project(tspp_tests)
+set(CMAKE_CXX_STANDARD 17)
+
+add_executable(tspp_lexer_test
+    src/lexer/lexer_test.cpp
+    src/lexer/lexer.cpp
+    src/lexer/LexerTest.h
+    src/lexer/Lexer.h
+    src/tokens/Token.h
+    src/tokens/TokenType.h
+    src/tokens/TokenFactory.h
+    src/tokens/TokenUtils.h
+    src/common/Location.h
+    src/common/Error.h
+    src/common/DebugLog.h
+)
+
+include_directories(
+    src/lexer
+    src/tokens
+    src/common
+)
