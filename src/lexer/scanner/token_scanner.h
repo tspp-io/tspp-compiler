@@ -1,26 +1,39 @@
+/*****************************************************************************
+ * File: token_scanner.h
+ * Description: Main scanner that coordinates specialized scanners for TSPP
+ *lexical analysis
+ *****************************************************************************/
 #pragma once
-#include <string>
-#include <vector>
-
-#include "../../tokens/Token.h"
-#include "../state/lexer_state.h"
 #include "specialized/identifier_scanner.h"
 #include "specialized/number_scanner.h"
 #include "specialized/operator_scanner.h"
 #include "specialized/string_scanner.h"
-namespace lexer {
-namespace scanner {
-class TokenScanner {
- public:
-  TokenScanner();
-  std::vector<tokens::Token> scanAll(const std::string& src);
+#include <memory>
 
- private:
-  IdentifierScanner idScanner_;
-  NumberScanner numScanner_;
-  OperatorScanner opScanner_;
-  StringScanner strScanner_;
-  // ... add more as needed
+namespace lexer {
+
+class TokenScanner {
+public:
+  explicit TokenScanner(std::shared_ptr<LexerState> state);
+
+  /**
+   * @brief Scan next token from input
+   * @return Next token in the input stream
+   */
+  tokens::Token scanToken();
+
+private:
+  std::shared_ptr<LexerState> state_;
+  IdentifierScanner identifierScanner_;
+  NumberScanner numberScanner_;
+  OperatorScanner operatorScanner_;
+  StringScanner stringScanner_;
+
+  void skipWhitespace();
+  bool checkComment();
+  void skipLineComment();
+  void skipBlockComment();
+  tokens::Token makeEndToken();
 };
-}  // namespace scanner
-}  // namespace lexer
+
+} // namespace lexer

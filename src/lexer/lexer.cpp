@@ -1,56 +1,42 @@
+/*****************************************************************************
+ * File: lexer.cpp
+ * Description: Implementation of main lexer for TSPP language
+ *****************************************************************************/
+
 #include "lexer.h"
-#include <cctype>
 
-Lexer::Lexer(const std::string& src) : source(src), pos(0) {}
+namespace lexer {
 
-std::vector<Token> Lexer::tokenize() {
-    std::vector<Token> tokens;
-    while (pos < source.size()) {
-        skipWhitespace();
-        if (pos >= source.size()) break;
-        char c = peek();
-        if (std::isalpha(c) || c == '_') {
-            tokens.push_back(identifier());
-        } else if (std::isdigit(c)) {
-            tokens.push_back(number());
-        } else {
-            // Note: In TSPP++, semicolons (;) are optional at statement boundaries.
-            // The lexer will tokenize ';' as a symbol, but the parser will handle its optionality.
-            tokens.push_back(symbol());
-        }
+Lexer::Lexer(std::string source, std::string filename)
+    : state_(
+          std::make_shared<LexerState>(std::move(source), std::move(filename))),
+      scanner_(state_) {}
+
+std::vector<tokens::Token> Lexer::tokenize() {
+  while (!state_->isAtEnd()) {
+    tokens::Token token = scanner_.scanToken();
+
+    if (token.isError()) {
+      addError(token);
+      continue;
     }
-    tokens.push_back({TokenType::EndOfFile, ""});
-    return tokens;
+
+    state_->addToken(token);
+
+    if (token.getType() == tokens::TokenType::END_OF_FILE) {
+      break;
+    }
+  }
+
+  return state_->getTokens();
 }
 
-char Lexer::peek() const {
-    return pos < source.size() ? source[pos] : '\0';
+void Lexer::addError(const tokens::Token &token) {
+  std::string error =
+      "Lexical error at line " + std::to_string(token.getLocation().getLine()) +
+      ", column " + std::to_string(token.getLocation().getColumn()) + ": " +
+      token.getErrorMessage().value_or("Unknown error");
+  errors_.push_back(error);
 }
 
-char Lexer::get() {
-    return pos < source.size() ? source[pos++] : '\0';
-}
-
-void Lexer::skipWhitespace() {
-    while (pos < source.size() && std::isspace(source[pos])) ++pos;
-}
-
-Token Lexer::identifier() {
-    size_t start = pos;
-    while (pos < source.size() && (std::isalnum(source[pos]) || source[pos] == '_')) ++pos;
-    std::string value = source.substr(start, pos - start);
-    // TODO: Check for keywords
-    return {TokenType::Identifier, value};
-}
-
-Token Lexer::number() {
-    size_t start = pos;
-    while (pos < source.size() && std::isdigit(source[pos])) ++pos;
-    std::string value = source.substr(start, pos - start);
-    return {TokenType::Literal, value};
-}
-
-Token Lexer::symbol() {
-    char c = get();
-    return {TokenType::Symbol, std::string(1, c)};
-}
+} // namespace lexer
