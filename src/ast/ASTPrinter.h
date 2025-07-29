@@ -12,17 +12,17 @@ class ASTPrinter : public ASTVisitor {
   void visit(BinaryExpr& node) override {
     std::cout << "(";
     node.left->accept(*this);
-    std::cout << " " << node.op.lexeme << " ";
+    std::cout << " " << node.op.getLexeme() << " ";
     node.right->accept(*this);
     std::cout << ")";
   }
 
   void visit(LiteralExpr& node) override {
-    std::cout << node.value.lexeme;
+    std::cout << node.value.getLexeme();
   }
 
   void visit(IdentifierExpr& node) override {
-    std::cout << node.name.lexeme;
+    std::cout << node.name.getLexeme();
   }
 
   void visit(CallExpr& node) override {
@@ -36,7 +36,7 @@ class ASTPrinter : public ASTVisitor {
   }
 
   void visit(VarDecl& node) override {
-    std::cout << "var " << node.name.lexeme;
+    std::cout << "var " << node.name.getLexeme();
     if (node.initializer) {
       std::cout << " = ";
       node.initializer->accept(*this);

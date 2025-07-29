@@ -5,8 +5,7 @@
 #include "declaration_nodes.h"
 #include "expression_nodes.h"
 #include "statement_nodes.h"
-#include "tokens/Token.h"
-#include "tokens/token_type.h"
+#include "tokens/tokens.h"
 #include "type_nodes.h"
 
 namespace ast {

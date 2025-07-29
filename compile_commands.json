@@ -79,6 +79,42 @@
 },
 {
   "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/parser.cpp.o -c /home/hiren/tspp/src/parser/parser.cpp",
+  "file": "/home/hiren/tspp/src/parser/parser.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/parser.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builder_visitor.cpp.o -c /home/hiren/tspp/src/parser/visitors/ast_builder/ast_builder_visitor.cpp",
+  "file": "/home/hiren/tspp/src/parser/visitors/ast_builder/ast_builder_visitor.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builder_visitor.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp.o -c /home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp",
+  "file": "/home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp.o -c /home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp",
+  "file": "/home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp.o -c /home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp",
+  "file": "/home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp.o -c /home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp",
+  "file": "/home/hiren/tspp/src/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
   "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/tspp.dir/main.cpp.o -c /home/hiren/tspp/src/main.cpp",
   "file": "/home/hiren/tspp/src/main.cpp",
   "output": "src/CMakeFiles/tspp.dir/main.cpp.o"

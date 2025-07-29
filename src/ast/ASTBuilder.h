@@ -4,8 +4,7 @@
 #include "core/common/common_types.h"
 #include "core/common/macros.h"
 #include "parser/nodes/base_node.h"
-#include "tokens/Token.h"
-#include "tokens/token_type.h"
+#include "tokens/tokens.h"
 
 namespace ast {
 

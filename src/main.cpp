@@ -2,10 +2,10 @@
 #include <iostream>
 #include <string>
 
+#include "ast/ASTPrinter.h"
 #include "core/utils/log_utils.h"
 #include "lexer/lexer.h"
-// #include "parser/parser.h"
-// #include "interpreter/interpreter.h"
+#include "parser/parser.h"
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
@@ -19,12 +19,26 @@ int main(int argc, char* argv[]) {
   }
   std::string source((std::istreambuf_iterator<char>(file)),
                      std::istreambuf_iterator<char>());
+
+  // Tokenize
   lexer::Lexer lexer(source);
   auto tokens = lexer.tokenize();
-  // TODO: Parse tokens and interpret
   std::cout << "Tokenized " << tokens.size() << " tokens." << std::endl;
-  for (const auto& token : tokens) {
-    printToken(token);
+
+  // Parse into AST
+  auto ast = parser::buildAST(tokens);
+  if (ast) {
+    std::cout << "Successfully built AST!" << std::endl;
+
+    // Print AST
+    ast::ASTPrinter printer;
+    std::cout << "AST Structure:" << std::endl;
+    ast->accept(printer);
+    std::cout << std::endl;
+  } else {
+    std::cout << "Failed to build AST." << std::endl;
+    return 1;
   }
+
   return 0;
 }

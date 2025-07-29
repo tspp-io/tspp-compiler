@@ -2,7 +2,7 @@
 #include "base_node.h"
 #include "core/common/macros.h"
 #include "statement_nodes.h"
-#include "tokens/Token.h"
+#include "tokens/tokens.h"
 #include "type_nodes.h"
 
 namespace ast {

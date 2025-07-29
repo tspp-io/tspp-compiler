@@ -4,8 +4,7 @@
 #include "ast_visitor.h"
 #include "base_node.h"
 #include "core/common/macros.h"
-#include "tokens/Token.h"
-#include "tokens/token_type.h"
+#include "tokens/tokens.h"
 
 namespace ast {
 
