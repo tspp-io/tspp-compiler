@@ -2,7 +2,7 @@
 #include <any>
 #include <string>
 
-#include "../common/Location.h"
+#include "../core/Location.h"
 #include "TokenType.h"
 /**
  * Token - Represents a lexical token in TSPP++.

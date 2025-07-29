@@ -35,8 +35,8 @@
  * Deletes copy constructor and copy assignment operator
  * @param TypeName Name of the class
  */
-#define NON_COPYABLE(TypeName)                                                 \
-  TypeName(const TypeName &) = delete;                                         \
+#define NON_COPYABLE(TypeName)         \
+  TypeName(const TypeName &) = delete; \
   TypeName &operator=(const TypeName &) = delete
 
 /**
@@ -44,8 +44,8 @@
  * Combines NON_COPYABLE with virtual destructor declaration
  * @param TypeName Name of the class
  */
-#define NON_COPYABLE_VIRTUAL(TypeName)                                         \
-  NON_COPYABLE(TypeName);                                                      \
+#define NON_COPYABLE_VIRTUAL(TypeName) \
+  NON_COPYABLE(TypeName);              \
   virtual ~TypeName() = default
 
 /**
@@ -53,23 +53,24 @@
  * Deletes copy operations and provides static instance() method
  * @param TypeName Name of the class
  */
-#define SINGLETON(TypeName)                                                    \
-  NON_COPYABLE(TypeName);                                                      \
-                                                                               \
-public:                                                                        \
-  static TypeName &instance() {                                                \
-    static TypeName instance;                                                  \
-    return instance;                                                           \
-  }                                                                            \
-                                                                               \
-private:                                                                       \
+#define SINGLETON(TypeName)     \
+  NON_COPYABLE(TypeName);       \
+                                \
+ public:                        \
+  static TypeName &instance() { \
+    static TypeName instance;   \
+    return instance;            \
+  }                             \
+                                \
+ private:                       \
   TypeName() = default
 
 /**
  * String literal conversion macros
  */
-#define STRINGIFY(x) #x          ///< Converts argument to string literal
-#define TOSTRING(x) STRINGIFY(x) ///< Converts macro expansion to string literal
+#define STRINGIFY(x) #x  ///< Converts argument to string literal
+#define TOSTRING(x) \
+  STRINGIFY(x)  ///< Converts macro expansion to string literal
 
 /**
  * Compiler-specific optimizations

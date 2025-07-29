@@ -1,5 +1,5 @@
 #pragma once
-#include "core/common/common_types.h"
+#include "core/core/common_types.h"
 #include "token_type.h"
 #include <optional>
 #include <string>

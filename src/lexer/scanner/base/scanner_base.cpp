@@ -22,6 +22,7 @@
  *****************************************************************************/
 
 #include "scanner_base.h"
+
 #include <cassert>
 
 namespace lexer {
@@ -45,7 +46,9 @@ bool ScannerBase::match(char expected) {
   return true;
 }
 
-char ScannerBase::peek() const { return state_->getCurrentChar(); }
+char ScannerBase::peek() const {
+  return state_->getCurrentChar();
+}
 
 char ScannerBase::peekNext(int n) const {
   if (n < 0) {
@@ -54,7 +57,9 @@ char ScannerBase::peekNext(int n) const {
   return state_->peekNext(n);
 }
 
-bool ScannerBase::isAtEnd() const { return state_->isAtEnd(); }
+bool ScannerBase::isAtEnd() const {
+  return state_->isAtEnd();
+}
 
 void ScannerBase::advance() {
   if (!isAtEnd()) {
@@ -80,14 +85,14 @@ tokens::Token ScannerBase::makeToken(tokens::TokenType type, size_t start,
   std::string_view lexeme = source.substr(start, length);
 
   core::SourceLocation location(state_->getLine(), state_->getColumn(),
-                                 state_->getFileName());
+                                state_->getFileName());
 
   return tokens::Token(type, std::string(lexeme), location);
 }
 
 tokens::Token ScannerBase::makeErrorToken(const std::string &message) {
   core::SourceLocation location(state_->getLine(), state_->getColumn(),
-                                 state_->getFileName());
+                                state_->getFileName());
 
   auto lexeme = state_->getCurrentLexeme();
   std::string errorLexeme =
@@ -96,4 +101,4 @@ tokens::Token ScannerBase::makeErrorToken(const std::string &message) {
   return tokens::Token::createError(errorLexeme, location, message);
 }
 
-} // namespace lexer
+}  // namespace lexer

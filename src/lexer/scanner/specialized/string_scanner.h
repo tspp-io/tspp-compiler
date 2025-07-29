@@ -18,7 +18,7 @@ namespace lexer {
  * @brief Scanner for string and character literals
  */
 class StringScanner : public ScannerBase {
-public:
+ public:
   /**
    * @brief Construct string scanner with lexer state
    * @param state Shared lexer state for scanning
@@ -37,7 +37,7 @@ public:
    */
   tokens::Token scanCharacter();
 
-private:
+ private:
   /**
    * @brief Process escape sequence in string/char literal
    * @return Valid escape sequence or empty string if invalid
@@ -59,4 +59,4 @@ private:
   bool validateEscapeSequence(const std::string &sequence) const;
 };
 
-} // namespace lexer
+}  // namespace lexer

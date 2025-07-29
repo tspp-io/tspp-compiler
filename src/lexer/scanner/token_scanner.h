@@ -4,16 +4,17 @@
  *lexical analysis
  *****************************************************************************/
 #pragma once
+#include <memory>
+
 #include "specialized/identifier_scanner.h"
 #include "specialized/number_scanner.h"
 #include "specialized/operator_scanner.h"
 #include "specialized/string_scanner.h"
-#include <memory>
 
 namespace lexer {
 
 class TokenScanner {
-public:
+ public:
   explicit TokenScanner(std::shared_ptr<LexerState> state);
 
   /**
@@ -22,7 +23,7 @@ public:
    */
   tokens::Token scanToken();
 
-private:
+ private:
   std::shared_ptr<LexerState> state_;
   IdentifierScanner identifierScanner_;
   NumberScanner numberScanner_;
@@ -36,4 +37,4 @@ private:
   tokens::Token makeEndToken();
 };
 
-} // namespace lexer
+}  // namespace lexer

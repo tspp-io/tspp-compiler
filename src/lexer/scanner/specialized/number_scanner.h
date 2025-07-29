@@ -12,7 +12,7 @@
 namespace lexer {
 
 class NumberScanner : public ScannerBase {
-public:
+ public:
   explicit NumberScanner(std::shared_ptr<LexerState> state);
 
   /**
@@ -21,13 +21,13 @@ public:
    */
   tokens::Token scan();
 
-private:
+ private:
   bool validateNumber(std::string_view lexeme);
-  bool scanDigits();       // Scans sequence of digits
-  bool scanHexDigits();    // Scans sequence of hex digits
-  bool scanBinaryDigits(); // Scans sequence of binary digits
-  bool scanExponent();     // Scans exponent part of floating point
-  bool scanFraction();     // Scans fractional part of floating point
+  bool scanDigits();        // Scans sequence of digits
+  bool scanHexDigits();     // Scans sequence of hex digits
+  bool scanBinaryDigits();  // Scans sequence of binary digits
+  bool scanExponent();      // Scans exponent part of floating point
+  bool scanFraction();      // Scans fractional part of floating point
 };
 
-} // namespace lexer
+}  // namespace lexer

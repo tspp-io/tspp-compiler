@@ -3,6 +3,7 @@
  * Description: Implementation of main token scanner for TSPP lexical analysis
  *****************************************************************************/
 #include "token_scanner.h"
+
 #include "core/common/common_types.h"
 
 namespace lexer {
@@ -11,8 +12,11 @@ namespace lexer {
  * Constructor Implementation
  *****************************************************************************/
 TokenScanner::TokenScanner(std::shared_ptr<LexerState> state)
-    : state_(state), identifierScanner_(state), numberScanner_(state),
-      operatorScanner_(state), stringScanner_(state) {}
+    : state_(state),
+      identifierScanner_(state),
+      numberScanner_(state),
+      operatorScanner_(state),
+      stringScanner_(state) {}
 
 /*****************************************************************************
  * Public Methods Implementation
@@ -98,13 +102,13 @@ void TokenScanner::skipLineComment() {
 }
 
 void TokenScanner::skipBlockComment() {
-  state_->advance(); // Skip /
-  state_->advance(); // Skip *
+  state_->advance();  // Skip /
+  state_->advance();  // Skip *
 
   while (!state_->isAtEnd()) {
     if (state_->getCurrentChar() == '*' && state_->peekNext(1) == '/') {
-      state_->advance(); // Skip *
-      state_->advance(); // Skip /
+      state_->advance();  // Skip *
+      state_->advance();  // Skip /
       return;
     }
 
@@ -118,8 +122,8 @@ void TokenScanner::skipBlockComment() {
 
 tokens::Token TokenScanner::makeEndToken() {
   core::SourceLocation location(state_->getLine(), state_->getColumn(),
-                                 state_->getFileName());
+                                state_->getFileName());
   return tokens::Token(tokens::TokenType::END_OF_FILE, "", location);
 }
 
-} // namespace lexer
+}  // namespace lexer

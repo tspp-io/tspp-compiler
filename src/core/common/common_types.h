@@ -28,7 +28,7 @@ using String = std::string;
  * Source Location & Error Display
  *****************************************************************************/
 class SourceLocation {
-public:
+ public:
   // Constants for error highlighting
   static constexpr const char *RED = "\033[1;31m";
   static constexpr const char *RESET = "\033[0m";
@@ -41,12 +41,20 @@ public:
   }
 
   // TokenLocation compatible interface
-  unsigned int getLine() const { return line_; }
-  unsigned int getColumn() const { return column_; }
-  const std::string &getFilename() const { return filename_; }
+  unsigned int getLine() const {
+    return line_;
+  }
+  unsigned int getColumn() const {
+    return column_;
+  }
+  const std::string &getFilename() const {
+    return filename_;
+  }
 
   // Extended functionality
-  const std::string &getLineContent() const { return line_content_; }
+  const std::string &getLineContent() const {
+    return line_content_;
+  }
 
   // Comparison operator
   bool operator==(const SourceLocation &other) const {
@@ -71,13 +79,15 @@ public:
   }
 
   // Reload line content (useful if file changes)
-  void reloadContent() { loadLineContent(); }
+  void reloadContent() {
+    loadLineContent();
+  }
 
-private:
-  unsigned int line_;        // Line number (1-based)
-  unsigned int column_;      // Column number (1-based)
-  std::string filename_;     // Source file name
-  std::string line_content_; // Content of the error line
+ private:
+  unsigned int line_;         // Line number (1-based)
+  unsigned int column_;       // Column number (1-based)
+  std::string filename_;      // Source file name
+  std::string line_content_;  // Content of the error line
 
   // Load the source line for error display
   void loadLineContent() {
@@ -127,30 +137,41 @@ struct Error {
   Error(String msg, SourceLocation loc)
       : message(std::move(msg)), location(std::move(loc)) {}
 
-  String toString() const { return location.toString() + ": " + message; }
+  String toString() const {
+    return location.toString() + ": " + message;
+  }
 };
 
 /*****************************************************************************
  * Result Type
  *****************************************************************************/
-template <typename T> class Result {
-private:
+template <typename T>
+class Result {
+ private:
   T value_;
   Error error_;
   Bool has_error_;
 
-public:
+ public:
   // Constructors for success and failure cases
   Result(T value) : value_(std::move(value)), has_error_(false) {}
   Result(Error error) : error_(std::move(error)), has_error_(true) {}
 
   // Status checks
-  Bool hasError() const { return has_error_; }
-  const T &getValue() const { return value_; }
-  const Error &getError() const { return error_; }
+  Bool hasError() const {
+    return has_error_;
+  }
+  const T &getValue() const {
+    return value_;
+  }
+  const Error &getError() const {
+    return error_;
+  }
 
   // Implicit bool conversion for quick error checks
-  operator bool() const { return !has_error_; }
+  operator bool() const {
+    return !has_error_;
+  }
 };
 
-} // namespace core
+}  // namespace core

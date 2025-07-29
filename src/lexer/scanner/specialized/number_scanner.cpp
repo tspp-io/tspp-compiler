@@ -7,9 +7,11 @@
  *****************************************************************************/
 
 #include "number_scanner.h"
-#include "lexer/patterns/lexer_patterns.h"
+
 #include <cctype>
 #include <iostream>
+
+#include "lexer/patterns/lexer_patterns.h"
 
 namespace lexer {
 
@@ -27,10 +29,10 @@ tokens::Token NumberScanner::scan() {
 
   // Check for hex or binary prefix
   if (peek() == '0') {
-    advance(); // consume '0'
+    advance();  // consume '0'
 
     if (peek() == 'x' || peek() == 'X') {
-      advance(); // consume 'x'
+      advance();  // consume 'x'
       if (!scanHexDigits()) {
         return makeErrorToken("Invalid hexadecimal number");
       }
@@ -39,7 +41,7 @@ tokens::Token NumberScanner::scan() {
     }
 
     if (peek() == 'b' || peek() == 'B') {
-      advance(); // consume 'b'
+      advance();  // consume 'b'
       if (!scanBinaryDigits()) {
         return makeErrorToken("Invalid binary number");
       }
@@ -62,7 +64,7 @@ tokens::Token NumberScanner::scan() {
 
   // Look for fractional part
   if (peek() == '.') {
-    advance(); // consume '.'
+    advance();  // consume '.'
     if (!scanDigits()) {
       return makeErrorToken("Invalid fractional part");
     }
@@ -70,11 +72,11 @@ tokens::Token NumberScanner::scan() {
 
   // Look for exponent part
   if (peek() == 'e' || peek() == 'E') {
-    advance(); // consume 'e'
+    advance();  // consume 'e'
 
     // Handle optional sign
     if (peek() == '+' || peek() == '-') {
-      advance(); // consume sign
+      advance();  // consume sign
     }
 
     if (!scanDigits()) {
@@ -128,7 +130,7 @@ bool NumberScanner::scanBinaryDigits() {
 }
 
 bool NumberScanner::scanExponent() {
-  advance(); // Skip 'e' or 'E'
+  advance();  // Skip 'e' or 'E'
 
   // Handle optional sign
   if (peek() == '+' || peek() == '-') {
@@ -138,6 +140,8 @@ bool NumberScanner::scanExponent() {
   return scanDigits();
 }
 
-bool NumberScanner::scanFraction() { return scanDigits(); }
+bool NumberScanner::scanFraction() {
+  return scanDigits();
+}
 
-} // namespace lexer
+}  // namespace lexer

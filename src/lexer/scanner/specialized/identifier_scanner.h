@@ -13,17 +13,18 @@
  *****************************************************************************/
 
 #pragma once
-#include "lexer/scanner/base/scanner_base.h"
-#include "tokens/token_type.h"
-#include "tokens/tokens.h"
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
+#include "lexer/scanner/base/scanner_base.h"
+#include "tokens/token_type.h"
+#include "tokens/tokens.h"
+
 namespace lexer {
 
 class IdentifierScanner : public ScannerBase {
-public:
+ public:
   explicit IdentifierScanner(std::shared_ptr<LexerState> state);
 
   /**
@@ -38,11 +39,11 @@ public:
    */
   tokens::Token scanAttribute();
 
-private:
-  static const std::unordered_map<std::string, tokens::TokenType> &
+ private:
+  static const std::unordered_map<std::string, tokens::TokenType>&
   getKeywordMap();
   bool validateIdentifier(std::string_view lexeme);
   tokens::TokenType identifierType(std::string_view lexeme);
 };
 
-} // namespace lexer
+}  // namespace lexer

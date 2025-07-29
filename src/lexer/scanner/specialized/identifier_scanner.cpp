@@ -7,9 +7,11 @@
  *****************************************************************************/
 
 #include "identifier_scanner.h"
+
+#include <algorithm>
+
 #include "tokens/token_type.h"
 #include "tokens/tokens.h"
-#include <algorithm>
 
 namespace lexer {
 
@@ -77,7 +79,7 @@ const std::unordered_map<std::string, tokens::TokenType> &getKeywordMapImpl() {
       {"cast", tokens::TokenType::CAST}};
   return keywords;
 }
-} // namespace
+}  // namespace
 
 /*****************************************************************************
  * Construction
@@ -113,7 +115,7 @@ tokens::Token IdentifierScanner::scan() {
     if (id == "unsafe" || id == "aligned") {
       if (id == "unsafe") {
         return makeToken(tokens::TokenType::UNSAFE, start, length);
-      } else { // aligned
+      } else {  // aligned
         // Return just the 'aligned' token
         auto token = makeToken(tokens::TokenType::ALIGNED, start, length);
         return token;
@@ -128,9 +130,9 @@ tokens::Token IdentifierScanner::scan() {
 
 tokens::Token IdentifierScanner::scanAttribute() {
   size_t start = state_->getPosition();
-  advance(); // Skip #
+  advance();  // Skip #
 
-  size_t nameStart = state_->getPosition(); // Start after #
+  size_t nameStart = state_->getPosition();  // Start after #
 
   // Scan attribute name
   while (!isAtEnd() && (std::isalpha(peek()) || peek() == '_')) {
@@ -187,12 +189,12 @@ tokens::Token IdentifierScanner::scanAttribute() {
 
   // Handle aligned attribute parameters if present
   if (peek() == '(') {
-    advance(); // Skip (
+    advance();  // Skip (
     while (!isAtEnd() && peek() != ')') {
-      advance(); // Skip parameter
+      advance();  // Skip parameter
     }
     if (peek() == ')') {
-      advance(); // Skip )
+      advance();  // Skip )
     }
   }
 
@@ -230,4 +232,4 @@ tokens::TokenType IdentifierScanner::identifierType(std::string_view lexeme) {
   return it != keywords.end() ? it->second : tokens::TokenType::IDENTIFIER;
 }
 
-} // namespace lexer
+}  // namespace lexer

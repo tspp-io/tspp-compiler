@@ -21,10 +21,11 @@
  *   token types (identifiers, numbers, operators, etc.)
  *****************************************************************************/
 #pragma once
-#include "lexer/state/lexer_state.h"
-#include "tokens/tokens.h"
 #include <cstddef>
 #include <memory>
+
+#include "lexer/state/lexer_state.h"
+#include "tokens/tokens.h"
 
 namespace lexer {
 
@@ -39,7 +40,7 @@ namespace lexer {
  * - State management
  */
 class ScannerBase {
-protected:
+ protected:
   std::shared_ptr<LexerState> state_;
   ScannerBase(std::shared_ptr<LexerState> state);
 
@@ -54,8 +55,8 @@ protected:
   tokens::Token makeToken(tokens::TokenType type, size_t start, size_t length);
   tokens::Token makeErrorToken(const std::string &message);
 
-public:
+ public:
   virtual ~ScannerBase() = default;
 };
 
-} // namespace lexer
+}  // namespace lexer

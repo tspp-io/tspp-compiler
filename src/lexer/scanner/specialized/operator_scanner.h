@@ -17,7 +17,7 @@ namespace lexer {
  * @brief Scanner for operator tokens in TSPP language
  */
 class OperatorScanner : public ScannerBase {
-public:
+ public:
   /**
    * @brief Construct operator scanner with lexer state
    * @param state Shared lexer state for scanning
@@ -30,7 +30,7 @@ public:
    */
   tokens::Token scan();
 
-private:
+ private:
   /**
    * @brief Map operator lexeme to corresponding token type
    * @param lexeme Operator lexeme to map
@@ -52,4 +52,4 @@ private:
   bool scanCompoundOperator();
 };
 
-} // namespace lexer
+}  // namespace lexer
