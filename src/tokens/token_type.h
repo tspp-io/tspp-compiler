@@ -80,40 +80,57 @@ enum class TokenType {
   TYPE_END = STRING,
 
   /*****************************************************************************
-   * Storage and Memory Modifiers
+   * Storage and Memory Qualifiers (used with variables)
    *****************************************************************************/
   STORAGE_BEGIN,
-  STACK = STORAGE_BEGIN,  // '#stack' storage modifier
-  HEAP,                   // '#heap' storage modifier
-  STATIC,                 // '#static' storage modifier
-  SHARED,                 // '#shared' smart pointer type
-  UNIQUE,                 // '#unique' smart pointer type
-  WEAK,                   // '#weak' smart pointer type
-  ATTRIBUTE,              // '#'
-  STORAGE_END = ATTRIBUTE,
+  STACK = STORAGE_BEGIN,  // '#stack' storage qualifier
+  HEAP,                   // '#heap' storage qualifier
+  STATIC,                 // '#static' storage qualifier
+  STORAGE_END = STATIC,
 
   /*****************************************************************************
-   * Function and Method Modifiers
+   * Smart Pointer Modifiers (used in type annotations)
+   *****************************************************************************/
+  SMARTPTR_BEGIN,
+  SHARED = SMARTPTR_BEGIN,  // '#shared' smart pointer type
+  UNIQUE,                   // '#unique' smart pointer type
+  WEAK,                     // '#weak' smart pointer type
+  SMARTPTR_END = WEAK,
+
+  /*****************************************************************************
+   * Pointer Type Modifiers (used with pointer types)
+   *****************************************************************************/
+  PTRMOD_BEGIN,
+  UNSAFE = PTRMOD_BEGIN,  // '@unsafe' pointer type modifier
+  ALIGNED,                // '@aligned' pointer type modifier
+  PTRMOD_END = ALIGNED,
+
+  /*****************************************************************************
+   * Function and Method Modifiers (used with functions/classes)
    *****************************************************************************/
   FUNC_MOD_BEGIN,
-  INLINE = FUNC_MOD_BEGIN,  // '#inline' function modifier
-  VIRTUAL,                  // '#virtual' function modifier - moved here
-  UNSAFE,                   // '#unsafe' function modifier
-  SIMD,                     // '#simd' function modifier
-  TARGET,                   // '#target' platform specific code
-  REF,                      // 'ref' parameter modifier
-  FUNC_MOD_END = REF,
+  CONST_FUNCTION = FUNC_MOD_BEGIN,  // '#const' function modifier
+  CONSTEXPR,                        // '#constexpr' function modifier
+  ZEROCAST,                         // '#zerocast' function modifier
+  SIMD,                             // '#simd' function modifier
+  PREFETCH,                         // '#prefetch' function modifier
+  ATOMIC,                           // '#atomic' function modifier
+  PINNED,                           // '#pinned' function modifier
+  FUNC_MOD_END = PINNED,
+
+  /*****************************************************************************
+   * Attribute/Meta Tokens
+   *****************************************************************************/
+  ATTRIBUTE,  // '#' (generic attribute marker)
 
   /*****************************************************************************
    * Class Modifiers
    *****************************************************************************/
   CLASS_MOD_BEGIN,
-  ALIGNED = CLASS_MOD_BEGIN,  // '#aligned' memory alignment
-  PACKED,                     // '#packed' memory layout
-  ABSTRACT,                   // '#abstract' class modifier
-  ZEROCAST,                   // '#zerocast' interface modifier
-  EXTENDS,                    // 'extends' inheritance
-  IMPLEMENTS,                 // 'implements' interface implementation
+  PACKED = CLASS_MOD_BEGIN,  // '#packed' memory layout
+  ABSTRACT,                  // '#abstract' class modifier
+  EXTENDS,                   // 'extends' inheritance
+  IMPLEMENTS,                // 'implements' interface implementation
   CLASS_MOD_END = IMPLEMENTS,
 
   /*****************************************************************************

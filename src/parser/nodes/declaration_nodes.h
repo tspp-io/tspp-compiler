@@ -18,6 +18,7 @@ enum class FunctionModifier {
   Atomic,
   Pinned
 };
+enum class ClassModifier { None, Packed, Abstract, Pinned };
 
 #define AST_ACCEPT_IMPL(NodeType)             \
   void accept(ASTVisitor& visitor) override { \
@@ -29,6 +30,7 @@ class VarDecl : public Decl {
   StorageQualifier qualifier;
   Shared(TypeNode) type;
   tokens::Token name;
+  bool isConst = false;  // true if 'const' keyword is used
   Shared(Expr) initializer;
   AST_ACCEPT_IMPL(VarDecl);
 };
@@ -71,13 +73,6 @@ class TypeAliasDecl : public Decl {
   tokens::Token name;
   Shared(TypeNode) aliasedType;
   AST_ACCEPT_IMPL(TypeAliasDecl);
-};
-
-class ImportDecl : public Decl {
- public:
-  tokens::Token name;
-  tokens::Token fromPath;  // optional
-  AST_ACCEPT_IMPL(ImportDecl);
 };
 
 #undef AST_ACCEPT_IMPL

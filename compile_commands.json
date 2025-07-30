@@ -7,6 +7,12 @@
 },
 {
   "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/tokens.dir/tokens/token.cpp.o -c /home/hiren/tspp/src/tokens/token.cpp",
+  "file": "/home/hiren/tspp/src/tokens/token.cpp",
+  "output": "src/CMakeFiles/tokens.dir/tokens/token.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
   "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/diagnostics/error_reporter.cpp.o -c /home/hiren/tspp/src/core/diagnostics/error_reporter.cpp",
   "file": "/home/hiren/tspp/src/core/diagnostics/error_reporter.cpp",
   "output": "src/CMakeFiles/core.dir/core/diagnostics/error_reporter.cpp.o"

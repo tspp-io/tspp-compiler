@@ -13,6 +13,11 @@ namespace tokens {
 class Token {
  public:
   /**
+   * Default constructor
+   */
+  Token() : type_(TokenType::END_OF_FILE) {}
+
+  /**
    * Regular token constructor
    */
   Token(TokenType type, std::string lexeme, core::Location location)
@@ -81,6 +86,11 @@ class Token {
   bool isSpecial() const {
     return tokens::isSpecial(type_);
   }
+
+  /**
+   * @brief Returns a string representation of the token for debugging.
+   */
+  std::string toString() const;
 
  private:
   TokenType type_;                           // Type of token

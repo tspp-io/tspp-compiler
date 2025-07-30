@@ -41,6 +41,13 @@ class ParameterListNode : public BaseNode {
   AST_ACCEPT_IMPL(ParameterListNode);
 };
 
+class ImportDecl : public BaseNode {
+ public:
+  tokens::Token name;
+  std::string fromPath;  // optional
+  AST_ACCEPT_IMPL(ImportDecl);
+};
+
 #undef AST_ACCEPT_IMPL
 
 }  // namespace ast

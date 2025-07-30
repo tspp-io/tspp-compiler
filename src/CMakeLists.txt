@@ -7,6 +7,7 @@ add_library(core
 
 add_library(tokens
     tokens/stream/token_stream.cpp
+    tokens/token.cpp
 )
 
 add_library(lexer

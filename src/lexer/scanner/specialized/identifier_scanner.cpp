@@ -61,26 +61,33 @@ const std::unordered_map<std::string, tokens::TokenType> &getKeywordMapImpl() {
       {"float", tokens::TokenType::FLOAT},
       {"boolean", tokens::TokenType::BOOLEAN},
       {"string", tokens::TokenType::STRING},
+      // Storage Qualifiers
       {"stack", tokens::TokenType::STACK},
       {"heap", tokens::TokenType::HEAP},
       {"static", tokens::TokenType::STATIC},
+      // Smart Pointer Modifiers
       {"shared", tokens::TokenType::SHARED},
       {"unique", tokens::TokenType::UNIQUE},
       {"weak", tokens::TokenType::WEAK},
-      {"attribute", tokens::TokenType::ATTRIBUTE},
-      {"inline", tokens::TokenType::INLINE},
-      {"virtual", tokens::TokenType::VIRTUAL},
-      {"unsafe", tokens::TokenType::UNSAFE},
+      // Function Modifiers
+      {"const", tokens::TokenType::CONST_FUNCTION},
+      {"constexpr", tokens::TokenType::CONSTEXPR},
+      {"zerocast", tokens::TokenType::ZEROCAST},
       {"simd", tokens::TokenType::SIMD},
-      {"target", tokens::TokenType::TARGET},
-      {"ref", tokens::TokenType::REF},
+      {"prefetch", tokens::TokenType::PREFETCH},
+      {"atomic", tokens::TokenType::ATOMIC},
+      {"pinned", tokens::TokenType::PINNED},
+      // Pointer Type Modifiers
+      {"unsafe", tokens::TokenType::UNSAFE},
       {"aligned", tokens::TokenType::ALIGNED},
+      // Class Modifiers
       {"packed", tokens::TokenType::PACKED},
       {"abstract", tokens::TokenType::ABSTRACT},
+      // Other attributes/keywords
+      {"attribute", tokens::TokenType::ATTRIBUTE},
       {"zerocast", tokens::TokenType::ZEROCAST},
       {"extends", tokens::TokenType::EXTENDS},
       {"implements", tokens::TokenType::IMPLEMENTS},
-      {"const_expr", tokens::TokenType::CONST_EXPR},
       {"sizeof", tokens::TokenType::SIZEOF},
       {"alignof", tokens::TokenType::ALIGNOF},
       {"typeof", tokens::TokenType::TYPEOF},
@@ -160,48 +167,61 @@ tokens::Token IdentifierScanner::scanAttribute() {
   size_t length = state_->getPosition() - nameStart;
   std::string_view attrName(data, length);
 
-  // "#inline" | "#virtual" | "#unsafe" | "#simd"
-  //                 | "#const" | "#target"
-  // Map attribute to token type
-  tokens::TokenType type;
+  // Map attribute to token type by category
+  tokens::TokenType type = tokens::TokenType::ATTRIBUTE;
+
+  // Storage Qualifiers
   if (attrName == "stack")
     type = tokens::TokenType::STACK;
   else if (attrName == "heap")
     type = tokens::TokenType::HEAP;
   else if (attrName == "static")
     type = tokens::TokenType::STATIC;
+
+  // Smart Pointer Modifiers
   else if (attrName == "shared")
     type = tokens::TokenType::SHARED;
   else if (attrName == "unique")
     type = tokens::TokenType::UNIQUE;
   else if (attrName == "weak")
     type = tokens::TokenType::WEAK;
-  else if (attrName == "inline")
-    type = tokens::TokenType::INLINE;
-  else if (attrName == "virtual") {
-    type = tokens::TokenType::VIRTUAL;
-  } else if (attrName == "unsafe") {
-    type = tokens::TokenType::UNSAFE;
-  } else if (attrName == "simd") {
+
+  // Function Modifiers
+  else if (attrName == "const")
+    type = tokens::TokenType::CONST_FUNCTION;
+  else if (attrName == "constexpr")
+    type = tokens::TokenType::CONSTEXPR;
+  else if (attrName == "zerocast")
+    type = tokens::TokenType::ZEROCAST;
+  else if (attrName == "simd")
     type = tokens::TokenType::SIMD;
-  } else if (attrName == "const") {
-    type = tokens::TokenType::CONST;
-  } else if (attrName == "target") {
-    type = tokens::TokenType::TARGET;
-  } else if (attrName == "asm") {
+  else if (attrName == "prefetch")
+    type = tokens::TokenType::PREFETCH;
+  else if (attrName == "atomic")
+    type = tokens::TokenType::ATOMIC;
+  else if (attrName == "pinned")
+    type = tokens::TokenType::PINNED;
+
+  // Pointer Type Modifiers
+  else if (attrName == "unsafe")
+    type = tokens::TokenType::UNSAFE;
+  else if (attrName == "aligned")
+    type = tokens::TokenType::ALIGNED;
+
+  // Class Modifiers
+  else if (attrName == "packed")
+    type = tokens::TokenType::PACKED;
+  else if (attrName == "abstract")
+    type = tokens::TokenType::ABSTRACT;
+
+  // Other recognized attributes
+  else if (attrName == "asm") {
     type = tokens::TokenType::ASM;
     return makeToken(type, start, state_->getPosition() - start);
-  } else if (attrName == "packed") {
+  } else if (attrName == "packed")
     type = tokens::TokenType::PACKED;
-  } else if (attrName == "abstract") {
+  else if (attrName == "abstract")
     type = tokens::TokenType::ABSTRACT;
-  } else if (attrName == "aligned") {
-    type = tokens::TokenType::ALIGNED;
-    // Return just the 'aligned' token, let the parser handle the parentheses
-    // and number
-    return makeToken(type, start, state_->getPosition() - start);
-  } else
-    type = tokens::TokenType::ATTRIBUTE;
 
   // Handle aligned attribute parameters if present
   if (peek() == '(') {

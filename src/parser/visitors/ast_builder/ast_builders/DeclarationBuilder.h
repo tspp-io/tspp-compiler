@@ -1,6 +1,7 @@
 #pragma once
 #include "core/common/macros.h"
 #include "parser/nodes/declaration_nodes.h"
+#include "parser/nodes/meta_nodes.h"
 #include "tokens/stream/token_stream.h"
 
 namespace parser {
@@ -30,21 +31,27 @@ class DeclarationBuilder {
    * @param stream Token stream to parse from
    * @return Shared pointer to variable declaration, or nullptr on error
    */
-  static Shared(ast::VarDecl) buildVariable(tokens::TokenStream& stream);
+  static Shared(ast::VarDecl) buildVariable(
+      tokens::TokenStream& stream,
+      ast::StorageQualifier storageQualifier = ast::StorageQualifier::None);
 
   /**
    * @brief Build function declaration
    * @param stream Token stream to parse from
    * @return Shared pointer to function declaration, or nullptr on error
    */
-  static Shared(ast::FunctionDecl) buildFunction(tokens::TokenStream& stream);
+  static Shared(ast::FunctionDecl) buildFunction(
+      tokens::TokenStream& stream,
+      ast::FunctionModifier modifier = ast::FunctionModifier::None);
 
   /**
    * @brief Build class declaration
    * @param stream Token stream to parse from
    * @return Shared pointer to class declaration, or nullptr on error
    */
-  static Shared(ast::ClassDecl) buildClass(tokens::TokenStream& stream);
+  static Shared(ast::ClassDecl)
+      buildClass(tokens::TokenStream& stream,
+                 ast::ClassModifier modifier = ast::ClassModifier::None);
 
   /**
    * @brief Build interface declaration

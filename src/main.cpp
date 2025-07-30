@@ -25,6 +25,10 @@ int main(int argc, char* argv[]) {
   auto tokens = lexer.tokenize();
   std::cout << "Tokenized " << tokens.size() << " tokens." << std::endl;
 
+  // printing tokens
+  for (const auto& token : tokens) {
+    printToken(token);
+  }
   // Parse into AST
   auto ast = parser::buildAST(tokens);
   if (ast) {

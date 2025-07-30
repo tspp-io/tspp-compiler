@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "TokenType.h"
+#include "token_type.h"
 /**
  * TokenUtils - Helper utilities for token classification and lookup.
  */
@@ -11,25 +11,32 @@ namespace tokens {
 namespace TokenUtils {
 inline bool isKeyword(const std::string &word) {
   static const std::unordered_set<std::string> keywords = {
-      "let",      "const",       "function",  "class",      "interface",
-      "enum",     "constructor", "typedef",   "namespace",  "template",
-      "new",      "get",         "set",       "cast",       "where",
-      "throws",   "public",      "private",   "protected",  "if",
-      "else",     "switch",      "case",      "default",    "while",
-      "do",       "for",         "of",        "break",      "continue",
-      "return",   "try",         "catch",     "finally",    "throw",
-      "void",     "int",         "float",     "boolean",    "string",
-      "stack",    "heap",        "static",    "shared",     "unique",
-      "weak",     "attribute",   "inline",    "virtual",    "unsafe",
-      "simd",     "target",      "ref",       "aligned",    "packed",
-      "abstract", "zerocast",    "extends",   "implements", "const_expr",
-      "sizeof",   "alignof",     "typeof",    "asm",        "true",
-      "false",    "null_value",  "undefined", "this",       "yield",
-      "async",    "await"};
+      // Declarations & Types
+      "let", "const", "function", "class", "interface", "enum", "constructor",
+      "typedef", "namespace", "template", "new", "get", "set", "cast", "where",
+      "throws", "public", "private", "protected", "if", "else", "switch",
+      "case", "default", "while", "do", "for", "of", "break", "continue",
+      "return", "try", "catch", "finally", "throw", "void", "int", "float",
+      "boolean", "string",
+      // Storage Qualifiers
+      "stack", "heap", "static",
+      // Smart Pointer Modifiers
+      "shared", "unique", "weak",
+      // Function Modifiers
+      "const", "constexpr", "zerocast", "simd", "prefetch", "atomic", "pinned",
+      // Pointer Type Modifiers
+      "unsafe", "aligned",
+      // Class Modifiers
+      "packed", "abstract",
+      // Other
+      "attribute", "extends", "implements", "sizeof", "alignof", "typeof",
+      "asm", "true", "false", "null_value", "undefined", "this", "yield",
+      "async", "await"};
   return keywords.count(word) > 0;
 }
 inline TokenType keywordToToken(const std::string &word) {
   static const std::unordered_map<std::string, TokenType> keywordMap = {
+      // Declarations & Types
       {"let", TokenType::LET},
       {"const", TokenType::CONST},
       {"function", TokenType::FUNCTION},
@@ -70,26 +77,32 @@ inline TokenType keywordToToken(const std::string &word) {
       {"float", TokenType::FLOAT},
       {"boolean", TokenType::BOOLEAN},
       {"string", TokenType::STRING},
+      // Storage Qualifiers
       {"stack", TokenType::STACK},
       {"heap", TokenType::HEAP},
       {"static", TokenType::STATIC},
+      // Smart Pointer Modifiers
       {"shared", TokenType::SHARED},
       {"unique", TokenType::UNIQUE},
       {"weak", TokenType::WEAK},
-      {"attribute", TokenType::ATTRIBUTE},
-      {"inline", TokenType::INLINE},
-      {"virtual", TokenType::VIRTUAL},
-      {"unsafe", TokenType::UNSAFE},
+      // Function Modifiers
+      {"const", TokenType::CONST_FUNCTION},
+      {"constexpr", TokenType::CONSTEXPR},
+      {"zerocast", TokenType::ZEROCAST},
       {"simd", TokenType::SIMD},
-      {"target", TokenType::TARGET},
-      {"ref", TokenType::REF},
+      {"prefetch", TokenType::PREFETCH},
+      {"atomic", TokenType::ATOMIC},
+      {"pinned", TokenType::PINNED},
+      // Pointer Type Modifiers
+      {"unsafe", TokenType::UNSAFE},
       {"aligned", TokenType::ALIGNED},
+      // Class Modifiers
       {"packed", TokenType::PACKED},
       {"abstract", TokenType::ABSTRACT},
-      {"zerocast", TokenType::ZEROCAST},
+      // Other
+      {"attribute", TokenType::ATTRIBUTE},
       {"extends", TokenType::EXTENDS},
       {"implements", TokenType::IMPLEMENTS},
-      {"const_expr", TokenType::CONST_EXPR},
       {"sizeof", TokenType::SIZEOF},
       {"alignof", TokenType::ALIGNOF},
       {"typeof", TokenType::TYPEOF},
@@ -124,9 +137,6 @@ inline std::string tokenTypeToString(TokenType type) {
     CASE(GET)
     CASE(SET)
     CASE(CAST)
-    // CASE(WHERE)
-    // CASE(THROWS)
-    // CASE(PUBLIC)
     CASE(PRIVATE)
     CASE(PROTECTED)
     CASE(IF)
@@ -157,19 +167,19 @@ inline std::string tokenTypeToString(TokenType type) {
     CASE(UNIQUE)
     CASE(WEAK)
     CASE(ATTRIBUTE)
-    CASE(INLINE)
-    CASE(VIRTUAL)
-    CASE(UNSAFE)
+    CASE(CONST_FUNCTION)
+    CASE(CONSTEXPR)
+    CASE(ZEROCAST)
     CASE(SIMD)
-    CASE(TARGET)
-    CASE(REF)
+    CASE(PREFETCH)
+    CASE(ATOMIC)
+    CASE(PINNED)
+    CASE(UNSAFE)
     CASE(ALIGNED)
     CASE(PACKED)
     CASE(ABSTRACT)
-    CASE(ZEROCAST)
     CASE(EXTENDS)
     CASE(IMPLEMENTS)
-    CASE(CONST_EXPR)
     CASE(SIZEOF)
     CASE(ALIGNOF)
     CASE(TYPEOF)

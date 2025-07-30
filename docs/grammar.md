@@ -10,7 +10,7 @@ Statement      ::= Block | ExpressionStatement | IfStatement | WhileStatement | 
 
 ## Memory and Types
 ```
-VariableDecl   ::= [ '#' ('stack' | 'heap' | 'static') ] Type Identifier [ '=' Expression ] ';'
+VariableDecl   ::= [ '#' ('stack' | 'heap' | 'static') ]  Identifier:Type [ '=' Expression ] ';'
 Type           ::= BasicType | PointerType | SmartPointerType | UnionType | TypeConstraint
 BasicType      ::= 'int' | 'float' | 'bool' | 'string' | Identifier
 PointerType    ::= [ '@' ('unsafe' | 'aligned') ] Type '*'
@@ -21,15 +21,16 @@ TypeConstraint ::= Type [ 'extends' Type ]
 
 ## Functions
 ```
-FunctionDecl   ::= [ Modifier ] 'function' Identifier '(' [ ParameterList ] ')' [ ':' Type ] Block
-Modifier       ::= '#' ('const' | 'constexpr' | 'zerocast' | 'simd' | 'prefetch' | 'atomic' | 'pinned')
+FunctionDecl   ::= [ FunctionModifier ] 'function' Identifier '(' [ ParameterList ] ')' [ ':' Type ] Block
+FunctionModifier       ::= '#' ('const' | 'constexpr' | 'zerocast' | 'simd' | 'prefetch' | 'atomic' | 'pinned')
 ParameterList  ::= Parameter { ',' Parameter }
 Parameter      ::= Type Identifier
 ```
 
 ## Classes and Interfaces
 ```
-ClassDecl      ::= [ Modifier ] 'class' Identifier [ 'extends' Identifier ] Block
+ClassDecl        ::= ClassModifiers 'class' Identifier [ 'extends' Identifier ] Block
+ClassModifier  ::= '#' ('abstract' | 'packed' | 'pinned')
 InterfaceDecl  ::= 'interface' Identifier Block
 TypeAliasDecl  ::= 'type' Identifier '=' Type ';'
 ```

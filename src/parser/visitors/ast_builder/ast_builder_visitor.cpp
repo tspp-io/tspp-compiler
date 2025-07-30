@@ -1,5 +1,7 @@
 #include "ast_builder_visitor.h"
 
+#include <iostream>
+
 #include "ast_builders/DeclarationBuilder.h"
 #include "ast_builders/StatementBuilder.h"
 #include "tokens/token_type.h"
@@ -20,42 +22,79 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
       break;
     }
 
-    // Handle imports
-    if (stream_.check(tokens::TokenType::IMPORT)) {
+    // Handle optional semicolons (skip them, as in JavaScript)
+    if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
+      stream_.advance();
+      continue;
+    }
+
+    // Handle imports as a top-level construct
+    if (stream_.peek().getType() == tokens::TokenType::IMPORT) {
       auto importDecl = DeclarationBuilder::buildImport(stream_);
       if (importDecl) {
-        program.imports.push_back(
-            std::static_pointer_cast<ast::ImportDecl>(importDecl));
+        program.imports.push_back(importDecl);
       }
+      // Optionally consume a semicolon after an import
+      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream_.advance();
+      }
+      continue;
     }
+
     // Handle declarations
-    else if (isDeclarationStart()) {
+    if (isDeclarationStart()) {
+      std::cout << "[DEBUG] Found declaration start: "
+                << stream_.peek().toString() << std::endl;
+      // Use DeclarationBuilder to create the declaration node
+      // This will handle variable, function, class, interface, etc.
       auto decl = DeclarationBuilder::build(stream_);
       if (decl) {
+        decl->location = stream_.peek().getLocation();
         program.declarations.push_back(decl);
+      } else {
+        stream_.advance();
       }
+      // Optionally consume a semicolon after a declaration
+      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream_.advance();
+      }
+      continue;
     }
+
     // Handle statements
-    else if (isStatementStart()) {
+    if (isStatementStart()) {
       auto stmt = StatementBuilder::build(stream_);
       if (stmt) {
         program.statements.push_back(stmt);
+      } else {
+        stream_.advance();
       }
+      // Optionally consume a semicolon after a statement
+      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream_.advance();
+      }
+      continue;
     }
-    // Handle unexpected tokens
-    else {
-      // Skip unrecognized token and try to continue
-      stream_.advance();
-    }
+    stream_.advance();
   }
 }
 
 bool ASTBuilderVisitor::isDeclarationStart() const {
-  auto type = stream_.peek().getType();
-  return type == tokens::TokenType::LET || type == tokens::TokenType::CONST ||
-         type == tokens::TokenType::FUNCTION ||
-         type == tokens::TokenType::CLASS ||
-         type == tokens::TokenType::INTERFACE;
+  switch (stream_.peek().getType()) {
+    case tokens::TokenType::LET:
+    case tokens::TokenType::CONST:
+    case tokens::TokenType::CONST_FUNCTION:
+    case tokens::TokenType::FUNCTION:
+    case tokens::TokenType::CLASS:
+    case tokens::TokenType::INTERFACE:
+    case tokens::TokenType::TYPEDEF:
+    case tokens::TokenType::ENUM:
+    case tokens::TokenType::NAMESPACE:
+    case tokens::TokenType::STACK:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool ASTBuilderVisitor::isStatementStart() const {

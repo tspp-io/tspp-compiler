@@ -3,7 +3,8 @@
 #include <string>
 
 #include "../core/common/common_types.h"
-#include "TokenType.h"
+#include "TokenUtils.h"
+#include "token_type.h"
 /**
  * Token - Represents a lexical token in TSPP++.
  */

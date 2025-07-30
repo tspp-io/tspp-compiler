@@ -27,7 +27,7 @@ class TokenMapUtils {
   static bool isTypeModifier(tokens::TokenType type) {
     static const std::unordered_set<tokens::TokenType> modifiers = {
         tokens::TokenType::SHARED, tokens::TokenType::UNIQUE,
-        tokens::TokenType::WEAK, tokens::TokenType::REF};
+        tokens::TokenType::WEAK};
     return modifiers.count(type) > 0;
   }
 
@@ -49,9 +49,10 @@ class TokenMapUtils {
   // Function & Class Modifiers
   static bool isFunctionModifier(tokens::TokenType type) {
     static const std::unordered_set<tokens::TokenType> modifiers = {
-        tokens::TokenType::INLINE, tokens::TokenType::VIRTUAL,
-        tokens::TokenType::UNSAFE, tokens::TokenType::SIMD,
-        tokens::TokenType::TARGET};
+        tokens::TokenType::CONST_FUNCTION, tokens::TokenType::CONST_EXPR,
+        tokens::TokenType::UNSAFE,         tokens::TokenType::SIMD,
+        tokens::TokenType::PREFETCH,       tokens::TokenType::ATOMIC,
+        tokens::TokenType::PINNED};
     return modifiers.count(type) > 0;
   }
 
@@ -71,12 +72,6 @@ class TokenMapUtils {
   static bool isSpecialKeyword(tokens::TokenType type) {
     return type >= tokens::TokenType::COMPILE_BEGIN &&
            type <= tokens::TokenType::COMPILE_END;
-  }
-
-  static bool requiresParentheses(tokens::TokenType type) {
-    static const std::unordered_set<tokens::TokenType> needsParams = {
-        tokens::TokenType::ALIGNED, tokens::TokenType::TARGET};
-    return needsParams.count(type) > 0;
   }
 
   // Sequence Validation
@@ -107,10 +102,6 @@ class TokenMapUtils {
 
     if (isStorageModifier(modifier)) {
       return type != tokens::TokenType::VOID && !isReferenceType(type);
-    }
-
-    if (modifier == tokens::TokenType::REF) {
-      return !isPrimitiveType(type) && type != tokens::TokenType::VOID;
     }
 
     if (modifier == tokens::TokenType::ALIGNED) {
