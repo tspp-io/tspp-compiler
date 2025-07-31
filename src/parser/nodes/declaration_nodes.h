@@ -54,7 +54,7 @@ class FunctionDecl : public Decl {
 
 class ClassDecl : public Decl {
  public:
-  FunctionModifier modifier;
+  ClassModifier modifier;
   tokens::Token name;
   tokens::Token baseClass;  // optional
   Shared(BlockStmt) body;

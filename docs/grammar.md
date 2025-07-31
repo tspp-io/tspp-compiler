@@ -32,7 +32,7 @@ Parameter      ::= Type Identifier
 ClassDecl        ::= ClassModifiers 'class' Identifier [ 'extends' Identifier ] Block
 ClassModifier  ::= '#' ('abstract' | 'packed' | 'pinned')
 InterfaceDecl  ::= 'interface' Identifier Block
-TypeAliasDecl  ::= 'type' Identifier '=' Type ';'
+TypeAliasDecl  ::= 'typedef' Identifier '=' Type ';'
 ```
 
 ## Statements

@@ -7,49 +7,164 @@
 
 namespace parser {
 
+// Entry point: Parse any expression (handles binary precedence)
 Shared(ast::Expr) ExpressionBuilder::build(tokens::TokenStream& stream) {
-  return buildPrimary(stream);
+  return buildBinary(stream, 0);
 }
 
+// Parse a primary expression: literals, identifiers, parenthesized, unary
 Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
   auto type = stream.peek().getType();
 
   switch (type) {
+    // Handle literals (numbers, strings, booleans, chars)
     case tokens::TokenType::CHAR_LITERAL:
     case tokens::TokenType::STRING_LITERAL:
     case tokens::TokenType::NUMBER:
     case tokens::TokenType::TRUE:
-    case tokens::TokenType::FALSE:
-    case tokens::TokenType::IDENTIFIER: {
+    case tokens::TokenType::FALSE: {
       auto expr = std::make_shared<ast::LiteralExpr>();
       expr->value = stream.peek();
       expr->location = stream.peek().getLocation();
-      stream.advance();  // consume the token
+      stream.advance();
+      return expr;
+    }
+    // Handle identifiers (variable names, function calls)
+    case tokens::TokenType::IDENTIFIER: {
+      auto expr = std::make_shared<ast::IdentifierExpr>();
+      expr->name = stream.peek();
+      expr->location = stream.peek().getLocation();
+      stream.advance();
+      // If next token is '(', treat as function call
+      if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
+        return buildCall(stream, expr);
+      }
+      return expr;
+    }
+    // Handle parenthesized expressions: (expr)
+    case tokens::TokenType::LEFT_PAREN: {
+      stream.advance();  // consume '('
+      auto expr = build(stream);
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+        stream.advance();  // consume ')'
+      }
+      return expr;
+    }
+    // Handle unary operators: -expr, !expr
+    case tokens::TokenType::MINUS:
+    case tokens::TokenType::EXCLAIM: {
+      auto op = stream.peek();
+      stream.advance();
+      auto right = buildPrimary(stream);
+      auto expr = std::make_shared<ast::UnaryExpr>();
+      expr->op = op;
+      expr->operand = right;
+      expr->location = op.getLocation();
       return expr;
     }
     default:
-      // For unrecognized tokens, advance and return nullptr
+      // Unrecognized: skip token and return nullptr
       stream.advance();
       return nullptr;
   }
 }
 
+// Parse a binary expression using precedence climbing
 Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
                                                  int minPrec) {
-  return nullptr;
+  auto left = buildPrimary(stream);
+  while (true) {
+    auto type = stream.peek().getType();
+    if (!isBinaryOperator(type)) break;
+    int prec = getOperatorPrecedence(type);
+    if (prec < minPrec) break;
+    auto op = stream.peek();
+    stream.advance();
+    auto right = buildBinary(stream, prec + 1);
+    auto expr = std::make_shared<ast::BinaryExpr>();
+    expr->op = op;
+    expr->left = left;
+    expr->right = right;
+    expr->location = op.getLocation();
+    left = expr;
+  }
+  return left;
 }
 
+// Parse a function call: callee(args...)
 Shared(ast::CallExpr) ExpressionBuilder::buildCall(tokens::TokenStream& stream,
                                                    Shared(ast::Expr) callee) {
-  return nullptr;
+  if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) return nullptr;
+  auto call = std::make_shared<ast::CallExpr>();
+  call->callee = callee;
+  call->location = callee->location;
+  stream.advance();  // consume '('
+  // Parse arguments (comma-separated expressions)
+  while (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN &&
+         !stream.isAtEnd()) {
+    auto arg = build(stream);
+    if (arg) call->arguments.push_back(arg);
+    if (stream.peek().getType() == tokens::TokenType::COMMA) {
+      stream.advance();
+    } else {
+      break;
+    }
+  }
+  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+    stream.advance();
+  }
+  return call;
 }
 
+// Operator precedence: higher number = higher precedence
 int ExpressionBuilder::getOperatorPrecedence(tokens::TokenType type) {
-  return 0;
+  switch (type) {
+    case tokens::TokenType::STAR:
+    case tokens::TokenType::SLASH:
+    case tokens::TokenType::PERCENT:
+      return 6;  // Multiplicative
+    case tokens::TokenType::PLUS:
+    case tokens::TokenType::MINUS:
+      return 5;  // Additive
+    case tokens::TokenType::EQUALS_EQUALS:
+    case tokens::TokenType::EXCLAIM_EQUALS:
+    case tokens::TokenType::LESS:
+    case tokens::TokenType::LESS_EQUALS:
+    case tokens::TokenType::GREATER:
+    case tokens::TokenType::GREATER_EQUALS:
+      return 4;  // Comparison
+    case tokens::TokenType::AMPERSAND_AMPERSAND:
+      return 3;  // Logical AND
+    case tokens::TokenType::PIPE_PIPE:
+      return 2;  // Logical OR
+    case tokens::TokenType::EQUALS:
+      return 1;  // Assignment
+    default:
+      return 0;
+  }
 }
 
+// Returns true if the token is a binary operator
 bool ExpressionBuilder::isBinaryOperator(tokens::TokenType type) {
-  return false;
+  switch (type) {
+    case tokens::TokenType::PLUS:
+    case tokens::TokenType::MINUS:
+    case tokens::TokenType::STAR:
+    case tokens::TokenType::SLASH:
+    case tokens::TokenType::PERCENT:
+    case tokens::TokenType::EQUALS_EQUALS:
+    case tokens::TokenType::EXCLAIM_EQUALS:
+    case tokens::TokenType::LESS:
+    case tokens::TokenType::LESS_EQUALS:
+    case tokens::TokenType::GREATER:
+    case tokens::TokenType::GREATER_EQUALS:
+    case tokens::TokenType::AMPERSAND_AMPERSAND:
+    case tokens::TokenType::PIPE_PIPE:
+    case tokens::TokenType::EQUALS:
+      return true;
+    default:
+      return false;
+  }
 }
 
 }  // namespace parser

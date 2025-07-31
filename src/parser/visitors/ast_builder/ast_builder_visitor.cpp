@@ -43,8 +43,6 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
 
     // Handle declarations
     if (isDeclarationStart()) {
-      std::cout << "[DEBUG] Found declaration start: "
-                << stream_.peek().toString() << std::endl;
       // Use DeclarationBuilder to create the declaration node
       // This will handle variable, function, class, interface, etc.
       auto decl = DeclarationBuilder::build(stream_);

@@ -27,6 +27,13 @@ class DeclarationBuilder {
   static Shared(ast::ImportDecl) buildImport(tokens::TokenStream& stream);
 
   /**
+   * @brief Build type alias declaration
+   * @param stream Token stream to parse from
+   * @return Shared pointer to type alias declaration, or nullptr on error
+   */
+  static Shared(ast::TypeAliasDecl) buildTypeDef(tokens::TokenStream& stream);
+
+  /**
    * @brief Build variable declaration
    * @param stream Token stream to parse from
    * @return Shared pointer to variable declaration, or nullptr on error

@@ -11,76 +11,108 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
   if (stream.isAtEnd()) return nullptr;
   auto type = stream.peek().getType();
 
-  switch (type) {
-    case tokens::TokenType::INT:
-    case tokens::TokenType::FLOAT:
-    case tokens::TokenType::BOOLEAN:
-    case tokens::TokenType::STRING:
-    case tokens::TokenType::IDENTIFIER:
-      // Handle basic types
-      return buildBasic(stream);
-    // case tokens::TokenType::POINTER:
-    //   // Handle pointer types
-    //   stream.advance();  // consume 'pointer'
-    //   if (stream.isAtEnd()) return nullptr;
-    //   std::cout << "Building pointer type at position: "
-    //             << stream.getCurrentPosition() << std::endl;
-    //   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-    //     // Error: expected identifier after 'pointer'
-    //     stream.advance();  // Skip faulty token
-    //     return nullptr;
-    //   }
-    //   return buildPointer(stream, TypeBuilder::build(stream));
-    // case tokens::TokenType::SHARED_PTR:
-    // case tokens::TokenType::UNIQUE_PTR:
-    // case tokens::TokenType::WEAK_PTR:
-    //   // Handle smart pointer types
-    //   stream.advance();  // consume 'shared_ptr', 'unique_ptr', or 'weak_ptr
-    //   std::cout << "Building smart pointer type at position: "
-    //             << stream.getCurrentPosition() << std::endl;
-    //   return buildSmartPointer(stream);
-    default:
-      stream.advance();  // Skip faulty token
-      return nullptr;
+  // Handle pointer types: [ '@' ('unsafe' | 'aligned') ] Type '*'
+  if (type == tokens::TokenType::AT) {
+    stream.advance();  // consume '@'
+    auto modType = stream.peek().getType();
+    tokens::Token modifier;
+    if (modType == tokens::TokenType::UNSAFE ||
+        modType == tokens::TokenType::ALIGNED) {
+      modifier = stream.peek();
+      stream.advance();
+    }
+    auto baseType = build(stream);
+    if (stream.peek().getType() == tokens::TokenType::STAR) {
+      stream.advance();  // consume '*'
+      auto ptrNode = std::make_shared<ast::PointerTypeNode>();
+      ptrNode->qualifier = modifier;
+      ptrNode->baseType = baseType;
+      ptrNode->location =
+          baseType ? baseType->location : tokens::Token().getLocation();
+      return ptrNode;
+    }
+    // Error: expected '*'
+    return nullptr;
   }
+
+  // Handle smart pointer types: '#' ('shared' | 'unique' | 'weak') '<' Type '>'
+  if (type == tokens::TokenType::ATTRIBUTE) {
+    stream.advance();  // consume '#'
+    auto smartType = stream.peek().getType();
+    if (smartType == tokens::TokenType::SHARED ||
+        smartType == tokens::TokenType::UNIQUE ||
+        smartType == tokens::TokenType::WEAK) {
+      auto smartToken = stream.peek();
+      stream.advance();
+      if (stream.peek().getType() == tokens::TokenType::LESS) {
+        stream.advance();  // consume '<'
+        auto innerType = build(stream);
+        if (stream.peek().getType() == tokens::TokenType::GREATER) {
+          stream.advance();  // consume '>'
+          auto smartPtrNode = std::make_shared<ast::SmartPointerTypeNode>();
+          smartPtrNode->kind = smartToken;
+          smartPtrNode->target = innerType;
+          smartPtrNode->location = smartToken.getLocation();
+          return smartPtrNode;
+        }
+      }
+    }
+    // Error: not a valid smart pointer type
+    return nullptr;
+  }
+
+  // Handle basic types and identifiers
+  if (isBasicType(type) || type == tokens::TokenType::IDENTIFIER) {
+    return buildBasic(stream);
+  }
+
+  // Unrecognized type
+  stream.advance();
+  return nullptr;
 }
 
+// Parse a basic type (int, float, boolean, string, or identifier)
 Shared(ast::BasicTypeNode)
     TypeBuilder::buildBasic(tokens::TokenStream& stream) {
   if (stream.isAtEnd()) return nullptr;
   auto type = stream.peek().getType();
+  if (isBasicType(type) || type == tokens::TokenType::IDENTIFIER) {
+    auto basicTypeNode = std::make_shared<ast::BasicTypeNode>();
+    basicTypeNode->name = stream.peek();
+    basicTypeNode->location = stream.peek().getLocation();
+    stream.advance();
+    return basicTypeNode;
+  }
+  // Unrecognized basic type
+  stream.advance();
+  return nullptr;
+}
+
+// Parse a pointer type (already handled in build)
+Shared(ast::PointerTypeNode) TypeBuilder::buildPointer(
+    tokens::TokenStream& stream, Shared(ast::TypeNode) baseType) {
+  // Not used directly; handled in build()
+  return nullptr;
+}
+
+// Parse a smart pointer type (already handled in build)
+Shared(ast::SmartPointerTypeNode)
+    TypeBuilder::buildSmartPointer(tokens::TokenStream& stream) {
+  // Not used directly; handled in build()
+  return nullptr;
+}
+
+// Utility: is this a basic type?
+bool TypeBuilder::isBasicType(tokens::TokenType type) {
   switch (type) {
     case tokens::TokenType::INT:
     case tokens::TokenType::FLOAT:
     case tokens::TokenType::BOOLEAN:
     case tokens::TokenType::STRING:
-      // Create a BasicTypeNode for basic types
-      {
-        auto basicTypeNode = std::make_shared<ast::BasicTypeNode>();
-        basicTypeNode->name = stream.peek();
-        basicTypeNode->location = stream.peek().getLocation();
-        stream.advance();  // consume the basic type token
-        return basicTypeNode;
-      }
+      return true;
     default:
-      // Unrecognized basic type, advance and return nullptr
-      stream.advance();  // Skip faulty token
-      return nullptr;
+      return false;
   }
-}
-
-Shared(ast::PointerTypeNode) TypeBuilder::buildPointer(
-    tokens::TokenStream& stream, Shared(ast::TypeNode) baseType) {
-  return nullptr;
-}
-
-Shared(ast::SmartPointerTypeNode)
-    TypeBuilder::buildSmartPointer(tokens::TokenStream& stream) {
-  return nullptr;
-}
-
-bool TypeBuilder::isBasicType(tokens::TokenType type) {
-  return false;
 }
 
 }  // namespace parser
