@@ -121,6 +121,18 @@
 },
 {
   "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp.o -c /home/hiren/tspp/src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp",
+  "file": "/home/hiren/tspp/src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/semantic/SemanticScope.cpp.o -c /home/hiren/tspp/src/parser/visitors/semantic/SemanticScope.cpp",
+  "file": "/home/hiren/tspp/src/parser/visitors/semantic/SemanticScope.cpp",
+  "output": "src/CMakeFiles/parser.dir/parser/visitors/semantic/SemanticScope.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
   "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17 -Wall -Wextra -Wpedantic -o CMakeFiles/tspp.dir/main.cpp.o -c /home/hiren/tspp/src/main.cpp",
   "file": "/home/hiren/tspp/src/main.cpp",
   "output": "src/CMakeFiles/tspp.dir/main.cpp.o"

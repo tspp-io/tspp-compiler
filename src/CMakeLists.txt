@@ -28,6 +28,8 @@ add_library(parser
     parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp
     parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp
     parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp
+    parser/visitors/semantic/SemanticAnalyzerVisitor.cpp
+    parser/visitors/semantic/SemanticScope.cpp
 )
 #     parser/visitors/type_check_visitor/type_scope.cpp
 # )
