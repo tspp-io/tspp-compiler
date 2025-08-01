@@ -3,6 +3,7 @@
 #include <string>
 
 #include "ast/ASTPrinter.h"
+#include "codegen/LLVMCodeGenerator.h"
 #include "core/utils/log_utils.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
@@ -39,6 +40,13 @@ int main(int argc, char* argv[]) {
     std::cout << "AST Structure:" << std::endl;
     ast->accept(printer);
     std::cout << std::endl;
+
+    // === LLVM Code Generation ===
+    codegen::LLVMCodeGenerator codegen;
+    // Write IR to file: <input>.ll
+    std::string outFile = std::string(argv[1]) + ".ll";
+    codegen.generate(ast.get(), outFile);
+    std::cout << "\nLLVM IR written to: " << outFile << std::endl;
   } else {
     std::cout << "Failed to build AST." << std::endl;
     return 1;

@@ -29,17 +29,37 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       stream.advance();
       return expr;
     }
-    // Handle identifiers (variable names, function calls)
+    // Handle identifiers and member access (console.log, foo.bar.baz)
     case tokens::TokenType::IDENTIFIER: {
       auto expr = std::make_shared<ast::IdentifierExpr>();
       expr->name = stream.peek();
       expr->location = stream.peek().getLocation();
       stream.advance();
-      // If next token is '(', treat as function call
-      if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
-        return buildCall(stream, expr);
+      // Parse chained member accesses: foo.bar.baz
+      Shared(ast::Expr) object = expr;
+      while (stream.peek().getType() == tokens::TokenType::DOT) {
+        auto dotToken = stream.peek();
+        stream.advance();  // consume '.'
+        if (stream.peek().getType() == tokens::TokenType::IDENTIFIER) {
+          auto memberToken = stream.peek();
+          stream.advance();
+          auto memberExpr = std::make_shared<ast::MemberAccessExpr>();
+          memberExpr->object = object;
+          memberExpr->member = memberToken;
+          memberExpr->location =
+              object->location;  // or memberToken.getLocation();
+          object = memberExpr;
+        } else {
+          // Malformed member access, skip
+          break;
+        }
       }
-      return expr;
+      // If next token is '(', treat as function call on the (possibly chained)
+      // member
+      if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
+        return buildCall(stream, object);
+      }
+      return object;
     }
     // Handle parenthesized expressions: (expr)
     case tokens::TokenType::LEFT_PAREN: {

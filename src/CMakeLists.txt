@@ -31,55 +31,41 @@ add_library(parser
     parser/visitors/semantic/SemanticAnalyzerVisitor.cpp
     parser/visitors/semantic/SemanticScope.cpp
 )
-#     parser/visitors/type_check_visitor/type_scope.cpp
-# )
 
-# # New codegen library
-# add_library(tspp_codegen
-#     codegen/codegen_errors.cpp
-#     codegen/codegen_options.cpp
-#     codegen/llvm/llvm_context.cpp
-#     codegen/llvm/llvm_type_builder.cpp
-#     codegen/llvm/llvm_code_gen.cpp
-#     codegen/llvm/llvm_value.cpp
-#     codegen/llvm/llvm_function.cpp
-#     codegen/llvm/llvm_utils.cpp
-#     codegen/llvm/llvm_optimizer.cpp
-# )
 
-# add_library(repl
-#     repl/repl.cpp
-# )
+# Only add tspp_codegen once, and link it with LLVM and all dependencies
+add_library(tspp_codegen
+    codegen/LLVMCodeGenerator.cpp
+)
+target_link_libraries(tspp_codegen 
+    PUBLIC 
+        core 
+        parser
+        LLVM
+)
+
 
 # Find LLVM package
-# find_package(LLVM REQUIRED CONFIG)
+find_package(LLVM REQUIRED CONFIG)
 
-# # Include LLVM directories
-# include_directories(${LLVM_INCLUDE_DIRS})
-# add_definitions(${LLVM_DEFINITIONS})
+# Include LLVM directories
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
 
 # Link dependencies
 target_link_libraries(core PUBLIC tokens)
 target_link_libraries(tokens PUBLIC core)
 target_link_libraries(lexer PUBLIC core tokens)
 target_link_libraries(parser PUBLIC core tokens)
-# target_link_libraries(repl PUBLIC core tokens lexer parser)
+target_link_libraries(tspp_codegen PUBLIC core parser LLVM)
 
-# Link tspp_codegen with LLVM and other dependencies
-# target_link_libraries(tspp_codegen 
-#     PUBLIC 
-#         core 
-#         parser
-#         LLVM
-# )
 
 # Include directories
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(tokens PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(lexer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(parser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# target_include_directories(tspp_codegen PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# target_include_directories(repl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(tspp_codegen PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Main executable
 add_executable(tspp main.cpp)
@@ -90,4 +76,10 @@ target_link_libraries(tspp
         tokens
         lexer
         parser
+        tspp_codegen
 )
+
+# Add TSPP standard library
+add_subdirectory(packages/tspp_std)
+
+target_link_libraries(tspp PRIVATE tspp_std)

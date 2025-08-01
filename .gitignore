@@ -8,3 +8,7 @@ build/
 *.exe
 *.out
 *.tspp
+temp.bc
+temp.s
+temp_exec
+.github/*

@@ -11,6 +11,11 @@ namespace ast {
 
 SemanticAnalyzerVisitor::SemanticAnalyzerVisitor() {
   currentScope = std::make_shared<SemanticScope>();
+  // Register built-in global 'console'
+  Symbol consoleSym;
+  consoleSym.name = "console";
+  consoleSym.typeName = "builtin_object";
+  currentScope->insert("console", consoleSym);
 }
 
 void SemanticAnalyzerVisitor::enterScope() {
@@ -57,7 +62,17 @@ void SemanticAnalyzerVisitor::visit(LiteralExpr&) {
 
 void SemanticAnalyzerVisitor::visit(MemberAccessExpr& node) {
   if (node.object) node.object->accept(*this);
-  // TODO: Check member existence/type
+  // If object is 'console', allow 'log', 'error', 'warn' as built-in members
+  if (auto objIdent = dynamic_cast<IdentifierExpr*>(node.object.get())) {
+    if (objIdent->name.getLexeme() == "console") {
+      std::string member = node.member.getLexeme();
+      if (member == "log" || member == "error" || member == "warn") {
+        // OK: treat as built-in
+        return;
+      }
+    }
+  }
+  // TODO: Check member existence/type for other objects
 }
 
 void SemanticAnalyzerVisitor::visit(ExprStmt& node) {
@@ -229,17 +244,28 @@ void SemanticAnalyzerVisitor::visit(AssignmentExpr& node) {
 }
 
 void SemanticAnalyzerVisitor::visit(CallExpr& node) {
-  // Only support identifier callee for now
   std::string funcName;
+  // Support identifier and member access callees
   if (auto id = dynamic_cast<IdentifierExpr*>(node.callee.get())) {
     funcName = id->name.getLexeme();
+  } else if (auto member = dynamic_cast<MemberAccessExpr*>(node.callee.get())) {
+    // Compose full name: e.g., console.log
+    if (auto objIdent = dynamic_cast<IdentifierExpr*>(member->object.get())) {
+      funcName = objIdent->name.getLexeme() + "." + member->member.getLexeme();
+    }
   }
-  auto sym = currentScope->lookup(funcName);
-  if (!sym || !sym->isFunction) {
-    reportError("Call to undeclared function '" + funcName + "'");
-    return;
+  // Allow built-in console methods
+  if (funcName == "console.log" || funcName == "console.error" ||
+      funcName == "console.warn") {
+    // OK: treat as built-in
+  } else {
+    auto sym = currentScope->lookup(funcName);
+    if (!sym || !sym->isFunction) {
+      reportError("Call to undeclared function '" + funcName + "'");
+      return;
+    }
+    // TODO: Check argument count and types
   }
-  // TODO: Check argument count and types
   for (auto& arg : node.arguments) {
     if (arg) arg->accept(*this);
   }
