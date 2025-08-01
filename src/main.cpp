@@ -27,9 +27,9 @@ int main(int argc, char* argv[]) {
   std::cout << "Tokenized " << tokens.size() << " tokens." << std::endl;
 
   // printing tokens
-  for (const auto& token : tokens) {
-    printToken(token);
-  }
+  // for (const auto& token : tokens) {
+  //   printToken(token);
+  // }
   // Parse into AST
   auto ast = parser::buildAST(tokens);
   if (ast) {
@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
     // Print AST
     ast::ASTPrinter printer;
     std::cout << "AST Structure:" << std::endl;
-    ast->accept(printer);
+    // ast->accept(printer);
     std::cout << std::endl;
 
     // === LLVM Code Generation ===
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     // Write IR to file: <input>.ll
     std::string outFile = std::string(argv[1]) + ".ll";
     codegen.generate(ast.get(), outFile);
-    std::cout << "\nLLVM IR written to: " << outFile << std::endl;
+    // std::cout << "\nLLVM IR written to: " << outFile << std::endl;
   } else {
     std::cout << "Failed to build AST." << std::endl;
     return 1;

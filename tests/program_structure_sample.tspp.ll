@@ -2,7 +2,7 @@
 source_filename = "tspp_module"
 
 @x = global i32 42
-@0 = private unnamed_addr constant [17 x i8] c"\22literal string\22\00", align 1
+@0 = private unnamed_addr constant [16 x i8] c"\22Bye Woverride\22\00", align 1
 
 define i1 @main() {
 entry:

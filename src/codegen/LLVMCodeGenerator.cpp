@@ -4,6 +4,7 @@
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/TargetParser/Host.h>
 
 #include "parser/nodes/base_node.h"
 #include "parser/nodes/declaration_nodes.h"
@@ -24,7 +25,9 @@ void LLVMCodeGenerator::visit(ExprStmt& node) {
 LLVMCodeGenerator::LLVMCodeGenerator()
     : module(std::make_unique<llvm::Module>("tspp_module", context)),
       builder(std::make_unique<llvm::IRBuilder<>>(context)),
-      currentFunction(nullptr) {}
+      currentFunction(nullptr) {
+  module->setTargetTriple(llvm::sys::getDefaultTargetTriple());
+}
 
 void LLVMCodeGenerator::generate(ast::BaseNode* root,
                                  const std::string& outFile) {

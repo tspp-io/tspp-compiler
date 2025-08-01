@@ -18,33 +18,40 @@ echo "=== Compiling $INPUT_FILE to LLVM IR ==="
 # 2. Derive LLVM IR filename
 LLVM_IR="${INPUT_FILE}.ll"
 
-# 3. Display LLVM IR
-echo "=== Generated LLVM IR ==="
-cat "$LLVM_IR"
 
-echo -e "\n=== Verifying LLVM IR ==="
+
+# 3. Remove target triple line to avoid clang warning (case/whitespace-insensitive)
+sed -i '/^[[:space:]]*target triple[[:space:]]*=/Id' "$LLVM_IR"
+# Diagnostic: print any remaining target triple lines
+grep -ni 'target triple' "$LLVM_IR" || echo "No target triple line remains in $LLVM_IR"
+
 # 4. Verify the LLVM IR is valid
 llvm-as "$LLVM_IR" -o temp.bc
-echo "✅ LLVM IR is valid!"
 
-echo -e "\n=== Compiling to Executable ==="
-# 5. Compile to native executable
-clang "$LLVM_IR" -o temp_exec
-echo "✅ Successfully compiled to executable!"
 
-echo -e "\n=== Running the Program ==="
-# 6. Run the compiled program
+
+# 4. Compile to native executable
+STD_LIB="./build/src/packages/tspp_std/libtspp_std.a"
+if [ -f "$STD_LIB" ]; then
+  clang "$LLVM_IR" "$STD_LIB" -o temp_exec -lstdc++ -fsanitize=address -no-pie
+else
+  echo "❌ Standard library not found at $STD_LIB. Did you build the project?"
+  exit 1
+fi
+
+
+# 5. Run the compiled program
 ./temp_exec
 echo "Exit code: $?"
 
-echo -e "\n=== Alternative: Using lli (LLVM interpreter) ==="
-# 7. Run with LLVM interpreter
-lli "$LLVM_IR"
-echo "lli exit code: $?"
 
-echo -e "\n=== Assembly Generation ==="
-# 8. Generate assembly
-llc "$LLVM_IR" -o temp.s
-echo "✅ Assembly generated in temp.s"
-echo "First 20 lines of assembly:"
-head -20 temp.s
+# 6. (Optional) Run with LLVM interpreter (will fail for external symbols)
+# lli "$LLVM_IR"
+# echo "lli exit code: $?"
+
+
+# 7. Generate assembly (optional)
+# llc "$LLVM_IR" -o temp.s
+# echo "✅ Assembly generated in temp.s"
+# echo "First 20 lines of assembly:"
+# head -20 temp.s
