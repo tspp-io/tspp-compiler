@@ -1,5 +1,6 @@
 #include "LLVMCodeGenerator.h"
 
+#include <iostream>
 #include <llvm/IR/DerivedTypes.h>  // Required for PointerType
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
@@ -485,5 +486,29 @@ void LLVMCodeGenerator::visit(IfStmt& node) {
 }
 
 // Add more visit methods as needed for full coverage
+
+void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
+  // TODO: Implement class codegen
+  // For now, classes are parsed but not used at runtime
+  // Could implement as LLVM struct types in the future
+  std::cerr << "Warning: ClassDecl '" << node.name.getLexeme() 
+            << "' parsed but not implemented in codegen (skipped)\n";
+}
+
+void LLVMCodeGenerator::visit(ast::InterfaceDecl& node) {
+  // TODO: Implement interface codegen  
+  // Interfaces typically don't generate runtime code by themselves
+  // Could be used for type checking in semantic analysis
+  std::cerr << "Warning: InterfaceDecl '" << node.name.getLexeme() 
+            << "' parsed but not implemented in codegen (skipped)\n";
+}
+
+void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
+  // TODO: Implement typedef codegen
+  // Type aliases typically don't generate runtime code
+  // They are mainly used during semantic analysis for type resolution
+  std::cerr << "Warning: TypeAliasDecl '" << node.name.getLexeme() 
+            << "' parsed but not implemented in codegen (skipped)\n";
+}
 
 }  // namespace codegen
