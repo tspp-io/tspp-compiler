@@ -1,11 +1,12 @@
 #include "LLVMCodeGenerator.h"
 
-#include <iostream>
 #include <llvm/IR/DerivedTypes.h>  // Required for PointerType
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/TargetParser/Host.h>
+
+#include <iostream>
 
 #include "parser/nodes/base_node.h"
 #include "parser/nodes/declaration_nodes.h"
@@ -448,15 +449,18 @@ void LLVMCodeGenerator::visit(IfStmt& node) {
   // Evaluate the condition
   node.condition->accept(*this);
   llvm::Value* condValue = lastValue;
-  
+
   if (!condValue) {
-    return; // Invalid condition
+    return;  // Invalid condition
   }
 
   // Create basic blocks for then, else, and merge
-  llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(context, "then", currentFunction);
-  llvm::BasicBlock* elseBB = llvm::BasicBlock::Create(context, "else", currentFunction);
-  llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "ifcont", currentFunction);
+  llvm::BasicBlock* thenBB =
+      llvm::BasicBlock::Create(context, "then", currentFunction);
+  llvm::BasicBlock* elseBB =
+      llvm::BasicBlock::Create(context, "else", currentFunction);
+  llvm::BasicBlock* mergeBB =
+      llvm::BasicBlock::Create(context, "ifcont", currentFunction);
 
   // Create conditional branch
   builder->CreateCondBr(condValue, thenBB, elseBB);
@@ -491,15 +495,15 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
   // TODO: Implement class codegen
   // For now, classes are parsed but not used at runtime
   // Could implement as LLVM struct types in the future
-  std::cerr << "Warning: ClassDecl '" << node.name.getLexeme() 
+  std::cerr << "Warning: ClassDecl '" << node.name.getLexeme()
             << "' parsed but not implemented in codegen (skipped)\n";
 }
 
 void LLVMCodeGenerator::visit(ast::InterfaceDecl& node) {
-  // TODO: Implement interface codegen  
+  // TODO: Implement interface codegen
   // Interfaces typically don't generate runtime code by themselves
   // Could be used for type checking in semantic analysis
-  std::cerr << "Warning: InterfaceDecl '" << node.name.getLexeme() 
+  std::cerr << "Warning: InterfaceDecl '" << node.name.getLexeme()
             << "' parsed but not implemented in codegen (skipped)\n";
 }
 
@@ -507,7 +511,7 @@ void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
   // TODO: Implement typedef codegen
   // Type aliases typically don't generate runtime code
   // They are mainly used during semantic analysis for type resolution
-  std::cerr << "Warning: TypeAliasDecl '" << node.name.getLexeme() 
+  std::cerr << "Warning: TypeAliasDecl '" << node.name.getLexeme()
             << "' parsed but not implemented in codegen (skipped)\n";
 }
 
