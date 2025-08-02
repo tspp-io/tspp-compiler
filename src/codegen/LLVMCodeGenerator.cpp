@@ -437,6 +437,53 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   }
 }
 
+// Visit IfStmt: emit conditional branching
+void LLVMCodeGenerator::visit(IfStmt& node) {
+  if (!currentFunction) {
+    // Can't emit control flow at global scope
+    return;
+  }
+
+  // Evaluate the condition
+  node.condition->accept(*this);
+  llvm::Value* condValue = lastValue;
+  
+  if (!condValue) {
+    return; // Invalid condition
+  }
+
+  // Create basic blocks for then, else, and merge
+  llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(context, "then", currentFunction);
+  llvm::BasicBlock* elseBB = llvm::BasicBlock::Create(context, "else", currentFunction);
+  llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "ifcont", currentFunction);
+
+  // Create conditional branch
+  builder->CreateCondBr(condValue, thenBB, elseBB);
+
+  // Emit then block
+  builder->SetInsertPoint(thenBB);
+  if (node.thenBranch) {
+    node.thenBranch->accept(*this);
+  }
+  // Only create branch if block doesn't already have a terminator
+  if (!thenBB->getTerminator()) {
+    builder->CreateBr(mergeBB);
+  }
+
+  // Emit else block
+  builder->SetInsertPoint(elseBB);
+  if (node.elseBranch) {
+    node.elseBranch->accept(*this);
+  }
+  // Only create branch if block doesn't already have a terminator
+  if (!elseBB->getTerminator()) {
+    builder->CreateBr(mergeBB);
+  }
+
+  // Continue with merge block
+  builder->SetInsertPoint(mergeBB);
+}
+
 // Add more visit methods as needed for full coverage
 
 }  // namespace codegen

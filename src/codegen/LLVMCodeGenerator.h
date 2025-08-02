@@ -29,6 +29,7 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::ExprStmt&) override;
   void visit(ast::BlockStmt&) override;
   void visit(ast::CallExpr&) override;
+  void visit(ast::IfStmt&) override;
   // ...add more as needed...
 
  private:
