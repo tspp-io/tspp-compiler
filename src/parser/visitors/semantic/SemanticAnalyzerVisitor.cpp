@@ -1,4 +1,3 @@
-
 #include "SemanticAnalyzerVisitor.h"
 
 #include <sstream>
@@ -193,9 +192,24 @@ void SemanticAnalyzerVisitor::visit(BlockStmt& node) {
 
 void SemanticAnalyzerVisitor::visit(VarDecl& node) {
   std::string varName = node.name.getLexeme();
-  if (!currentScope->insert(
-          varName, Symbol{varName, /*typeName*/ "", node.isConst, false, false,
-                          nullptr})) {
+  // Determine LLVM type string (for now, only int and string supported)
+  void* llvmType = nullptr;
+  std::string typeName;
+  if (node.type) {
+    // Try to extract type name from the type node
+    if (auto* basic = dynamic_cast<ast::BasicTypeNode*>(node.type.get())) {
+      typeName = basic->name.getLexeme();
+    } else {
+      typeName = ""; // fallback for non-basic types
+    }
+    if (typeName == "int") {
+      llvmType = (void*)nullptr;  // will be set in codegen
+    } else if (typeName == "string") {
+      llvmType = (void*)nullptr;  // will be set in codegen
+    }
+  }
+  Symbol sym{varName, /*typeName*/ typeName, node.isConst, false, false, nullptr, llvmType};
+  if (!currentScope->insert(varName, sym)) {
     reportError("Variable '" + varName + "' already declared in this scope");
   }
   if (node.initializer) {

@@ -35,7 +35,12 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;
-  std::unordered_map<std::string, llvm::Value*> symbolTable;
+  struct SymbolInfo {
+    llvm::Value* value;
+    llvm::Type* type;
+    bool isMutable;
+  };
+  std::unordered_map<std::string, SymbolInfo> symbolTable;
   llvm::Value* lastValue = nullptr;
   llvm::Function* currentFunction = nullptr;
   // ...other helpers for function/variable management...

@@ -1,6 +1,7 @@
 
 #include "LLVMCodeGenerator.h"
 
+#include <llvm/IR/DerivedTypes.h>  // Required for PointerType
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
@@ -16,6 +17,8 @@
 using namespace ast;
 
 namespace codegen {
+
+// Symbol table now stores SymbolInfo (defined in class header)
 
 // Visit ExprStmt: emit code for expression statements (e.g., function calls)
 void LLVMCodeGenerator::visit(ExprStmt& node) {
@@ -57,34 +60,64 @@ void LLVMCodeGenerator::visit(ProgramNode& node) {
 
 // Visit VarDecl: allocate and initialize variable
 void LLVMCodeGenerator::visit(VarDecl& node) {
-  // Only handle int for now
-  llvm::Type* llvmType = llvm::Type::getInt32Ty(context);
+  // Support int and string variables
+  llvm::Type* llvmType = nullptr;
+  bool isString = false;
+  if (node.initializer) {
+    node.initializer->accept(*this);
+    // crude check: if lastValue is a pointer to i8, treat as string
+    if (lastValue && lastValue->getType()->isPointerTy()) {
+      llvm::Type* elemType = nullptr;
+      if (auto ptrTy =
+              llvm::dyn_cast<llvm::PointerType>(lastValue->getType())) {
+        // Opaque pointers: treat as string if the initializer is a string
+        // literal (string literals are emitted as i8* by CreateGlobalStringPtr)
+        elemType = llvm::Type::getInt8Ty(context);
+      }
+      if (elemType && elemType->isIntegerTy(8)) {
+        llvmType = llvm::Type::getInt8Ty(context)->getPointerTo();
+        isString = true;
+      } else {
+        llvmType = llvm::Type::getInt32Ty(context);
+      }
+    } else {
+      llvmType = llvm::Type::getInt32Ty(context);
+    }
+  } else {
+    llvmType = llvm::Type::getInt32Ty(context);
+  }
+  bool isMutable = true;  // TODO: set based on VarDecl
+  // Store the LLVM type in the semantic symbol table if available
+  // (Assumes semantic symbol table is accessible and compatible)
   if (currentFunction) {
-    // Local variable: allocate in function entry block
     llvm::IRBuilder<> tmpBuilder(&currentFunction->getEntryBlock(),
                                  currentFunction->getEntryBlock().begin());
     llvm::Value* alloca =
         tmpBuilder.CreateAlloca(llvmType, nullptr, node.name.getLexeme());
-    symbolTable[node.name.getLexeme()] = alloca;
+    symbolTable[node.name.getLexeme()] =
+        SymbolInfo{alloca, llvmType, isMutable};
     if (node.initializer) {
-      node.initializer->accept(*this);
       llvm::Value* initVal = lastValue;
       builder->CreateStore(initVal, alloca);
     }
   } else {
-    // Global variable
-    llvm::Constant* init = llvm::ConstantInt::get(llvmType, 0);
+    llvm::Constant* init = nullptr;
+    if (isString) {
+      // For global string, use null pointer
+      init = llvm::ConstantPointerNull::get(
+          llvm::Type::getInt8Ty(context)->getPointerTo());
+    } else {
+      init = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    }
     if (node.initializer) {
-      node.initializer->accept(*this);
       if (auto c = llvm::dyn_cast<llvm::Constant>(lastValue)) {
         init = c;
       }
     }
-    auto* gvar = new llvm::GlobalVariable(*module, llvmType,
-                                          false,  // isConstant
+    auto* gvar = new llvm::GlobalVariable(*module, llvmType, false,
                                           llvm::GlobalValue::ExternalLinkage,
                                           init, node.name.getLexeme());
-    symbolTable[node.name.getLexeme()] = gvar;
+    symbolTable[node.name.getLexeme()] = SymbolInfo{gvar, llvmType, isMutable};
   }
 }
 
@@ -98,8 +131,9 @@ void LLVMCodeGenerator::visit(LiteralExpr& node) {
   } else if (type == TokenType::FALSE) {
     lastValue = llvm::ConstantInt::getFalse(context);
   } else if (type == TokenType::STRING_LITERAL) {
-    // Emit a global string pointer for string literals
-    lastValue = builder->CreateGlobalStringPtr(val);
+    // Emit a global string pointer for string literals (LLVM 20+ requires
+    // module)
+    lastValue = builder->CreateGlobalStringPtr(val, "", 0, module.get());
   } else {
     // Assume integer for now
     int intVal = std::stoi(val);
@@ -111,10 +145,19 @@ void LLVMCodeGenerator::visit(LiteralExpr& node) {
 void LLVMCodeGenerator::visit(IdentifierExpr& node) {
   auto it = symbolTable.find(node.name.getLexeme());
   if (it != symbolTable.end()) {
-    lastValue =
-        builder->CreateLoad(llvm::Type::getInt32Ty(context), it->second);
+    SymbolInfo sym = it->second;
+    llvm::Value* ptr = sym.value;
+    llvm::Type* type = sym.type;
+    if (type) {
+      lastValue = builder->CreateLoad(type, ptr);
+    } else {
+      llvm::errs() << "No LLVM type info for variable: "
+                   << node.name.getLexeme() << "\n";
+      lastValue = nullptr;
+    }
   } else {
     lastValue = nullptr;
+    llvm::errs() << "Undefined identifier: " << node.name.getLexeme() << "\n";
   }
 }
 
@@ -201,32 +244,39 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   std::vector<llvm::Value*> args;
   for (auto& arg : node.arguments) {
     arg->accept(*this);
-    args.push_back(lastValue);
+    llvm::Value* v = lastValue;
+    // If int, convert to string (not implemented here), else pass as is
+    if (v->getType()->isIntegerTy(32)) {
+      // TODO: implement int-to-string conversion for console.log
+      // For now, skip or error
+      llvm::errs() << "console.log: int argument not supported yet\n";
+      v = llvm::ConstantPointerNull::get(
+          llvm::Type::getInt8Ty(context)->getPointerTo());
+    }
+    args.push_back(v);
   }
   if (funcName == "console.log") {
-    // Declare external if needed
     auto logType = llvm::FunctionType::get(
         llvm::Type::getVoidTy(context),
-        {llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context))}, false);
+        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
     auto logFunc = module->getOrInsertFunction("tspp_console_log", logType);
     builder->CreateCall(logFunc, args);
     lastValue = nullptr;
   } else if (funcName == "console.error") {
     auto errType = llvm::FunctionType::get(
         llvm::Type::getVoidTy(context),
-        {llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context))}, false);
+        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
     auto errFunc = module->getOrInsertFunction("tspp_console_error", errType);
     builder->CreateCall(errFunc, args);
     lastValue = nullptr;
   } else if (funcName == "console.warn") {
     auto warnType = llvm::FunctionType::get(
         llvm::Type::getVoidTy(context),
-        {llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context))}, false);
+        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
     auto warnFunc = module->getOrInsertFunction("tspp_console_warn", warnType);
     builder->CreateCall(warnFunc, args);
     lastValue = nullptr;
   } else {
-    // User or other function call (not handled here)
     lastValue = nullptr;
   }
 }
