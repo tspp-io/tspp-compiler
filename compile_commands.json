@@ -172,5 +172,11 @@
   "command": "/usr/bin/c++  -I/home/hiren/tspp/src/packages/tspp_std  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/std_entrypoint.cpp.o -c /home/hiren/tspp/src/packages/tspp_std/std_entrypoint.cpp",
   "file": "/home/hiren/tspp/src/packages/tspp_std/std_entrypoint.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/std_entrypoint.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src/packages/tspp_std  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/string_util.cpp.o -c /home/hiren/tspp/src/packages/tspp_std/string_util.cpp",
+  "file": "/home/hiren/tspp/src/packages/tspp_std/string_util.cpp",
+  "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/string_util.cpp.o"
 }
 ]

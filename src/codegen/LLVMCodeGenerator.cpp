@@ -1,4 +1,3 @@
-
 #include "LLVMCodeGenerator.h"
 
 #include <llvm/IR/DerivedTypes.h>  // Required for PointerType
@@ -53,8 +52,111 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root,
 
 // Visit ProgramNode: emit all declarations
 void LLVMCodeGenerator::visit(ProgramNode& node) {
+  // --- First pass: allocate all global variables (VarDecl) with default values
+  // ---
   for (auto& decl : node.declarations) {
-    if (decl) decl->accept(*this);
+    if (!decl) continue;
+    if (auto varDecl = dynamic_cast<VarDecl*>(decl.get())) {
+      // Only handle globals (currentFunction == nullptr)
+      if (!currentFunction) {
+        // Determine type by examining the initializer AST node type, not by
+        // evaluating it
+        llvm::Type* llvmType = llvm::Type::getInt32Ty(context);
+        bool isString = false;
+
+        // Check if initializer is a string literal
+        if (varDecl->initializer) {
+          if (auto litExpr =
+                  dynamic_cast<LiteralExpr*>(varDecl->initializer.get())) {
+            if (litExpr->value.getType() == tokens::TokenType::STRING_LITERAL) {
+              llvmType = llvm::Type::getInt8Ty(context)->getPointerTo();
+              isString = true;
+            }
+          }
+        }
+
+        llvm::Constant* init = nullptr;
+        if (isString) {
+          init = llvm::ConstantPointerNull::get(
+              llvm::Type::getInt8Ty(context)->getPointerTo());
+        } else {
+          init = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+        }
+        auto* gvar = new llvm::GlobalVariable(
+            *module, llvmType, false, llvm::GlobalValue::ExternalLinkage, init,
+            varDecl->name.getLexeme());
+        symbolTable[varDecl->name.getLexeme()] =
+            SymbolInfo{gvar, llvmType, true};
+      }
+    }
+  }
+  // --- Second pass: handle all other declarations, and initialize globals ---
+  std::vector<std::pair<llvm::GlobalVariable*, VarDecl*>> pendingGlobalStores;
+  for (auto& decl : node.declarations) {
+    if (!decl) continue;
+    if (auto varDecl = dynamic_cast<VarDecl*>(decl.get())) {
+      if (!currentFunction && varDecl->initializer) {
+        // Check if this is a simple constant (literal only)
+        bool isSimpleConstant =
+            dynamic_cast<LiteralExpr*>(varDecl->initializer.get()) != nullptr;
+
+        if (isSimpleConstant) {
+          // Evaluate constant initializer and set it
+          varDecl->initializer->accept(*this);
+          auto it = symbolTable.find(varDecl->name.getLexeme());
+          if (it != symbolTable.end()) {
+            SymbolInfo sym = it->second;
+            llvm::GlobalVariable* gvar =
+                llvm::dyn_cast<llvm::GlobalVariable>(sym.value);
+            if (gvar && lastValue) {
+              if (auto c = llvm::dyn_cast<llvm::Constant>(lastValue)) {
+                gvar->setInitializer(c);
+              }
+            }
+          }
+        } else {
+          // Non-constant initializer: defer to runtime
+          auto it = symbolTable.find(varDecl->name.getLexeme());
+          if (it != symbolTable.end()) {
+            SymbolInfo sym = it->second;
+            llvm::GlobalVariable* gvar =
+                llvm::dyn_cast<llvm::GlobalVariable>(sym.value);
+            if (gvar) {
+              pendingGlobalStores.push_back({gvar, varDecl});
+            }
+          }
+        }
+      }
+    } else {
+      decl->accept(*this);
+    }
+  }
+  // Emit runtime stores for non-constant global initializers at start of main
+  if (!pendingGlobalStores.empty()) {
+    llvm::Function* mainFunc = module->getFunction("main");
+    if (mainFunc) {
+      auto entry = &mainFunc->getEntryBlock();
+      llvm::IRBuilder<> tmpBuilder(entry, entry->begin());
+      auto* prevBuilder = builder.release();
+      llvm::Function* prevFunction = currentFunction;
+      builder = std::make_unique<llvm::IRBuilder<>>(context);
+      builder->SetInsertPoint(entry, entry->begin());
+      currentFunction =
+          mainFunc;  // Set currentFunction so variable loads work correctly
+      for (auto& pair : pendingGlobalStores) {
+        llvm::GlobalVariable* gvar = pair.first;
+        VarDecl* vardecl = pair.second;
+        if (gvar && vardecl && vardecl->initializer) {
+          vardecl->initializer->accept(*this);
+          llvm::Value* initVal = lastValue;
+          if (initVal) {
+            builder->CreateStore(initVal, gvar);
+          }
+        }
+      }
+      builder.reset(prevBuilder);
+      currentFunction = prevFunction;
+    }
   }
 }
 
@@ -101,23 +203,20 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
       builder->CreateStore(initVal, alloca);
     }
   } else {
+    // Always use a default initializer for globals
     llvm::Constant* init = nullptr;
     if (isString) {
-      // For global string, use null pointer
       init = llvm::ConstantPointerNull::get(
           llvm::Type::getInt8Ty(context)->getPointerTo());
     } else {
       init = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     }
-    if (node.initializer) {
-      if (auto c = llvm::dyn_cast<llvm::Constant>(lastValue)) {
-        init = c;
-      }
-    }
     auto* gvar = new llvm::GlobalVariable(*module, llvmType, false,
                                           llvm::GlobalValue::ExternalLinkage,
                                           init, node.name.getLexeme());
     symbolTable[node.name.getLexeme()] = SymbolInfo{gvar, llvmType, isMutable};
+    // The actual value will be set in the second pass if constant, or at
+    // runtime if not
   }
 }
 
@@ -131,9 +230,20 @@ void LLVMCodeGenerator::visit(LiteralExpr& node) {
   } else if (type == TokenType::FALSE) {
     lastValue = llvm::ConstantInt::getFalse(context);
   } else if (type == TokenType::STRING_LITERAL) {
-    // Emit a global string pointer for string literals (LLVM 20+ requires
-    // module)
-    lastValue = builder->CreateGlobalStringPtr(val, "", 0, module.get());
+    // For string literals, we need different handling at global vs function
+    // scope
+    if (currentFunction) {
+      // Inside a function: emit a global string pointer
+      lastValue = builder->CreateGlobalStringPtr(val, "", 0, module.get());
+    } else {
+      // At global scope: create a constant global string
+      auto* strConstant = llvm::ConstantDataArray::getString(context, val);
+      auto* globalStr = new llvm::GlobalVariable(
+          *module, strConstant->getType(), true,
+          llvm::GlobalValue::PrivateLinkage, strConstant);
+      lastValue = llvm::ConstantExpr::getBitCast(
+          globalStr, llvm::Type::getInt8Ty(context)->getPointerTo());
+    }
   } else {
     // Assume integer for now
     int intVal = std::stoi(val);
@@ -148,16 +258,25 @@ void LLVMCodeGenerator::visit(IdentifierExpr& node) {
     SymbolInfo sym = it->second;
     llvm::Value* ptr = sym.value;
     llvm::Type* type = sym.type;
-    if (type) {
-      lastValue = builder->CreateLoad(type, ptr);
-    } else {
-      llvm::errs() << "No LLVM type info for variable: "
-                   << node.name.getLexeme() << "\n";
+    if (!ptr || !type) {
       lastValue = nullptr;
+      return;
+    }
+    // If this is a global variable, only load if inside a function
+    if (llvm::isa<llvm::GlobalVariable>(ptr)) {
+      if (currentFunction) {
+        lastValue = builder->CreateLoad(type, ptr);
+      } else {
+        // At global scope, don't emit a load; just use the global variable
+        // pointer
+        lastValue = ptr;
+      }
+    } else {
+      // Local variable (alloca)
+      lastValue = builder->CreateLoad(type, ptr);
     }
   } else {
     lastValue = nullptr;
-    llvm::errs() << "Undefined identifier: " << node.name.getLexeme() << "\n";
   }
 }
 
@@ -167,6 +286,21 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
   llvm::Value* lhs = lastValue;
   node.right->accept(*this);
   llvm::Value* rhs = lastValue;
+
+  // If we're at global scope (no current function), we can't emit IR
+  // instructions This indicates a non-constant global initializer that should
+  // be deferred
+  if (!currentFunction) {
+    lastValue = nullptr;
+    return;
+  }
+
+  // Ensure both operands are valid
+  if (!lhs || !rhs) {
+    lastValue = nullptr;
+    return;
+  }
+
   std::string op = node.op.getLexeme();
   if (op == "+") {
     lastValue = builder->CreateAdd(lhs, rhs, "addtmp");
@@ -242,18 +376,30 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
     }
   }
   std::vector<llvm::Value*> args;
+  std::vector<std::pair<llvm::Value*, bool>> argWithFree;
   for (auto& arg : node.arguments) {
     arg->accept(*this);
     llvm::Value* v = lastValue;
-    // If int, convert to string (not implemented here), else pass as is
+    bool needsFree = false;
     if (v->getType()->isIntegerTy(32)) {
-      // TODO: implement int-to-string conversion for console.log
-      // For now, skip or error
-      llvm::errs() << "console.log: int argument not supported yet\n";
-      v = llvm::ConstantPointerNull::get(
-          llvm::Type::getInt8Ty(context)->getPointerTo());
+      auto intToStrType = llvm::FunctionType::get(
+          llvm::Type::getInt8Ty(context)->getPointerTo(),
+          {llvm::Type::getInt32Ty(context)}, false);
+      auto intToStrFunc =
+          module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+      v = builder->CreateCall(intToStrFunc, {v});
+      needsFree = true;
+    } else if (v->getType()->isFloatTy()) {
+      auto floatToStrType = llvm::FunctionType::get(
+          llvm::Type::getInt8Ty(context)->getPointerTo(),
+          {llvm::Type::getFloatTy(context)}, false);
+      auto floatToStrFunc =
+          module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
+      v = builder->CreateCall(floatToStrFunc, {v});
+      needsFree = true;
     }
     args.push_back(v);
+    argWithFree.push_back({v, needsFree});
   }
   if (funcName == "console.log") {
     auto logType = llvm::FunctionType::get(
@@ -261,6 +407,16 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
         {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
     auto logFunc = module->getOrInsertFunction("tspp_console_log", logType);
     builder->CreateCall(logFunc, args);
+    // Now free any heap-allocated strings
+    auto freeType = llvm::FunctionType::get(
+        llvm::Type::getVoidTy(context),
+        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
+    auto freeFunc = module->getOrInsertFunction("tspp_free_string", freeType);
+    for (auto& [v, needsFree] : argWithFree) {
+      if (needsFree) {
+        builder->CreateCall(freeFunc, {v});
+      }
+    }
     lastValue = nullptr;
   } else if (funcName == "console.error") {
     auto errType = llvm::FunctionType::get(
