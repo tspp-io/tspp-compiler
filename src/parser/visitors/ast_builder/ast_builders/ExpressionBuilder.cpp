@@ -100,13 +100,25 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
     if (prec < minPrec) break;
     auto op = stream.peek();
     stream.advance();
-    auto right = buildBinary(stream, prec + 1);
-    auto expr = std::make_shared<ast::BinaryExpr>();
-    expr->op = op;
-    expr->left = left;
-    expr->right = right;
-    expr->location = op.getLocation();
-    left = expr;
+
+    // Special handling for assignment operators
+    if (type == tokens::TokenType::EQUALS) {
+      auto right = buildBinary(stream, prec + 1);
+      auto assignExpr = std::make_shared<ast::AssignmentExpr>();
+      assignExpr->target = left;
+      assignExpr->value = right;
+      assignExpr->location = op.getLocation();
+      left = assignExpr;
+    } else {
+      // Regular binary expression
+      auto right = buildBinary(stream, prec + 1);
+      auto expr = std::make_shared<ast::BinaryExpr>();
+      expr->op = op;
+      expr->left = left;
+      expr->right = right;
+      expr->location = op.getLocation();
+      left = expr;
+    }
   }
   return left;
 }

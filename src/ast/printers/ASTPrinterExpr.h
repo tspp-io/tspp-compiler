@@ -110,8 +110,13 @@ class ASTPrinterExpr : public ASTVisitor {
     std::cout << "{ ";
     printKey("type");
     std::cout << "\"AssignmentExpr\", ";
-    printKey("name");
-    std::cout << '"' << node.name.getLexeme() << "\", ";
+    printKey("target");
+    if (node.target) {
+      node.target->accept(*this);
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ", ";
     printKey("value");
     if (node.value) {
       node.value->accept(*this);

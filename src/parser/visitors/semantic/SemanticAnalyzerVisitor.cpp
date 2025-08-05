@@ -284,16 +284,25 @@ void SemanticAnalyzerVisitor::visit(IdentifierExpr& node) {
 }
 
 void SemanticAnalyzerVisitor::visit(AssignmentExpr& node) {
-  std::string varName = node.name.getLexeme();
-  auto sym = currentScope->lookup(varName);
-  if (sym) {
-    if (sym->isConst) {
-      reportError("Cannot assign to const variable '" + varName + "'");
+  // For now, only support identifier assignments
+  if (auto targetIdent = dynamic_cast<IdentifierExpr*>(node.target.get())) {
+    std::string varName = targetIdent->name.getLexeme();
+    auto sym = currentScope->lookup(varName);
+    if (sym) {
+      if (sym->isConst) {
+        reportError("Cannot assign to const variable '" + varName + "'");
+      }
+      // TODO: Type compatibility check between target and value
+    } else {
+      reportError("Assignment to undeclared variable '" + varName + "'");
     }
-    // TODO: Type compatibility check
   } else {
-    reportError("Assignment to undeclared variable '" + varName + "'");
+    // TODO: Support member access assignments
+    reportError("Unsupported assignment target");
   }
+
+  // Visit the target and value for completeness
+  if (node.target) node.target->accept(*this);
   if (node.value) node.value->accept(*this);
 }
 

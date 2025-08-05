@@ -17,6 +17,14 @@ extern "C" char* tspp_float_to_string(float value) {
   return buf;
 }
 
+extern "C" char* tspp_bool_to_string(bool value) {
+  char* buf = (char*)malloc(8);
+  if (buf) {
+    snprintf(buf, 8, "%s", value ? "true" : "false");
+  }
+  return buf;
+}
+
 extern "C" void tspp_free_string(char* p) {
   free(p);
 }

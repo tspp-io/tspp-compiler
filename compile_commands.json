@@ -139,6 +139,12 @@
 },
 {
   "directory": "/home/hiren/tspp/build/src",
+  "command": "/usr/bin/c++  -I/home/hiren/tspp/src  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_codegen.dir/codegen/ConstantExpressionEvaluator.cpp.o -c /home/hiren/tspp/src/codegen/ConstantExpressionEvaluator.cpp",
+  "file": "/home/hiren/tspp/src/codegen/ConstantExpressionEvaluator.cpp",
+  "output": "src/CMakeFiles/tspp_codegen.dir/codegen/ConstantExpressionEvaluator.cpp.o"
+},
+{
+  "directory": "/home/hiren/tspp/build/src",
   "command": "/usr/bin/c++  -I/home/hiren/tspp/src -I/home/hiren/tspp/src/packages/tspp_std  -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp.dir/main.cpp.o -c /home/hiren/tspp/src/main.cpp",
   "file": "/home/hiren/tspp/src/main.cpp",
   "output": "src/CMakeFiles/tspp.dir/main.cpp.o"

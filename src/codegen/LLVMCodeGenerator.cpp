@@ -8,6 +8,7 @@
 
 #include <iostream>
 
+#include "ConstantExpressionEvaluator.h"
 #include "parser/nodes/base_node.h"
 #include "parser/nodes/declaration_nodes.h"
 #include "parser/nodes/expression_nodes.h"
@@ -102,21 +103,13 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root,
 
 // Visit ProgramNode: emit all declarations
 void LLVMCodeGenerator::visit(ProgramNode& node) {
-  std::cerr << "DEBUG: ProgramNode visit started, declarations count: "
-            << node.declarations.size() << std::endl;
-
   // Handle all declarations - let VarDecl::visit handle global variable
   // creation
   for (auto& decl : node.declarations) {
     if (decl) {
-      std::cerr << "DEBUG: Processing declaration type: "
-                << typeid(*decl).name() << std::endl;
       decl->accept(*this);
     }
   }
-
-  std::cerr << "DEBUG: ProgramNode declarations processed, statements count: "
-            << node.statements.size() << std::endl;
 
   // Handle all statements (including main function)
   for (auto& stmt : node.statements) {
@@ -128,30 +121,22 @@ void LLVMCodeGenerator::visit(ProgramNode& node) {
 
 // Visit VarDecl: allocate and initialize variable
 void LLVMCodeGenerator::visit(VarDecl& node) {
-  std::cerr << "DEBUG: VarDecl::visit called for variable: "
-            << node.name.getLexeme() << std::endl;
-
   // Determine LLVM type using semantic analyzer if available
   llvm::Type* llvmType = nullptr;
   std::string resolvedTypeName;
-
-  std::cerr << "DEBUG: semanticAnalyzer is "
-            << (semanticAnalyzer ? "available" : "null") << std::endl;
-  std::cerr << "DEBUG: node.type is " << (node.type ? "available" : "null")
-            << std::endl;
 
   if (semanticAnalyzer && node.type) {
     // Use semantic analyzer to resolve the type
     resolvedTypeName = semanticAnalyzer->resolveType(node.type.get());
     llvmType = getLLVMType(resolvedTypeName);
-    std::cerr << "DEBUG: Variable '" << node.name.getLexeme()
-              << "' resolved type: '" << resolvedTypeName << "'" << std::endl;
   } else {
     // Fallback to old behavior: infer type from initializer
     bool isString = false;
     if (node.initializer) {
       node.initializer->accept(*this);
       // crude check: if lastValue is a pointer to i8, treat as string
+      // literals are emitted as i8* by
+      // CreateGlobalStringPtr)
       if (lastValue && lastValue->getType()->isPointerTy()) {
         llvm::Type* elemType = nullptr;
         if (auto ptrTy =
@@ -204,31 +189,42 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     llvm::Constant* init = nullptr;
     bool isString = (resolvedTypeName == "string");
 
-    // Evaluate initializer first to determine if it's a constant
-    llvm::Value* initValue = nullptr;
+    // Try to evaluate initializer as a constant expression
     if (node.initializer) {
-      node.initializer->accept(*this);
-      initValue = lastValue;
+      auto constantValue = constantEvaluator.evaluate(node.initializer.get());
+      if (constantValue) {
+        // Successfully evaluated as constant - use it
+        init = constantValueToLLVM(*constantValue);
+
+        // Add this constant to the evaluator's context for future references
+        constantEvaluator.addConstant(node.name.getLexeme(), *constantValue);
+      } else {
+        // Fall back to runtime evaluation and default initialization
+        node.initializer->accept(*this);
+        llvm::Value* initValue = lastValue;
+
+        // If we have a constant initializer, use it
+        if (initValue && llvm::isa<llvm::Constant>(initValue)) {
+          init = llvm::cast<llvm::Constant>(initValue);
+        }
+      }
     }
 
-    // Set appropriate default initializer
-    if (isString) {
-      init = llvm::ConstantPointerNull::get(
-          llvm::Type::getInt8Ty(context)->getPointerTo());
-    } else if (resolvedTypeName == "bool") {
-      init = llvm::ConstantInt::get(llvm::Type::getInt1Ty(context), 0);
-    } else if (resolvedTypeName == "float") {
-      init = llvm::ConstantFP::get(llvm::Type::getFloatTy(context), 0.0);
-    } else if (resolvedTypeName == "double") {
-      init = llvm::ConstantFP::get(llvm::Type::getDoubleTy(context), 0.0);
-    } else {
-      // Default to int types
-      init = llvm::ConstantInt::get(llvmType, 0);
-    }
-
-    // If we have a constant initializer, use it
-    if (initValue && llvm::isa<llvm::Constant>(initValue)) {
-      init = llvm::cast<llvm::Constant>(initValue);
+    // Set appropriate default initializer if no constant was computed
+    if (!init) {
+      if (isString) {
+        init = llvm::ConstantPointerNull::get(
+            llvm::Type::getInt8Ty(context)->getPointerTo());
+      } else if (resolvedTypeName == "bool") {
+        init = llvm::ConstantInt::get(llvm::Type::getInt1Ty(context), 0);
+      } else if (resolvedTypeName == "float") {
+        init = llvm::ConstantFP::get(llvm::Type::getFloatTy(context), 0.0);
+      } else if (resolvedTypeName == "double") {
+        init = llvm::ConstantFP::get(llvm::Type::getDoubleTy(context), 0.0);
+      } else {
+        // Default to int types
+        init = llvm::ConstantInt::get(llvmType, 0);
+      }
     }
 
     auto* gvar = new llvm::GlobalVariable(*module, llvmType, false,
@@ -303,11 +299,6 @@ void LLVMCodeGenerator::visit(IdentifierExpr& node) {
 
 // Visit BinaryExpr: emit arithmetic/logic
 void LLVMCodeGenerator::visit(BinaryExpr& node) {
-  node.left->accept(*this);
-  llvm::Value* lhs = lastValue;
-  node.right->accept(*this);
-  llvm::Value* rhs = lastValue;
-
   // If we're at global scope (no current function), we can't emit IR
   // instructions This indicates a non-constant global initializer that should
   // be deferred
@@ -316,13 +307,125 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     return;
   }
 
+  std::string op = node.op.getLexeme();
+
+  // Handle logical operators with short-circuiting
+  if (op == "&&") {
+    // Short-circuit AND: if left is false, don't evaluate right
+    node.left->accept(*this);
+    llvm::Value* lhs = lastValue;
+    if (!lhs) {
+      lastValue = nullptr;
+      return;
+    }
+
+    // Convert to boolean if needed
+    if (lhs->getType()->isIntegerTy() && !lhs->getType()->isIntegerTy(1)) {
+      lhs = builder->CreateICmpNE(
+          lhs, llvm::ConstantInt::get(lhs->getType(), 0), "tobool");
+    }
+
+    // Remember the block where LHS evaluation ended
+    llvm::BasicBlock* lhsEndBB = builder->GetInsertBlock();
+
+    llvm::BasicBlock* rhsBB =
+        llvm::BasicBlock::Create(context, "land.rhs", currentFunction);
+    llvm::BasicBlock* endBB =
+        llvm::BasicBlock::Create(context, "land.end", currentFunction);
+
+    builder->CreateCondBr(lhs, rhsBB, endBB);
+
+    // Right hand side
+    builder->SetInsertPoint(rhsBB);
+    node.right->accept(*this);
+    llvm::Value* rhs = lastValue;
+    if (!rhs) {
+      lastValue = nullptr;
+      return;
+    }
+
+    // Convert to boolean if needed
+    if (rhs->getType()->isIntegerTy() && !rhs->getType()->isIntegerTy(1)) {
+      rhs = builder->CreateICmpNE(
+          rhs, llvm::ConstantInt::get(rhs->getType(), 0), "tobool");
+    }
+
+    llvm::BasicBlock* rhsEndBB = builder->GetInsertBlock();
+    builder->CreateBr(endBB);
+
+    // End block with PHI node
+    builder->SetInsertPoint(endBB);
+    llvm::PHINode* phi =
+        builder->CreatePHI(llvm::Type::getInt1Ty(context), 2, "land");
+    phi->addIncoming(llvm::ConstantInt::getFalse(context), lhsEndBB);
+    phi->addIncoming(rhs, rhsEndBB);
+    lastValue = phi;
+    return;
+  } else if (op == "||") {
+    // Short-circuit OR: if left is true, don't evaluate right
+    node.left->accept(*this);
+    llvm::Value* lhs = lastValue;
+    if (!lhs) {
+      lastValue = nullptr;
+      return;
+    }
+
+    // Convert to boolean if needed
+    if (lhs->getType()->isIntegerTy() && !lhs->getType()->isIntegerTy(1)) {
+      lhs = builder->CreateICmpNE(
+          lhs, llvm::ConstantInt::get(lhs->getType(), 0), "tobool");
+    }
+
+    // Remember the block where LHS evaluation ended
+    llvm::BasicBlock* lhsEndBB = builder->GetInsertBlock();
+
+    llvm::BasicBlock* rhsBB =
+        llvm::BasicBlock::Create(context, "lor.rhs", currentFunction);
+    llvm::BasicBlock* endBB =
+        llvm::BasicBlock::Create(context, "lor.end", currentFunction);
+
+    builder->CreateCondBr(lhs, endBB, rhsBB);
+
+    // Right hand side
+    builder->SetInsertPoint(rhsBB);
+    node.right->accept(*this);
+    llvm::Value* rhs = lastValue;
+    if (!rhs) {
+      lastValue = nullptr;
+      return;
+    }
+
+    // Convert to boolean if needed
+    if (rhs->getType()->isIntegerTy() && !rhs->getType()->isIntegerTy(1)) {
+      rhs = builder->CreateICmpNE(
+          rhs, llvm::ConstantInt::get(rhs->getType(), 0), "tobool");
+    }
+
+    llvm::BasicBlock* rhsEndBB = builder->GetInsertBlock();
+    builder->CreateBr(endBB);
+
+    // End block with PHI node
+    builder->SetInsertPoint(endBB);
+    llvm::PHINode* phi =
+        builder->CreatePHI(llvm::Type::getInt1Ty(context), 2, "lor");
+    phi->addIncoming(llvm::ConstantInt::getTrue(context), lhsEndBB);
+    phi->addIncoming(rhs, rhsEndBB);
+    lastValue = phi;
+    return;
+  }
+
+  // For all other operators, evaluate both sides first
+  node.left->accept(*this);
+  llvm::Value* lhs = lastValue;
+  node.right->accept(*this);
+  llvm::Value* rhs = lastValue;
+
   // Ensure both operands are valid
   if (!lhs || !rhs) {
     lastValue = nullptr;
     return;
   }
 
-  std::string op = node.op.getLexeme();
   if (op == "+") {
     lastValue = builder->CreateAdd(lhs, rhs, "addtmp");
   } else if (op == "-") {
@@ -331,10 +434,16 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     lastValue = builder->CreateMul(lhs, rhs, "multmp");
   } else if (op == "/") {
     lastValue = builder->CreateSDiv(lhs, rhs, "divtmp");
+  } else if (op == "%") {
+    lastValue = builder->CreateSRem(lhs, rhs, "modtmp");
   } else if (op == "<") {
     lastValue = builder->CreateICmpSLT(lhs, rhs, "cmptmp");
   } else if (op == ">") {
     lastValue = builder->CreateICmpSGT(lhs, rhs, "cmptmp");
+  } else if (op == "<=") {
+    lastValue = builder->CreateICmpSLE(lhs, rhs, "cmptmp");
+  } else if (op == ">=") {
+    lastValue = builder->CreateICmpSGE(lhs, rhs, "cmptmp");
   } else if (op == "==") {
     lastValue = builder->CreateICmpEQ(lhs, rhs, "cmptmp");
   } else if (op == "!=") {
@@ -409,6 +518,15 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
       auto intToStrFunc =
           module->getOrInsertFunction("tspp_int_to_string", intToStrType);
       v = builder->CreateCall(intToStrFunc, {v});
+      needsFree = true;
+    } else if (v->getType()->isIntegerTy(1)) {
+      // Boolean to string conversion
+      auto boolToStrType = llvm::FunctionType::get(
+          llvm::Type::getInt8Ty(context)->getPointerTo(),
+          {llvm::Type::getInt1Ty(context)}, false);
+      auto boolToStrFunc =
+          module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
+      v = builder->CreateCall(boolToStrFunc, {v});
       needsFree = true;
     } else if (v->getType()->isFloatTy()) {
       auto floatToStrType = llvm::FunctionType::get(
@@ -508,6 +626,49 @@ void LLVMCodeGenerator::visit(IfStmt& node) {
   builder->SetInsertPoint(mergeBB);
 }
 
+// Visit AssignmentExpr: handle variable assignments
+void LLVMCodeGenerator::visit(AssignmentExpr& node) {
+  // Only support identifier assignments for now (x = expr)
+  if (auto targetIdent = dynamic_cast<IdentifierExpr*>(node.target.get())) {
+    std::string varName = targetIdent->name.getLexeme();
+
+    // Look up the variable in symbol table
+    auto it = symbolTable.find(varName);
+    if (it != symbolTable.end()) {
+      SymbolInfo sym = it->second;
+      llvm::Value* ptr = sym.value;
+
+      if (ptr && sym.isMutable) {
+        // Evaluate the right-hand side
+        if (node.value) {
+          node.value->accept(*this);
+          llvm::Value* valueToStore = lastValue;
+
+          if (valueToStore && currentFunction) {
+            // Store the value
+            builder->CreateStore(valueToStore, ptr);
+            lastValue = valueToStore;  // Assignment expression returns the
+                                       // assigned value
+          } else {
+            lastValue = nullptr;
+          }
+        } else {
+          lastValue = nullptr;
+        }
+      } else {
+        // Error: trying to assign to const variable or invalid pointer
+        lastValue = nullptr;
+      }
+    } else {
+      // Error: variable not found
+      lastValue = nullptr;
+    }
+  } else {
+    // TODO: Support member access assignments (obj.field = expr)
+    lastValue = nullptr;
+  }
+}
+
 // Add more visit methods as needed for full coverage
 
 void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
@@ -530,6 +691,79 @@ void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
   // Type aliases don't generate runtime code - they are resolved at compile
   // time by the semantic analyzer. No action needed in codegen.
   (void)node;  // Suppress unused parameter warning
+}
+
+// Visit UnaryExpr: handle unary operations like -x, !x
+void LLVMCodeGenerator::visit(UnaryExpr& node) {
+  if (!node.operand) {
+    lastValue = nullptr;
+    return;
+  }
+
+  // Evaluate the operand
+  node.operand->accept(*this);
+  llvm::Value* operandValue = lastValue;
+
+  if (!operandValue || !currentFunction) {
+    lastValue = nullptr;
+    return;
+  }
+
+  std::string op = node.op.getLexeme();
+  if (op == "-") {
+    // Unary minus: negate the operand
+    if (operandValue->getType()->isIntegerTy()) {
+      lastValue = builder->CreateNeg(operandValue, "neg");
+    } else if (operandValue->getType()->isFloatingPointTy()) {
+      lastValue = builder->CreateFNeg(operandValue, "fneg");
+    } else {
+      lastValue = nullptr;
+    }
+  } else if (op == "!") {
+    // Logical NOT: invert boolean or convert to boolean first
+    if (operandValue->getType()->isIntegerTy(1)) {
+      // Already a boolean
+      lastValue = builder->CreateNot(operandValue, "not");
+    } else if (operandValue->getType()->isIntegerTy()) {
+      // Convert integer to boolean (0 = false, non-zero = true), then negate
+      llvm::Value* isNonZero = builder->CreateICmpNE(
+          operandValue, llvm::ConstantInt::get(operandValue->getType(), 0),
+          "isnonzero");
+      lastValue = builder->CreateNot(isNonZero, "not");
+    } else {
+      lastValue = nullptr;
+    }
+  } else {
+    // Unsupported unary operator
+    lastValue = nullptr;
+  }
+}
+
+llvm::Constant* LLVMCodeGenerator::constantValueToLLVM(
+    const ast::ConstantValue& constVal) {
+  switch (constVal.type) {
+    case ast::ConstantValue::INT:
+      return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context),
+                                    constVal.asInt());
+    case ast::ConstantValue::BOOL:
+      return llvm::ConstantInt::get(llvm::Type::getInt1Ty(context),
+                                    constVal.asBool());
+    case ast::ConstantValue::FLOAT:
+      return llvm::ConstantFP::get(llvm::Type::getFloatTy(context),
+                                   constVal.asFloat());
+    case ast::ConstantValue::STRING: {
+      // For strings, create a global string constant
+      auto* strConstant =
+          llvm::ConstantDataArray::getString(context, constVal.asString());
+      auto* globalStr = new llvm::GlobalVariable(
+          *module, strConstant->getType(), true,
+          llvm::GlobalValue::PrivateLinkage, strConstant);
+      return llvm::ConstantExpr::getBitCast(
+          globalStr, llvm::Type::getInt8Ty(context)->getPointerTo());
+    }
+    default:
+      return nullptr;
+  }
 }
 
 }  // namespace codegen

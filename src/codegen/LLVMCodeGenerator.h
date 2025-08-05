@@ -8,6 +8,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "ConstantExpressionEvaluator.h"
 #include "parser/nodes/ast_visitor.h"
 #include "parser/visitors/semantic/SemanticAnalyzerVisitor.h"
 
@@ -26,6 +27,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::LiteralExpr&) override;
   void visit(ast::IdentifierExpr&) override;
   void visit(ast::BinaryExpr&) override;
+  void visit(ast::UnaryExpr&) override;
+  void visit(ast::AssignmentExpr&) override;
   void visit(ast::FunctionDecl&) override;
   void visit(ast::ReturnStmt&) override;
   void visit(ast::ExprStmt&) override;
@@ -53,8 +56,15 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   // Semantic analyzer for type resolution
   ast::SemanticAnalyzerVisitor* semanticAnalyzer = nullptr;
 
+  // Constant expression evaluator for global initializers
+  ast::ConstantExpressionEvaluator constantEvaluator;
+
   // Helper method to convert semantic type to LLVM type
   llvm::Type* getLLVMType(const std::string& typeName);
+
+  // Helper method to convert ConstantValue to LLVM Constant
+  llvm::Constant* constantValueToLLVM(const ast::ConstantValue& constVal);
+
   // ...other helpers for function/variable management...
 };
 

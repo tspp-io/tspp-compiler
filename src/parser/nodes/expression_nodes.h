@@ -42,8 +42,8 @@ class IdentifierExpr : public Expr {
 
 class AssignmentExpr : public Expr {
  public:
-  tokens::Token name;
-  Shared(Expr) value;
+  Shared(Expr) target;  // Left-hand side (identifier, member access, etc.)
+  Shared(Expr) value;   // Right-hand side value to assign
   AST_ACCEPT_IMPL(AssignmentExpr);
 };
 

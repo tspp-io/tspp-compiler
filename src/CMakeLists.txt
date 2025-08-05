@@ -36,6 +36,7 @@ add_library(parser
 # Only add tspp_codegen once, and link it with LLVM and all dependencies
 add_library(tspp_codegen
     codegen/LLVMCodeGenerator.cpp
+    codegen/ConstantExpressionEvaluator.cpp
 )
 target_link_libraries(tspp_codegen 
     PUBLIC 
