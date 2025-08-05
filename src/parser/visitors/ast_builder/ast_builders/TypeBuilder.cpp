@@ -63,7 +63,53 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
 
   // Handle basic types and identifiers
   if (isBasicType(type) || type == tokens::TokenType::IDENTIFIER) {
-    return buildBasic(stream);
+    auto baseType = buildBasic(stream);
+    if (!baseType) return nullptr;
+
+    // Convert to TypeNode for further processing
+    Shared(ast::TypeNode) resultType =
+        std::static_pointer_cast<ast::TypeNode>(baseType);
+
+    // Check for pointer suffix: Type '*' (without @ prefix)
+    if (stream.peek().getType() == tokens::TokenType::STAR) {
+      stream.advance();  // consume '*'
+      auto ptrNode = std::make_shared<ast::PointerTypeNode>();
+      ptrNode->qualifier = tokens::Token();  // no qualifier for suffix syntax
+      ptrNode->baseType = resultType;
+      ptrNode->location = resultType->location;
+      resultType = ptrNode;
+    }
+
+    // Check for union types: Type '|' Type { '|' Type }
+    if (stream.peek().getType() == tokens::TokenType::PIPE) {
+      auto unionNode = std::make_shared<ast::UnionTypeNode>();
+      unionNode->types.push_back(resultType);
+      unionNode->location = resultType->location;
+
+      while (stream.peek().getType() == tokens::TokenType::PIPE) {
+        stream.advance();  // consume '|'
+        auto nextType = build(stream);
+        if (!nextType) break;
+        unionNode->types.push_back(nextType);
+      }
+
+      resultType = unionNode;
+    }
+
+    // Check for type constraints: Type [ 'extends' Type ]
+    if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
+      stream.advance();  // consume 'extends'
+      auto constraintType = build(stream);
+      if (constraintType) {
+        auto constraintNode = std::make_shared<ast::TypeConstraintNode>();
+        constraintNode->base = resultType;
+        constraintNode->constraint = constraintType;
+        constraintNode->location = resultType->location;
+        return constraintNode;
+      }
+    }
+
+    return resultType;
   }
 
   // Unrecognized type

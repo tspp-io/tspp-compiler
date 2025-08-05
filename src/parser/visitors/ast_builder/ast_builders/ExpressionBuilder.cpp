@@ -70,9 +70,12 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       }
       return expr;
     }
-    // Handle unary operators: -expr, !expr
+    // Handle unary operators: -expr, !expr, @expr (address-of), *expr
+    // (dereference)
     case tokens::TokenType::MINUS:
-    case tokens::TokenType::EXCLAIM: {
+    case tokens::TokenType::EXCLAIM:
+    case tokens::TokenType::AT:      // Address-of operator (@)
+    case tokens::TokenType::STAR: {  // Dereference operator (*)
       auto op = stream.peek();
       stream.advance();
       auto right = buildPrimary(stream);

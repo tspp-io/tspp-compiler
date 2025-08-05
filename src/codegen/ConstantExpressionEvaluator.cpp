@@ -46,10 +46,14 @@ void ConstantExpressionEvaluator::visit(LiteralExpr& node) {
       result = std::make_unique<ConstantValue>(lexeme);
       evaluationSucceeded = true;
     } else if (type == TokenType::NUMBER) {
-      // For now, assume all numbers are integers
-      // TODO: Better handling of float vs int
-      int intVal = std::stoi(lexeme);
-      result = std::make_unique<ConstantValue>(intVal);
+      // Check if the number is a float (contains a decimal point)
+      if (lexeme.find('.') != std::string::npos) {
+        float floatVal = std::stof(lexeme);
+        result = std::make_unique<ConstantValue>(floatVal);
+      } else {
+        int intVal = std::stoi(lexeme);
+        result = std::make_unique<ConstantValue>(intVal);
+      }
       evaluationSucceeded = true;
     }
   } catch (const std::exception& e) {

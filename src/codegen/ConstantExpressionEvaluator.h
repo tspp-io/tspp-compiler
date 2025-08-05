@@ -66,6 +66,13 @@ class ConstantExpressionEvaluator : public ASTVisitor {
   // Non-constant expressions - these fail evaluation
   void visit(CallExpr& node) override;
   void visit(AssignmentExpr& node) override;
+
+  // Type node visitors (no-op for constant evaluation)
+  void visit(ast::BasicTypeNode&) override {}
+  void visit(ast::PointerTypeNode&) override {}
+  void visit(ast::SmartPointerTypeNode&) override {}
+  void visit(ast::UnionTypeNode&) override {}
+  void visit(ast::TypeConstraintNode&) override {}
 };
 
 }  // namespace ast

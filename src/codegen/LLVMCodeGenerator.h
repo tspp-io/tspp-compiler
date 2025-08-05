@@ -40,6 +40,13 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::TypeAliasDecl&) override;
   // ...add more as needed...
 
+  // Type node visitors
+  void visit(ast::BasicTypeNode&) override;
+  void visit(ast::PointerTypeNode&) override;
+  void visit(ast::SmartPointerTypeNode&) override;
+  void visit(ast::UnionTypeNode&) override;
+  void visit(ast::TypeConstraintNode&) override;
+
  private:
   llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;

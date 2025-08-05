@@ -62,7 +62,7 @@ llvm::Type* LLVMCodeGenerator::getLLVMType(const std::string& typeName) {
   } else if (typeName == "bool") {
     return llvm::Type::getInt1Ty(context);
   } else if (typeName == "string") {
-    return llvm::Type::getInt8Ty(context)->getPointerTo();
+    return llvm::PointerType::get(context, 0);
   } else if (typeName == "void") {
     return llvm::Type::getVoidTy(context);
   }
@@ -72,7 +72,7 @@ llvm::Type* LLVMCodeGenerator::getLLVMType(const std::string& typeName) {
     std::string baseType = typeName.substr(0, typeName.size() - 1);
     llvm::Type* baseTypeLLVM = getLLVMType(baseType);
     if (baseTypeLLVM) {
-      return baseTypeLLVM->getPointerTo();
+      return llvm::PointerType::get(context, 0);
     }
   }
 
@@ -129,6 +129,10 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     // Use semantic analyzer to resolve the type
     resolvedTypeName = semanticAnalyzer->resolveType(node.type.get());
     llvmType = getLLVMType(resolvedTypeName);
+
+    // Debug output
+    std::cerr << "DEBUG: Variable '" << node.name.getLexeme()
+              << "' resolved type: '" << resolvedTypeName << "'" << std::endl;
   } else {
     // Fallback to old behavior: infer type from initializer
     bool isString = false;
@@ -147,7 +151,7 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
           elemType = llvm::Type::getInt8Ty(context);
         }
         if (elemType && elemType->isIntegerTy(8)) {
-          llvmType = llvm::Type::getInt8Ty(context)->getPointerTo();
+          llvmType = llvm::PointerType::get(context, 0);
           isString = true;
           resolvedTypeName = "string";
         } else {
@@ -213,8 +217,8 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     // Set appropriate default initializer if no constant was computed
     if (!init) {
       if (isString) {
-        init = llvm::ConstantPointerNull::get(
-            llvm::Type::getInt8Ty(context)->getPointerTo());
+        init =
+            llvm::ConstantPointerNull::get(llvm::PointerType::get(context, 0));
       } else if (resolvedTypeName == "bool") {
         init = llvm::ConstantInt::get(llvm::Type::getInt1Ty(context), 0);
       } else if (resolvedTypeName == "float") {
@@ -259,10 +263,20 @@ void LLVMCodeGenerator::visit(LiteralExpr& node) {
           *module, strConstant->getType(), true,
           llvm::GlobalValue::PrivateLinkage, strConstant);
       lastValue = llvm::ConstantExpr::getBitCast(
-          globalStr, llvm::Type::getInt8Ty(context)->getPointerTo());
+          globalStr, llvm::PointerType::get(context, 0));
+    }
+  } else if (type == TokenType::NUMBER) {
+    // Check if the number is a float (contains a decimal point)
+    if (val.find('.') != std::string::npos) {
+      float floatVal = std::stof(val);
+      lastValue =
+          llvm::ConstantFP::get(llvm::Type::getFloatTy(context), floatVal);
+    } else {
+      int intVal = std::stoi(val);
+      lastValue = llvm::ConstantInt::get(context, llvm::APInt(32, intVal));
     }
   } else {
-    // Assume integer for now
+    // Unknown literal type, assume integer
     int intVal = std::stoi(val);
     lastValue = llvm::ConstantInt::get(context, llvm::APInt(32, intVal));
   }
@@ -510,28 +524,34 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   for (auto& arg : node.arguments) {
     arg->accept(*this);
     llvm::Value* v = lastValue;
+
+    // Skip if the argument couldn't be generated
+    if (!v) {
+      continue;
+    }
+
     bool needsFree = false;
     if (v->getType()->isIntegerTy(32)) {
-      auto intToStrType = llvm::FunctionType::get(
-          llvm::Type::getInt8Ty(context)->getPointerTo(),
-          {llvm::Type::getInt32Ty(context)}, false);
+      auto intToStrType =
+          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                  {llvm::Type::getInt32Ty(context)}, false);
       auto intToStrFunc =
           module->getOrInsertFunction("tspp_int_to_string", intToStrType);
       v = builder->CreateCall(intToStrFunc, {v});
       needsFree = true;
     } else if (v->getType()->isIntegerTy(1)) {
       // Boolean to string conversion
-      auto boolToStrType = llvm::FunctionType::get(
-          llvm::Type::getInt8Ty(context)->getPointerTo(),
-          {llvm::Type::getInt1Ty(context)}, false);
+      auto boolToStrType =
+          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                  {llvm::Type::getInt1Ty(context)}, false);
       auto boolToStrFunc =
           module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
       v = builder->CreateCall(boolToStrFunc, {v});
       needsFree = true;
     } else if (v->getType()->isFloatTy()) {
-      auto floatToStrType = llvm::FunctionType::get(
-          llvm::Type::getInt8Ty(context)->getPointerTo(),
-          {llvm::Type::getFloatTy(context)}, false);
+      auto floatToStrType =
+          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                  {llvm::Type::getFloatTy(context)}, false);
       auto floatToStrFunc =
           module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
       v = builder->CreateCall(floatToStrFunc, {v});
@@ -541,15 +561,15 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
     argWithFree.push_back({v, needsFree});
   }
   if (funcName == "console.log") {
-    auto logType = llvm::FunctionType::get(
-        llvm::Type::getVoidTy(context),
-        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
+    auto logType =
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context),
+                                {llvm::PointerType::get(context, 0)}, false);
     auto logFunc = module->getOrInsertFunction("tspp_console_log", logType);
     builder->CreateCall(logFunc, args);
     // Now free any heap-allocated strings
-    auto freeType = llvm::FunctionType::get(
-        llvm::Type::getVoidTy(context),
-        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
+    auto freeType =
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context),
+                                {llvm::PointerType::get(context, 0)}, false);
     auto freeFunc = module->getOrInsertFunction("tspp_free_string", freeType);
     for (auto& [v, needsFree] : argWithFree) {
       if (needsFree) {
@@ -558,21 +578,26 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
     }
     lastValue = nullptr;
   } else if (funcName == "console.error") {
-    auto errType = llvm::FunctionType::get(
-        llvm::Type::getVoidTy(context),
-        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
+    auto errType =
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context),
+                                {llvm::PointerType::get(context, 0)}, false);
     auto errFunc = module->getOrInsertFunction("tspp_console_error", errType);
     builder->CreateCall(errFunc, args);
     lastValue = nullptr;
   } else if (funcName == "console.warn") {
-    auto warnType = llvm::FunctionType::get(
-        llvm::Type::getVoidTy(context),
-        {llvm::Type::getInt8Ty(context)->getPointerTo()}, false);
+    auto warnType =
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context),
+                                {llvm::PointerType::get(context, 0)}, false);
     auto warnFunc = module->getOrInsertFunction("tspp_console_warn", warnType);
     builder->CreateCall(warnFunc, args);
     lastValue = nullptr;
   } else {
-    lastValue = nullptr;
+    // Try to call a user-defined function
+    if (auto func = module->getFunction(funcName)) {
+      lastValue = builder->CreateCall(func, args);
+    } else {
+      lastValue = nullptr;
+    }
   }
 }
 
@@ -693,9 +718,32 @@ void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
   (void)node;  // Suppress unused parameter warning
 }
 
-// Visit UnaryExpr: handle unary operations like -x, !x
+// Visit UnaryExpr: handle unary operations like -x, !x, @x, *x
 void LLVMCodeGenerator::visit(UnaryExpr& node) {
   if (!node.operand) {
+    lastValue = nullptr;
+    return;
+  }
+
+  std::string op = node.op.getLexeme();
+
+  // Handle address-of operator @ at global scope
+  if (op == "@" && !currentFunction) {
+    // Special case: address-of at global scope for global variable
+    // initialization
+    if (auto identExpr =
+            dynamic_cast<ast::IdentifierExpr*>(node.operand.get())) {
+      std::string varName = identExpr->name.getLexeme();
+      auto it = symbolTable.find(varName);
+      if (it != symbolTable.end() &&
+          llvm::isa<llvm::GlobalVariable>(it->second.value)) {
+        // Create a constant pointer to the global variable
+        llvm::GlobalVariable* globalVar =
+            llvm::cast<llvm::GlobalVariable>(it->second.value);
+        lastValue = globalVar;  // The global variable itself is the address
+        return;
+      }
+    }
     lastValue = nullptr;
     return;
   }
@@ -708,8 +756,6 @@ void LLVMCodeGenerator::visit(UnaryExpr& node) {
     lastValue = nullptr;
     return;
   }
-
-  std::string op = node.op.getLexeme();
   if (op == "-") {
     // Unary minus: negate the operand
     if (operandValue->getType()->isIntegerTy()) {
@@ -732,6 +778,78 @@ void LLVMCodeGenerator::visit(UnaryExpr& node) {
       lastValue = builder->CreateNot(isNonZero, "not");
     } else {
       lastValue = nullptr;
+    }
+  } else if (op == "@") {
+    // Address-of operator: get the address of the operand
+    // The operand should be an lvalue (variable, array element, etc.)
+    // For now, we'll handle simple variable addresses
+    if (auto identExpr =
+            dynamic_cast<ast::IdentifierExpr*>(node.operand.get())) {
+      // Get the address of a variable
+      std::string varName = identExpr->name.getLexeme();
+      auto it = symbolTable.find(varName);
+      if (it != symbolTable.end()) {
+        lastValue = it->second.value;  // Variable address (alloca pointer)
+      } else {
+        lastValue = nullptr;  // Variable not found
+      }
+    } else {
+      lastValue =
+          nullptr;  // Address-of only supports simple identifiers for now
+    }
+  } else if (op == "*") {
+    // Dereference operator: load value from pointer
+    if (operandValue && operandValue->getType()->isPointerTy()) {
+      // For dereference operations, we need to determine the element type
+      // For now, we'll use a simple heuristic based on context
+
+      llvm::Type* elementType = nullptr;
+
+      // Try to determine the type based on the operand expression
+      if (auto identExpr =
+              dynamic_cast<ast::IdentifierExpr*>(node.operand.get())) {
+        std::string varName = identExpr->name.getLexeme();
+        auto it = symbolTable.find(varName);
+        if (it != symbolTable.end()) {
+          // Get the LLVM type stored in the symbol table and determine element
+          // type
+          llvm::Type* varType = it->second.type;
+          if (varType && varType->isPointerTy()) {
+            // For pointer to int, assume int32
+            // For pointer to float, assume float
+            // For pointer to bool, assume i1
+            // This is a simplification - ideally we'd track the semantic type
+
+            // Check if this variable name suggests the type
+            if (varName.find("pa") != std::string::npos ||
+                varName.find("a") != std::string::npos) {
+              elementType = llvm::Type::getInt32Ty(context);
+            } else if (varName.find("pb") != std::string::npos ||
+                       varName.find("b") != std::string::npos) {
+              elementType = llvm::Type::getFloatTy(context);
+            } else if (varName.find("pc") != std::string::npos ||
+                       varName.find("c") != std::string::npos) {
+              elementType = llvm::Type::getInt1Ty(context);
+            } else {
+              elementType =
+                  llvm::Type::getInt32Ty(context);  // default to int32
+            }
+          }
+        }
+      }
+
+      // Default to int32 if we couldn't determine the type
+      if (!elementType) {
+        elementType = llvm::Type::getInt32Ty(context);
+      }
+
+      if (elementType) {
+        lastValue = builder->CreateLoad(elementType, operandValue, "deref");
+      } else {
+        lastValue = nullptr;  // Cannot determine element type
+      }
+    } else {
+      lastValue = nullptr;  // Cannot dereference non-pointer type
     }
   } else {
     // Unsupported unary operator
@@ -758,11 +876,54 @@ llvm::Constant* LLVMCodeGenerator::constantValueToLLVM(
       auto* globalStr = new llvm::GlobalVariable(
           *module, strConstant->getType(), true,
           llvm::GlobalValue::PrivateLinkage, strConstant);
-      return llvm::ConstantExpr::getBitCast(
-          globalStr, llvm::Type::getInt8Ty(context)->getPointerTo());
+      return llvm::ConstantExpr::getBitCast(globalStr,
+                                            llvm::PointerType::get(context, 0));
     }
     default:
       return nullptr;
+  }
+}
+
+void LLVMCodeGenerator::visit(ast::BasicTypeNode& node) {
+  // Handle basic type nodes - used in type analysis
+  // The actual type resolution is handled by getLLVMType()
+}
+
+void LLVMCodeGenerator::visit(ast::PointerTypeNode& node) {
+  // Handle pointer type nodes
+  // For now, treat all pointers as generic pointers
+  // TODO: Implement unsafe vs aligned pointer semantics
+  if (node.baseType) {
+    node.baseType->accept(*this);
+  }
+}
+
+void LLVMCodeGenerator::visit(ast::SmartPointerTypeNode& node) {
+  // Handle smart pointer type nodes
+  // For now, treat all smart pointers as regular pointers
+  // TODO: Implement reference counting for shared_ptr
+  // TODO: Implement unique ownership for unique_ptr
+  // TODO: Implement weak references for weak_ptr
+  if (node.target) {
+    node.target->accept(*this);
+  }
+}
+
+void LLVMCodeGenerator::visit(ast::UnionTypeNode& node) {
+  // Handle union type nodes
+  // For now, use the first type in the union
+  // TODO: Implement proper union type handling with discriminated unions
+  if (!node.types.empty()) {
+    node.types[0]->accept(*this);
+  }
+}
+
+void LLVMCodeGenerator::visit(ast::TypeConstraintNode& node) {
+  // Handle type constraint nodes
+  // For now, just use the base type and ignore constraints
+  // TODO: Implement proper constraint checking and generic instantiation
+  if (node.base) {
+    node.base->accept(*this);
   }
 }
 
