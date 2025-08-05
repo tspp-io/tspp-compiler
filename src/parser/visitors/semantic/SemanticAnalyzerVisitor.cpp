@@ -40,15 +40,9 @@ const std::vector<std::string>& SemanticAnalyzerVisitor::getErrors() const {
 std::string SemanticAnalyzerVisitor::resolveType(TypeNode* type) {
   if (!type) return "";
 
-  // Debug output
-  std::cerr << "DEBUG resolveType: type = " << typeid(*type).name()
-            << std::endl;
-
   // Handle BasicTypeNode (int, string, or custom type alias)
   if (auto* basic = dynamic_cast<BasicTypeNode*>(type)) {
     std::string typeName = basic->name.getLexeme();
-    std::cerr << "DEBUG resolveType: BasicTypeNode name = '" << typeName << "'"
-              << std::endl;
 
     // Check if it's a type alias
     auto it = typeAliases.find(typeName);
@@ -63,7 +57,6 @@ std::string SemanticAnalyzerVisitor::resolveType(TypeNode* type) {
 
   // Handle PointerTypeNode
   if (auto* ptr = dynamic_cast<PointerTypeNode*>(type)) {
-    std::cerr << "DEBUG resolveType: PointerTypeNode detected" << std::endl;
     std::string baseType = resolveType(ptr->baseType.get());
     return baseType + "*";
   }

@@ -130,9 +130,6 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     resolvedTypeName = semanticAnalyzer->resolveType(node.type.get());
     llvmType = getLLVMType(resolvedTypeName);
 
-    // Debug output
-    std::cerr << "DEBUG: Variable '" << node.name.getLexeme()
-              << "' resolved type: '" << resolvedTypeName << "'" << std::endl;
   } else {
     // Fallback to old behavior: infer type from initializer
     bool isString = false;
@@ -619,13 +616,20 @@ void LLVMCodeGenerator::visit(IfStmt& node) {
   // Create basic blocks for then, else, and merge
   llvm::BasicBlock* thenBB =
       llvm::BasicBlock::Create(context, "then", currentFunction);
-  llvm::BasicBlock* elseBB =
-      llvm::BasicBlock::Create(context, "else", currentFunction);
   llvm::BasicBlock* mergeBB =
       llvm::BasicBlock::Create(context, "ifcont", currentFunction);
 
+  llvm::BasicBlock* elseBB = nullptr;
+  if (node.elseBranch) {
+    elseBB = llvm::BasicBlock::Create(context, "else", currentFunction);
+  }
+
   // Create conditional branch
-  builder->CreateCondBr(condValue, thenBB, elseBB);
+  if (node.elseBranch) {
+    builder->CreateCondBr(condValue, thenBB, elseBB);
+  } else {
+    builder->CreateCondBr(condValue, thenBB, mergeBB);
+  }
 
   // Emit then block
   builder->SetInsertPoint(thenBB);
@@ -637,14 +641,135 @@ void LLVMCodeGenerator::visit(IfStmt& node) {
     builder->CreateBr(mergeBB);
   }
 
-  // Emit else block
-  builder->SetInsertPoint(elseBB);
-  if (node.elseBranch) {
+  // Emit else block (if it exists)
+  if (node.elseBranch && elseBB) {
+    builder->SetInsertPoint(elseBB);
     node.elseBranch->accept(*this);
+    // Only create branch if block doesn't already have a terminator
+    if (!elseBB->getTerminator()) {
+      builder->CreateBr(mergeBB);
+    }
   }
-  // Only create branch if block doesn't already have a terminator
-  if (!elseBB->getTerminator()) {
-    builder->CreateBr(mergeBB);
+
+  // Continue with merge block
+  builder->SetInsertPoint(mergeBB);
+}
+
+// Visit WhileStmt: emit while loop
+void LLVMCodeGenerator::visit(WhileStmt& node) {
+  if (!currentFunction) {
+    // Can't emit control flow at global scope
+    return;
+  }
+
+  // Create basic blocks for condition, body, and merge
+  llvm::BasicBlock* condBB =
+      llvm::BasicBlock::Create(context, "while.cond", currentFunction);
+  llvm::BasicBlock* bodyBB =
+      llvm::BasicBlock::Create(context, "while.body", currentFunction);
+  llvm::BasicBlock* mergeBB =
+      llvm::BasicBlock::Create(context, "while.end", currentFunction);
+
+  // Branch to condition block
+  builder->CreateBr(condBB);
+
+  // Emit condition block
+  builder->SetInsertPoint(condBB);
+  if (node.condition) {
+    node.condition->accept(*this);
+    llvm::Value* condValue = lastValue;
+
+    if (condValue) {
+      // Create conditional branch: if true goto body, else goto merge
+      builder->CreateCondBr(condValue, bodyBB, mergeBB);
+    } else {
+      // Invalid condition, exit loop
+      builder->CreateBr(mergeBB);
+    }
+  } else {
+    // No condition means infinite loop, always go to body
+    builder->CreateBr(bodyBB);
+  }
+
+  // Emit body block
+  builder->SetInsertPoint(bodyBB);
+  if (node.body) {
+    node.body->accept(*this);
+  }
+
+  // After body, branch back to condition (if no terminator exists)
+  if (!bodyBB->getTerminator()) {
+    builder->CreateBr(condBB);
+  }
+
+  // Continue with merge block
+  builder->SetInsertPoint(mergeBB);
+}
+
+// Visit ForStmt: emit for loop
+void LLVMCodeGenerator::visit(ForStmt& node) {
+  if (!currentFunction) {
+    // Can't emit control flow at global scope
+    return;
+  }
+
+  // Create basic blocks for init, condition, body, increment, and merge
+  llvm::BasicBlock* initBB = nullptr;
+  llvm::BasicBlock* condBB =
+      llvm::BasicBlock::Create(context, "for.cond", currentFunction);
+  llvm::BasicBlock* bodyBB =
+      llvm::BasicBlock::Create(context, "for.body", currentFunction);
+  llvm::BasicBlock* incBB =
+      llvm::BasicBlock::Create(context, "for.inc", currentFunction);
+  llvm::BasicBlock* mergeBB =
+      llvm::BasicBlock::Create(context, "for.end", currentFunction);
+
+  // Emit initialization if present
+  if (node.init) {
+    node.init->accept(*this);
+  }
+
+  // Branch to condition block
+  builder->CreateBr(condBB);
+
+  // Emit condition block
+  builder->SetInsertPoint(condBB);
+  if (node.condition) {
+    node.condition->accept(*this);
+    llvm::Value* condValue = lastValue;
+
+    if (condValue) {
+      // Create conditional branch: if true goto body, else goto merge
+      builder->CreateCondBr(condValue, bodyBB, mergeBB);
+    } else {
+      // Invalid condition, exit loop
+      builder->CreateBr(mergeBB);
+    }
+  } else {
+    // No condition means infinite loop, always go to body
+    builder->CreateBr(bodyBB);
+  }
+
+  // Emit body block
+  builder->SetInsertPoint(bodyBB);
+  if (node.body) {
+    node.body->accept(*this);
+  }
+
+  // After body, branch to increment (if no terminator exists)
+  if (!bodyBB->getTerminator()) {
+    builder->CreateBr(incBB);
+  }
+
+  // Emit increment block
+  builder->SetInsertPoint(incBB);
+  if (node.increment) {
+    node.increment->accept(*this);
+  }
+
+  // After increment, branch back to condition
+  if (!incBB->getTerminator()) {
+    builder->CreateBr(condBB);
   }
 
   // Continue with merge block
@@ -669,221 +794,82 @@ void LLVMCodeGenerator::visit(AssignmentExpr& node) {
           node.value->accept(*this);
           llvm::Value* valueToStore = lastValue;
 
-          if (valueToStore && currentFunction) {
-            // Store the value
+          if (valueToStore && ptr) {
             builder->CreateStore(valueToStore, ptr);
             lastValue = valueToStore;  // Assignment expression returns the
                                        // assigned value
-          } else {
-            lastValue = nullptr;
           }
-        } else {
-          lastValue = nullptr;
         }
-      } else {
-        // Error: trying to assign to const variable or invalid pointer
-        lastValue = nullptr;
       }
-    } else {
-      // Error: variable not found
-      lastValue = nullptr;
     }
-  } else {
-    // TODO: Support member access assignments (obj.field = expr)
-    lastValue = nullptr;
   }
+  // TODO: Support more complex left-hand sides (dereferencing, member access,
+  // etc.)
 }
 
-// Add more visit methods as needed for full coverage
-
-void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
-  // TODO: Implement class codegen
-  // For now, classes are parsed but not used at runtime
-  // Could implement as LLVM struct types in the future
-  std::cerr << "Warning: ClassDecl '" << node.name.getLexeme()
-            << "' parsed but not implemented in codegen (skipped)\n";
-}
-
-void LLVMCodeGenerator::visit(ast::InterfaceDecl& node) {
-  // TODO: Implement interface codegen
-  // Interfaces typically don't generate runtime code by themselves
-  // Could be used for type checking in semantic analysis
-  std::cerr << "Warning: InterfaceDecl '" << node.name.getLexeme()
-            << "' parsed but not implemented in codegen (skipped)\n";
-}
-
-void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
-  // Type aliases don't generate runtime code - they are resolved at compile
-  // time by the semantic analyzer. No action needed in codegen.
-  (void)node;  // Suppress unused parameter warning
-}
-
-// Visit UnaryExpr: handle unary operations like -x, !x, @x, *x
+// Visit UnaryExpr: handle unary operators
 void LLVMCodeGenerator::visit(UnaryExpr& node) {
-  if (!node.operand) {
-    lastValue = nullptr;
-    return;
-  }
-
   std::string op = node.op.getLexeme();
 
-  // Handle address-of operator @ at global scope
-  if (op == "@" && !currentFunction) {
-    // Special case: address-of at global scope for global variable
-    // initialization
-    if (auto identExpr =
-            dynamic_cast<ast::IdentifierExpr*>(node.operand.get())) {
-      std::string varName = identExpr->name.getLexeme();
-      auto it = symbolTable.find(varName);
-      if (it != symbolTable.end() &&
-          llvm::isa<llvm::GlobalVariable>(it->second.value)) {
-        // Create a constant pointer to the global variable
-        llvm::GlobalVariable* globalVar =
-            llvm::cast<llvm::GlobalVariable>(it->second.value);
-        lastValue = globalVar;  // The global variable itself is the address
-        return;
-      }
-    }
-    lastValue = nullptr;
-    return;
-  }
-
-  // Evaluate the operand
-  node.operand->accept(*this);
-  llvm::Value* operandValue = lastValue;
-
-  if (!operandValue || !currentFunction) {
-    lastValue = nullptr;
-    return;
-  }
-  if (op == "-") {
-    // Unary minus: negate the operand
-    if (operandValue->getType()->isIntegerTy()) {
-      lastValue = builder->CreateNeg(operandValue, "neg");
-    } else if (operandValue->getType()->isFloatingPointTy()) {
-      lastValue = builder->CreateFNeg(operandValue, "fneg");
-    } else {
-      lastValue = nullptr;
-    }
-  } else if (op == "!") {
-    // Logical NOT: invert boolean or convert to boolean first
-    if (operandValue->getType()->isIntegerTy(1)) {
-      // Already a boolean
-      lastValue = builder->CreateNot(operandValue, "not");
-    } else if (operandValue->getType()->isIntegerTy()) {
-      // Convert integer to boolean (0 = false, non-zero = true), then negate
-      llvm::Value* isNonZero = builder->CreateICmpNE(
-          operandValue, llvm::ConstantInt::get(operandValue->getType(), 0),
-          "isnonzero");
-      lastValue = builder->CreateNot(isNonZero, "not");
-    } else {
-      lastValue = nullptr;
-    }
-  } else if (op == "@") {
+  if (op == "@") {
     // Address-of operator: get the address of the operand
-    // The operand should be an lvalue (variable, array element, etc.)
-    // For now, we'll handle simple variable addresses
-    if (auto identExpr =
-            dynamic_cast<ast::IdentifierExpr*>(node.operand.get())) {
-      // Get the address of a variable
+    if (auto identExpr = dynamic_cast<IdentifierExpr*>(node.operand.get())) {
       std::string varName = identExpr->name.getLexeme();
       auto it = symbolTable.find(varName);
       if (it != symbolTable.end()) {
-        lastValue = it->second.value;  // Variable address (alloca pointer)
-      } else {
-        lastValue = nullptr;  // Variable not found
+        lastValue = it->second.value;  // Return the pointer/address
+        return;
       }
-    } else {
-      lastValue =
-          nullptr;  // Address-of only supports simple identifiers for now
     }
-  } else if (op == "*") {
-    // Dereference operator: load value from pointer
-    if (operandValue && operandValue->getType()->isPointerTy()) {
-      // For dereference operations, we need to determine the element type
-      // For now, we'll use a simple heuristic based on context
-
-      llvm::Type* elementType = nullptr;
-
-      // Try to determine the type based on the operand expression
-      if (auto identExpr =
-              dynamic_cast<ast::IdentifierExpr*>(node.operand.get())) {
-        std::string varName = identExpr->name.getLexeme();
-        auto it = symbolTable.find(varName);
-        if (it != symbolTable.end()) {
-          // Get the LLVM type stored in the symbol table and determine element
-          // type
-          llvm::Type* varType = it->second.type;
-          if (varType && varType->isPointerTy()) {
-            // For pointer to int, assume int32
-            // For pointer to float, assume float
-            // For pointer to bool, assume i1
-            // This is a simplification - ideally we'd track the semantic type
-
-            // Check if this variable name suggests the type
-            if (varName.find("pa") != std::string::npos ||
-                varName.find("a") != std::string::npos) {
-              elementType = llvm::Type::getInt32Ty(context);
-            } else if (varName.find("pb") != std::string::npos ||
-                       varName.find("b") != std::string::npos) {
-              elementType = llvm::Type::getFloatTy(context);
-            } else if (varName.find("pc") != std::string::npos ||
-                       varName.find("c") != std::string::npos) {
-              elementType = llvm::Type::getInt1Ty(context);
-            } else {
-              elementType =
-                  llvm::Type::getInt32Ty(context);  // default to int32
-            }
-          }
-        }
-      }
-
-      // Default to int32 if we couldn't determine the type
-      if (!elementType) {
-        elementType = llvm::Type::getInt32Ty(context);
-      }
-
-      if (elementType) {
-        lastValue = builder->CreateLoad(elementType, operandValue, "deref");
-      } else {
-        lastValue = nullptr;  // Cannot determine element type
-      }
-    } else {
-      lastValue = nullptr;  // Cannot dereference non-pointer type
-    }
-  } else {
-    // Unsupported unary operator
+    // Fallback: could not get address
     lastValue = nullptr;
+    return;
   }
-}
 
-llvm::Constant* LLVMCodeGenerator::constantValueToLLVM(
-    const ast::ConstantValue& constVal) {
-  switch (constVal.type) {
-    case ast::ConstantValue::INT:
-      return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context),
-                                    constVal.asInt());
-    case ast::ConstantValue::BOOL:
-      return llvm::ConstantInt::get(llvm::Type::getInt1Ty(context),
-                                    constVal.asBool());
-    case ast::ConstantValue::FLOAT:
-      return llvm::ConstantFP::get(llvm::Type::getFloatTy(context),
-                                   constVal.asFloat());
-    case ast::ConstantValue::STRING: {
-      // For strings, create a global string constant
-      auto* strConstant =
-          llvm::ConstantDataArray::getString(context, constVal.asString());
-      auto* globalStr = new llvm::GlobalVariable(
-          *module, strConstant->getType(), true,
-          llvm::GlobalValue::PrivateLinkage, strConstant);
-      return llvm::ConstantExpr::getBitCast(globalStr,
-                                            llvm::PointerType::get(context, 0));
+  if (op == "*") {
+    // Dereference operator: load value from pointer
+    if (node.operand) {
+      node.operand->accept(*this);
+      llvm::Value* ptr = lastValue;
+      if (ptr && ptr->getType()->isPointerTy()) {
+        // For LLVM 15+, we need to explicitly specify the element type
+        llvm::Type* elementType =
+            llvm::Type::getInt32Ty(context);  // Default to int32
+        if (auto allocaInst = llvm::dyn_cast<llvm::AllocaInst>(ptr)) {
+          elementType = allocaInst->getAllocatedType();
+        }
+        lastValue = builder->CreateLoad(elementType, ptr, "deref");
+        return;
+      }
     }
-    default:
-      return nullptr;
+    // Fallback: could not dereference
+    lastValue = nullptr;
+    return;
+  }
+
+  // Handle other unary operators
+  if (node.operand) {
+    node.operand->accept(*this);
+    llvm::Value* operandValue = lastValue;
+
+    if (!operandValue) {
+      lastValue = nullptr;
+      return;
+    }
+
+    if (op == "-") {
+      if (operandValue->getType()->isIntegerTy()) {
+        lastValue = builder->CreateNeg(operandValue, "neg");
+      } else if (operandValue->getType()->isFloatingPointTy()) {
+        lastValue = builder->CreateFNeg(operandValue, "fneg");
+      }
+    } else if (op == "!") {
+      lastValue = builder->CreateNot(operandValue, "not");
+    }
   }
 }
 
+// Missing type node visitors
 void LLVMCodeGenerator::visit(ast::BasicTypeNode& node) {
   // Handle basic type nodes - used in type analysis
   // The actual type resolution is handled by getLLVMType()
@@ -911,8 +897,8 @@ void LLVMCodeGenerator::visit(ast::SmartPointerTypeNode& node) {
 
 void LLVMCodeGenerator::visit(ast::UnionTypeNode& node) {
   // Handle union type nodes
-  // For now, use the first type in the union
-  // TODO: Implement proper union type handling with discriminated unions
+  // For now, just process the first type in the union
+  // TODO: Implement proper union type handling
   if (!node.types.empty()) {
     node.types[0]->accept(*this);
   }
@@ -920,11 +906,56 @@ void LLVMCodeGenerator::visit(ast::UnionTypeNode& node) {
 
 void LLVMCodeGenerator::visit(ast::TypeConstraintNode& node) {
   // Handle type constraint nodes
-  // For now, just use the base type and ignore constraints
-  // TODO: Implement proper constraint checking and generic instantiation
+  // For now, just process the base type
+  // TODO: Implement constraint validation
   if (node.base) {
     node.base->accept(*this);
   }
+}
+
+void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
+  // Basic class declaration handling
+  std::cerr << "Warning: ClassDecl '" << node.name.getLexeme()
+            << "' parsed but not implemented in codegen (skipped)" << std::endl;
+}
+
+void LLVMCodeGenerator::visit(ast::InterfaceDecl& node) {
+  // Basic interface declaration handling
+  std::cerr << "Warning: InterfaceDecl '" << node.name.getLexeme()
+            << "' parsed but not implemented in codegen (skipped)" << std::endl;
+}
+
+void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
+  // Handle type alias declarations - these are handled by semantic analysis
+  // No code generation needed for type aliases themselves
+}
+
+// Helper method to convert ConstantValue to LLVM Constant
+llvm::Constant* LLVMCodeGenerator::constantValueToLLVM(
+    const ast::ConstantValue& constVal) {
+  if (constVal.type == ast::ConstantValue::INT) {
+    return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context),
+                                  constVal.asInt());
+  } else if (constVal.type == ast::ConstantValue::FLOAT) {
+    return llvm::ConstantFP::get(llvm::Type::getFloatTy(context),
+                                 constVal.asFloat());
+  } else if (constVal.type == ast::ConstantValue::BOOL) {
+    return llvm::ConstantInt::get(llvm::Type::getInt1Ty(context),
+                                  constVal.asBool() ? 1 : 0);
+  } else if (constVal.type == ast::ConstantValue::STRING) {
+    // For strings, create a global constant and return pointer to it
+    llvm::Constant* strConstant =
+        llvm::ConstantDataArray::getString(context, constVal.asString());
+    llvm::GlobalVariable* globalStr = new llvm::GlobalVariable(
+        *module, strConstant->getType(), true,
+        llvm::GlobalValue::PrivateLinkage, strConstant, "");
+    // Use pointer type instead of deprecated getInt8PtrTy
+    return llvm::ConstantExpr::getBitCast(globalStr,
+                                          llvm::PointerType::get(context, 0));
+  }
+
+  // Default case
+  return nullptr;
 }
 
 }  // namespace codegen
