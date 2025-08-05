@@ -1,7 +1,7 @@
-
 #pragma once
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "parser/nodes/ast_visitor.h"
@@ -55,7 +55,11 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   // Get all semantic errors found
   const std::vector<std::string>& getErrors() const;
 
+  // Public method to resolve types (for use by codegen)
+  std::string resolveType(TypeNode* type);
+
  private:
+  std::unordered_map<std::string, std::shared_ptr<TypeNode>> typeAliases;
   std::shared_ptr<SemanticScope> currentScope;
   std::vector<std::string> errors;
 

@@ -9,12 +9,14 @@
 #include <unordered_map>
 
 #include "parser/nodes/ast_visitor.h"
+#include "parser/visitors/semantic/SemanticAnalyzerVisitor.h"
 
 namespace codegen {
 
 class LLVMCodeGenerator : public ast::ASTVisitor {
  public:
   LLVMCodeGenerator();
+  LLVMCodeGenerator(ast::SemanticAnalyzerVisitor* semanticAnalyzer);
   void generate(ast::BaseNode* root);
   void generate(ast::BaseNode* root, const std::string& outFile);
 
@@ -47,6 +49,12 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   std::unordered_map<std::string, SymbolInfo> symbolTable;
   llvm::Value* lastValue = nullptr;
   llvm::Function* currentFunction = nullptr;
+
+  // Semantic analyzer for type resolution
+  ast::SemanticAnalyzerVisitor* semanticAnalyzer = nullptr;
+
+  // Helper method to convert semantic type to LLVM type
+  llvm::Type* getLLVMType(const std::string& typeName);
   // ...other helpers for function/variable management...
 };
 

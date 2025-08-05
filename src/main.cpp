@@ -7,6 +7,7 @@
 #include "core/utils/log_utils.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
+#include "parser/visitors/semantic/SemanticAnalyzerVisitor.h"
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
@@ -41,8 +42,23 @@ int main(int argc, char* argv[]) {
     // ast->accept(printer);
     std::cout << std::endl;
 
+    // === Semantic Analysis ===
+    ast::SemanticAnalyzerVisitor semanticAnalyzer;
+    ast->accept(semanticAnalyzer);
+
+    const auto& errors = semanticAnalyzer.getErrors();
+    if (!errors.empty()) {
+      std::cerr << "Semantic analysis errors found:" << std::endl;
+      for (const auto& error : errors) {
+        std::cerr << "  Error: " << error << std::endl;
+      }
+      // Continue with codegen even if there are semantic errors (for now)
+    } else {
+      std::cout << "Semantic analysis passed!" << std::endl;
+    }
+
     // === LLVM Code Generation ===
-    codegen::LLVMCodeGenerator codegen;
+    codegen::LLVMCodeGenerator codegen(&semanticAnalyzer);
     // Write IR to file: <input>.ll
     std::string outFile = std::string(argv[1]) + ".ll";
     codegen.generate(ast.get(), outFile);

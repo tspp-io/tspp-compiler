@@ -202,7 +202,9 @@ Shared(ast::VarDecl) DeclarationBuilder::buildVariable(
   Shared(ast::TypeNode) varType = nullptr;
   if (stream.peek().getType() == tokens::TokenType::COLON) {
     stream.advance();  // consume ':'
-    if (stream.peek().isType()) {
+    // Allow both built-in types and custom type identifiers (typedefs)
+    if (stream.peek().isType() ||
+        stream.peek().getType() == tokens::TokenType::IDENTIFIER) {
       varType = TypeBuilder::build(stream);
       if (!varType) {
         stream.advance();  // Skip faulty token

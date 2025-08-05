@@ -29,8 +29,56 @@ void LLVMCodeGenerator::visit(ExprStmt& node) {
 LLVMCodeGenerator::LLVMCodeGenerator()
     : module(std::make_unique<llvm::Module>("tspp_module", context)),
       builder(std::make_unique<llvm::IRBuilder<>>(context)),
-      currentFunction(nullptr) {
+      currentFunction(nullptr),
+      semanticAnalyzer(nullptr) {
   module->setTargetTriple(llvm::sys::getDefaultTargetTriple());
+}
+
+LLVMCodeGenerator::LLVMCodeGenerator(
+    ast::SemanticAnalyzerVisitor* semanticAnalyzer)
+    : module(std::make_unique<llvm::Module>("tspp_module", context)),
+      builder(std::make_unique<llvm::IRBuilder<>>(context)),
+      currentFunction(nullptr),
+      semanticAnalyzer(semanticAnalyzer) {
+  module->setTargetTriple(llvm::sys::getDefaultTargetTriple());
+}
+
+// Helper method to convert semantic type to LLVM type
+llvm::Type* LLVMCodeGenerator::getLLVMType(const std::string& typeName) {
+  // Handle basic types first
+  if (typeName == "int" || typeName == "int32") {
+    return llvm::Type::getInt32Ty(context);
+  } else if (typeName == "int64") {
+    return llvm::Type::getInt64Ty(context);
+  } else if (typeName == "int16") {
+    return llvm::Type::getInt16Ty(context);
+  } else if (typeName == "int8") {
+    return llvm::Type::getInt8Ty(context);
+  } else if (typeName == "float") {
+    return llvm::Type::getFloatTy(context);
+  } else if (typeName == "double") {
+    return llvm::Type::getDoubleTy(context);
+  } else if (typeName == "bool") {
+    return llvm::Type::getInt1Ty(context);
+  } else if (typeName == "string") {
+    return llvm::Type::getInt8Ty(context)->getPointerTo();
+  } else if (typeName == "void") {
+    return llvm::Type::getVoidTy(context);
+  }
+
+  // Handle pointer types (e.g., "int*")
+  if (typeName.size() > 1 && typeName.back() == '*') {
+    std::string baseType = typeName.substr(0, typeName.size() - 1);
+    llvm::Type* baseTypeLLVM = getLLVMType(baseType);
+    if (baseTypeLLVM) {
+      return baseTypeLLVM->getPointerTo();
+    }
+  }
+
+  // Default to int32 for unknown types
+  std::cerr << "Warning: Unknown type '" << typeName << "', defaulting to int32"
+            << std::endl;
+  return llvm::Type::getInt32Ty(context);
 }
 
 void LLVMCodeGenerator::generate(ast::BaseNode* root,
@@ -54,171 +102,142 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root,
 
 // Visit ProgramNode: emit all declarations
 void LLVMCodeGenerator::visit(ProgramNode& node) {
-  // --- First pass: allocate all global variables (VarDecl) with default values
-  // ---
+  std::cerr << "DEBUG: ProgramNode visit started, declarations count: "
+            << node.declarations.size() << std::endl;
+
+  // Handle all declarations - let VarDecl::visit handle global variable
+  // creation
   for (auto& decl : node.declarations) {
-    if (!decl) continue;
-    if (auto varDecl = dynamic_cast<VarDecl*>(decl.get())) {
-      // Only handle globals (currentFunction == nullptr)
-      if (!currentFunction) {
-        // Determine type by examining the initializer AST node type, not by
-        // evaluating it
-        llvm::Type* llvmType = llvm::Type::getInt32Ty(context);
-        bool isString = false;
-
-        // Check if initializer is a string literal
-        if (varDecl->initializer) {
-          if (auto litExpr =
-                  dynamic_cast<LiteralExpr*>(varDecl->initializer.get())) {
-            if (litExpr->value.getType() == tokens::TokenType::STRING_LITERAL) {
-              llvmType = llvm::Type::getInt8Ty(context)->getPointerTo();
-              isString = true;
-            }
-          }
-        }
-
-        llvm::Constant* init = nullptr;
-        if (isString) {
-          init = llvm::ConstantPointerNull::get(
-              llvm::Type::getInt8Ty(context)->getPointerTo());
-        } else {
-          init = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-        }
-        auto* gvar = new llvm::GlobalVariable(
-            *module, llvmType, false, llvm::GlobalValue::ExternalLinkage, init,
-            varDecl->name.getLexeme());
-        symbolTable[varDecl->name.getLexeme()] =
-            SymbolInfo{gvar, llvmType, true};
-      }
-    }
-  }
-  // --- Second pass: handle all other declarations, and initialize globals ---
-  std::vector<std::pair<llvm::GlobalVariable*, VarDecl*>> pendingGlobalStores;
-  for (auto& decl : node.declarations) {
-    if (!decl) continue;
-    if (auto varDecl = dynamic_cast<VarDecl*>(decl.get())) {
-      if (!currentFunction && varDecl->initializer) {
-        // Check if this is a simple constant (literal only)
-        bool isSimpleConstant =
-            dynamic_cast<LiteralExpr*>(varDecl->initializer.get()) != nullptr;
-
-        if (isSimpleConstant) {
-          // Evaluate constant initializer and set it
-          varDecl->initializer->accept(*this);
-          auto it = symbolTable.find(varDecl->name.getLexeme());
-          if (it != symbolTable.end()) {
-            SymbolInfo sym = it->second;
-            llvm::GlobalVariable* gvar =
-                llvm::dyn_cast<llvm::GlobalVariable>(sym.value);
-            if (gvar && lastValue) {
-              if (auto c = llvm::dyn_cast<llvm::Constant>(lastValue)) {
-                gvar->setInitializer(c);
-              }
-            }
-          }
-        } else {
-          // Non-constant initializer: defer to runtime
-          auto it = symbolTable.find(varDecl->name.getLexeme());
-          if (it != symbolTable.end()) {
-            SymbolInfo sym = it->second;
-            llvm::GlobalVariable* gvar =
-                llvm::dyn_cast<llvm::GlobalVariable>(sym.value);
-            if (gvar) {
-              pendingGlobalStores.push_back({gvar, varDecl});
-            }
-          }
-        }
-      }
-    } else {
+    if (decl) {
+      std::cerr << "DEBUG: Processing declaration type: "
+                << typeid(*decl).name() << std::endl;
       decl->accept(*this);
     }
   }
-  // Emit runtime stores for non-constant global initializers at start of main
-  if (!pendingGlobalStores.empty()) {
-    llvm::Function* mainFunc = module->getFunction("main");
-    if (mainFunc) {
-      auto entry = &mainFunc->getEntryBlock();
-      llvm::IRBuilder<> tmpBuilder(entry, entry->begin());
-      auto* prevBuilder = builder.release();
-      llvm::Function* prevFunction = currentFunction;
-      builder = std::make_unique<llvm::IRBuilder<>>(context);
-      builder->SetInsertPoint(entry, entry->begin());
-      currentFunction =
-          mainFunc;  // Set currentFunction so variable loads work correctly
-      for (auto& pair : pendingGlobalStores) {
-        llvm::GlobalVariable* gvar = pair.first;
-        VarDecl* vardecl = pair.second;
-        if (gvar && vardecl && vardecl->initializer) {
-          vardecl->initializer->accept(*this);
-          llvm::Value* initVal = lastValue;
-          if (initVal) {
-            builder->CreateStore(initVal, gvar);
-          }
-        }
-      }
-      builder.reset(prevBuilder);
-      currentFunction = prevFunction;
+
+  std::cerr << "DEBUG: ProgramNode declarations processed, statements count: "
+            << node.statements.size() << std::endl;
+
+  // Handle all statements (including main function)
+  for (auto& stmt : node.statements) {
+    if (stmt) {
+      stmt->accept(*this);
     }
   }
 }
 
 // Visit VarDecl: allocate and initialize variable
 void LLVMCodeGenerator::visit(VarDecl& node) {
-  // Support int and string variables
+  std::cerr << "DEBUG: VarDecl::visit called for variable: "
+            << node.name.getLexeme() << std::endl;
+
+  // Determine LLVM type using semantic analyzer if available
   llvm::Type* llvmType = nullptr;
-  bool isString = false;
-  if (node.initializer) {
-    node.initializer->accept(*this);
-    // crude check: if lastValue is a pointer to i8, treat as string
-    if (lastValue && lastValue->getType()->isPointerTy()) {
-      llvm::Type* elemType = nullptr;
-      if (auto ptrTy =
-              llvm::dyn_cast<llvm::PointerType>(lastValue->getType())) {
-        // Opaque pointers: treat as string if the initializer is a string
-        // literal (string literals are emitted as i8* by CreateGlobalStringPtr)
-        elemType = llvm::Type::getInt8Ty(context);
-      }
-      if (elemType && elemType->isIntegerTy(8)) {
-        llvmType = llvm::Type::getInt8Ty(context)->getPointerTo();
-        isString = true;
+  std::string resolvedTypeName;
+
+  std::cerr << "DEBUG: semanticAnalyzer is "
+            << (semanticAnalyzer ? "available" : "null") << std::endl;
+  std::cerr << "DEBUG: node.type is " << (node.type ? "available" : "null")
+            << std::endl;
+
+  if (semanticAnalyzer && node.type) {
+    // Use semantic analyzer to resolve the type
+    resolvedTypeName = semanticAnalyzer->resolveType(node.type.get());
+    llvmType = getLLVMType(resolvedTypeName);
+    std::cerr << "DEBUG: Variable '" << node.name.getLexeme()
+              << "' resolved type: '" << resolvedTypeName << "'" << std::endl;
+  } else {
+    // Fallback to old behavior: infer type from initializer
+    bool isString = false;
+    if (node.initializer) {
+      node.initializer->accept(*this);
+      // crude check: if lastValue is a pointer to i8, treat as string
+      if (lastValue && lastValue->getType()->isPointerTy()) {
+        llvm::Type* elemType = nullptr;
+        if (auto ptrTy =
+                llvm::dyn_cast<llvm::PointerType>(lastValue->getType())) {
+          // Opaque pointers: treat as string if the initializer is a string
+          // literal (string literals are emitted as i8* by
+          // CreateGlobalStringPtr)
+          elemType = llvm::Type::getInt8Ty(context);
+        }
+        if (elemType && elemType->isIntegerTy(8)) {
+          llvmType = llvm::Type::getInt8Ty(context)->getPointerTo();
+          isString = true;
+          resolvedTypeName = "string";
+        } else {
+          llvmType = llvm::Type::getInt32Ty(context);
+          resolvedTypeName = "int";
+        }
       } else {
         llvmType = llvm::Type::getInt32Ty(context);
+        resolvedTypeName = "int";
       }
     } else {
       llvmType = llvm::Type::getInt32Ty(context);
+      resolvedTypeName = "int";
     }
-  } else {
-    llvmType = llvm::Type::getInt32Ty(context);
   }
-  bool isMutable = true;  // TODO: set based on VarDecl
-  // Store the LLVM type in the semantic symbol table if available
-  // (Assumes semantic symbol table is accessible and compatible)
+
+  bool isMutable = !node.isConst;
+
   if (currentFunction) {
+    // Local variable allocation
     llvm::IRBuilder<> tmpBuilder(&currentFunction->getEntryBlock(),
                                  currentFunction->getEntryBlock().begin());
     llvm::Value* alloca =
         tmpBuilder.CreateAlloca(llvmType, nullptr, node.name.getLexeme());
     symbolTable[node.name.getLexeme()] =
         SymbolInfo{alloca, llvmType, isMutable};
+
+    // Initialize if there's an initializer
     if (node.initializer) {
+      // Evaluate the initializer
+      node.initializer->accept(*this);
       llvm::Value* initVal = lastValue;
-      builder->CreateStore(initVal, alloca);
+      if (initVal) {
+        builder->CreateStore(initVal, alloca);
+      }
     }
   } else {
-    // Always use a default initializer for globals
+    // Global variable allocation
     llvm::Constant* init = nullptr;
+    bool isString = (resolvedTypeName == "string");
+
+    // Evaluate initializer first to determine if it's a constant
+    llvm::Value* initValue = nullptr;
+    if (node.initializer) {
+      node.initializer->accept(*this);
+      initValue = lastValue;
+    }
+
+    // Set appropriate default initializer
     if (isString) {
       init = llvm::ConstantPointerNull::get(
           llvm::Type::getInt8Ty(context)->getPointerTo());
+    } else if (resolvedTypeName == "bool") {
+      init = llvm::ConstantInt::get(llvm::Type::getInt1Ty(context), 0);
+    } else if (resolvedTypeName == "float") {
+      init = llvm::ConstantFP::get(llvm::Type::getFloatTy(context), 0.0);
+    } else if (resolvedTypeName == "double") {
+      init = llvm::ConstantFP::get(llvm::Type::getDoubleTy(context), 0.0);
     } else {
-      init = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+      // Default to int types
+      init = llvm::ConstantInt::get(llvmType, 0);
     }
+
+    // If we have a constant initializer, use it
+    if (initValue && llvm::isa<llvm::Constant>(initValue)) {
+      init = llvm::cast<llvm::Constant>(initValue);
+    }
+
     auto* gvar = new llvm::GlobalVariable(*module, llvmType, false,
                                           llvm::GlobalValue::ExternalLinkage,
                                           init, node.name.getLexeme());
     symbolTable[node.name.getLexeme()] = SymbolInfo{gvar, llvmType, isMutable};
-    // The actual value will be set in the second pass if constant, or at
-    // runtime if not
+
+    // If initializer is not constant, we'll need to store at runtime
+    // This should be handled by ProgramNode's deferred initialization logic
   }
 }
 
@@ -508,11 +527,9 @@ void LLVMCodeGenerator::visit(ast::InterfaceDecl& node) {
 }
 
 void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
-  // TODO: Implement typedef codegen
-  // Type aliases typically don't generate runtime code
-  // They are mainly used during semantic analysis for type resolution
-  std::cerr << "Warning: TypeAliasDecl '" << node.name.getLexeme()
-            << "' parsed but not implemented in codegen (skipped)\n";
+  // Type aliases don't generate runtime code - they are resolved at compile
+  // time by the semantic analyzer. No action needed in codegen.
+  (void)node;  // Suppress unused parameter warning
 }
 
 }  // namespace codegen

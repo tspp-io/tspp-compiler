@@ -4,6 +4,7 @@
 
 #include "parser/nodes/meta_nodes.h"
 #include "parser/nodes/misc_nodes.h"
+#include "parser/nodes/type_nodes.h"
 #include "parser/visitors/semantic/Symbol.h"
 
 namespace ast {
@@ -33,6 +34,47 @@ void SemanticAnalyzerVisitor::reportError(const std::string& message) {
 
 const std::vector<std::string>& SemanticAnalyzerVisitor::getErrors() const {
   return errors;
+}
+
+std::string SemanticAnalyzerVisitor::resolveType(TypeNode* type) {
+  if (!type) return "";
+
+  // Handle BasicTypeNode (int, string, or custom type alias)
+  if (auto* basic = dynamic_cast<BasicTypeNode*>(type)) {
+    std::string typeName = basic->name.getLexeme();
+
+    // Check if it's a type alias
+    auto it = typeAliases.find(typeName);
+    if (it != typeAliases.end()) {
+      // Recursively resolve the aliased type
+      return resolveType(it->second.get());
+    }
+
+    // Built-in type or unresolved custom type
+    return typeName;
+  }
+
+  // Handle PointerTypeNode
+  if (auto* ptr = dynamic_cast<PointerTypeNode*>(type)) {
+    std::string baseType = resolveType(ptr->baseType.get());
+    return baseType + "*";
+  }
+
+  // Handle SmartPointerTypeNode
+  if (auto* smart = dynamic_cast<SmartPointerTypeNode*>(type)) {
+    std::string baseType = resolveType(smart->target.get());
+    return smart->kind.getLexeme() + "<" + baseType + ">";
+  }
+
+  // Handle UnionTypeNode (for now, just return first type)
+  if (auto* union_type = dynamic_cast<UnionTypeNode*>(type)) {
+    if (!union_type->types.empty()) {
+      return resolveType(union_type->types[0].get());
+    }
+  }
+
+  // Fallback for other types
+  return "";
 }
 
 // --- Visitor Implementations ---
@@ -124,6 +166,8 @@ void SemanticAnalyzerVisitor::visit(InterfaceDecl& node) {
 
 void SemanticAnalyzerVisitor::visit(TypeAliasDecl& node) {
   std::string aliasName = node.name.getLexeme();
+  // Store the alias mapping in the typeAliases table
+  typeAliases[aliasName] = node.aliasedType;
   if (!currentScope->insert(aliasName, Symbol{aliasName, /*typeName*/ aliasName,
                                               false, false, false, nullptr})) {
     reportError("Type alias '" + aliasName +
@@ -192,22 +236,16 @@ void SemanticAnalyzerVisitor::visit(BlockStmt& node) {
 
 void SemanticAnalyzerVisitor::visit(VarDecl& node) {
   std::string varName = node.name.getLexeme();
-  // Determine LLVM type string (for now, only int and string supported)
+  // Resolve the type (handle type aliases)
+  std::string typeName = resolveType(node.type.get());
+
   void* llvmType = nullptr;
-  std::string typeName;
-  if (node.type) {
-    // Try to extract type name from the type node
-    if (auto* basic = dynamic_cast<ast::BasicTypeNode*>(node.type.get())) {
-      typeName = basic->name.getLexeme();
-    } else {
-      typeName = "";  // fallback for non-basic types
-    }
-    if (typeName == "int") {
-      llvmType = (void*)nullptr;  // will be set in codegen
-    } else if (typeName == "string") {
-      llvmType = (void*)nullptr;  // will be set in codegen
-    }
+  if (typeName == "int") {
+    llvmType = (void*)nullptr;  // will be set in codegen
+  } else if (typeName == "string") {
+    llvmType = (void*)nullptr;  // will be set in codegen
   }
+
   Symbol sym{
       varName, /*typeName*/ typeName, node.isConst, false, false, nullptr,
       llvmType};
