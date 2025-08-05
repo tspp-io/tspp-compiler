@@ -1,8 +1,0 @@
-/home/hiren/tspp/CMakeFiles/edit_cache.dir
-/home/hiren/tspp/CMakeFiles/rebuild_cache.dir
-/home/hiren/tspp/src/CMakeFiles/core.dir
-/home/hiren/tspp/src/CMakeFiles/tokens.dir
-/home/hiren/tspp/src/CMakeFiles/lexer.dir
-/home/hiren/tspp/src/CMakeFiles/tspp.dir
-/home/hiren/tspp/src/CMakeFiles/edit_cache.dir
-/home/hiren/tspp/src/CMakeFiles/rebuild_cache.dir

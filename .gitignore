@@ -1,4 +1,5 @@
-# Ignore CMake build artifacts in src/
+# Ignore CMake build artifacts
+CMakeFiles/
 src/CMakeFiles/
 src/Makefile
 src/cmake_install.cmake
@@ -11,4 +12,6 @@ build/
 temp.bc
 temp.s
 temp_exec
-.github/*
+
+# Ignore GitHub workflow and config files
+.github/

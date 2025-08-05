@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/hiren/tspp/cmake_install.cmake",
-		"/home/hiren/tspp/src/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
