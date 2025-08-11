@@ -22,6 +22,36 @@ Shared(ast::Stmt) StatementBuilder::build(tokens::TokenStream& stream) {
       return buildFor(stream);
     case tokens::TokenType::RETURN:
       return buildReturn(stream);
+    // Support storage-qualified local declarations: e.g., `#stack let x: int =
+    // 1;`
+    case tokens::TokenType::STACK: {
+      // consume qualifier and delegate
+      stream.advance();
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::Stack);
+      if (varDecl)
+        return std::static_pointer_cast<ast::Stmt>(varDecl);
+      else
+        return nullptr;
+    }
+    case tokens::TokenType::HEAP: {
+      stream.advance();
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::Heap);
+      if (varDecl)
+        return std::static_pointer_cast<ast::Stmt>(varDecl);
+      else
+        return nullptr;
+    }
+    case tokens::TokenType::STATIC: {
+      stream.advance();
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::Static);
+      if (varDecl)
+        return std::static_pointer_cast<ast::Stmt>(varDecl);
+      else
+        return nullptr;
+    }
     case tokens::TokenType::LET:
     case tokens::TokenType::CONST: {
       auto varDecl = ::parser::DeclarationBuilder::buildVariable(

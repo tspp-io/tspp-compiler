@@ -232,6 +232,7 @@ Shared(ast::Stmt) DeclarationBuilder::buildVariable(
   varDecl->type = varType;
   varDecl->initializer = initializer;
   varDecl->qualifier = storageQualifier;
+  varDecl->isConst = isConst;
   varDecl->location = varLoc;
   return varDecl;
 }

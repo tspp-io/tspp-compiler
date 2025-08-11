@@ -1,7 +1,8 @@
+#include <gc.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <gc.h>
 
 extern "C" char* tspp_int_to_string(int value) {
   char* buf = (char*)malloc(32);

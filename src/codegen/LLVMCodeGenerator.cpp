@@ -25,7 +25,16 @@ namespace codegen {
 
 // Visit ExprStmt: emit code for expression statements (e.g., function calls)
 void LLVMCodeGenerator::visit(ExprStmt& node) {
-  if (node.expression) node.expression->accept(*this);
+  if (node.expression) {
+    // If the expression is actually a VarDecl (parser sometimes wraps decls
+    // as expressions), handle it explicitly so locals get allocated and
+    // registered in the symbol table before use.
+    if (auto varDecl = dynamic_cast<ast::VarDecl*>(node.expression.get())) {
+      varDecl->accept(*this);
+    } else {
+      node.expression->accept(*this);
+    }
+  }
 }
 
 LLVMCodeGenerator::LLVMCodeGenerator()
@@ -142,19 +151,48 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root,
 
 // Visit ProgramNode: emit all declarations
 void LLVMCodeGenerator::visit(ProgramNode& node) {
-  // Handle all declarations - let VarDecl::visit handle global variable
-  // creation
+  // Generate globals (VarDecl) first so they are available to subsequent
+  // function codegen and calls.
   for (auto& decl : node.declarations) {
-    if (decl) {
+    if (!decl) continue;
+    if (auto* v = dynamic_cast<ast::VarDecl*>(decl.get())) {
+      v->accept(*this);
+    }
+  }
+  for (auto& stmt : node.statements) {
+    if (!stmt) continue;
+    if (auto* v = dynamic_cast<ast::VarDecl*>(stmt.get())) {
+      v->accept(*this);
+    } else if (auto* exprStmt = dynamic_cast<ast::ExprStmt*>(stmt.get())) {
+      if (exprStmt->expression) {
+        if (auto* ve =
+                dynamic_cast<ast::VarDecl*>(exprStmt->expression.get())) {
+          ve->accept(*this);
+        }
+      }
+    }
+  }
+
+  // Then handle non-variable declarations (functions, classes, etc.)
+  for (auto& decl : node.declarations) {
+    if (!decl) continue;
+    if (!dynamic_cast<ast::VarDecl*>(decl.get())) {
       decl->accept(*this);
     }
   }
 
-  // Handle all statements (including main function)
+  // Finally, handle remaining statements (including function calls at top
+  // level, if any)
   for (auto& stmt : node.statements) {
-    if (stmt) {
-      stmt->accept(*this);
+    if (!stmt) continue;
+    // Skip VarDecl already handled above
+    if (dynamic_cast<ast::VarDecl*>(stmt.get())) continue;
+    if (auto* exprStmt = dynamic_cast<ast::ExprStmt*>(stmt.get())) {
+      if (exprStmt->expression &&
+          dynamic_cast<ast::VarDecl*>(exprStmt->expression.get()))
+        continue;
     }
+    stmt->accept(*this);
   }
 }
 
@@ -163,33 +201,63 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
   // Determine LLVM type using semantic analyzer if available
   llvm::Type* llvmType = nullptr;
   std::string resolvedTypeName;
+  // If there's an initializer, evaluate once up-front so we can refine type
+  // decisions (especially for pointers) before allocating storage.
+  llvm::Value* initValEarly = nullptr;
+  if (node.initializer) {
+    node.initializer->accept(*this);
+    initValEarly = lastValue;
+  }
 
   if (semanticAnalyzer && node.type) {
     // Use semantic analyzer to resolve the type
     resolvedTypeName = semanticAnalyzer->resolveType(node.type.get());
     llvmType = getLLVMType(resolvedTypeName);
-
+    // If the initializer was a pointer but semantic said non-pointer, trust the
+    // initializer and treat as pointer to avoid bad allocas/stores.
+    if (initValEarly && initValEarly->getType()->isPointerTy() &&
+        !llvmType->isPointerTy()) {
+      llvmType = llvm::PointerType::get(context, 0);
+      resolvedTypeName = "ptr";
+    }
   } else {
     // Fallback to old behavior: infer type from initializer
     bool isString = false;
     if (node.initializer) {
-      node.initializer->accept(*this);
-      // crude check: if lastValue is a pointer to i8, treat as string
-      // literals are emitted as i8* by
-      // CreateGlobalStringPtr)
-      if (lastValue && lastValue->getType()->isPointerTy()) {
-        llvm::Type* elemType = nullptr;
-        if (auto ptrTy =
-                llvm::dyn_cast<llvm::PointerType>(lastValue->getType())) {
-          // Opaque pointers: treat as string if the initializer is a string
-          // literal (string literals are emitted as i8* by
-          // CreateGlobalStringPtr)
-          elemType = llvm::Type::getInt8Ty(context);
-        }
-        if (elemType && elemType->isIntegerTy(8)) {
-          llvmType = llvm::PointerType::get(context, 0);
-          isString = true;
-          resolvedTypeName = "string";
+      // Use the previously computed initializer value
+      if (initValEarly) {
+        lastValue = initValEarly;
+      } else {
+        node.initializer->accept(*this);
+      }
+      if (lastValue) {
+        // Pointers: preserve pointer-ness instead of falling back to int
+        if (lastValue->getType()->isPointerTy()) {
+          // If the initializer is a string literal, treat as string
+          if (auto lit = dynamic_cast<LiteralExpr*>(node.initializer.get())) {
+            using tokens::TokenType;
+            if (lit->value.getType() == TokenType::STRING_LITERAL) {
+              llvmType = llvm::PointerType::get(context, 0);
+              resolvedTypeName = "string";
+              isString = true;
+            } else {
+              llvmType = lastValue->getType();
+              resolvedTypeName = "ptr";  // unknown base; treated as pointer
+            }
+          } else {
+            llvmType = lastValue->getType();
+            resolvedTypeName = "ptr";
+          }
+        } else if (lastValue->getType()->isIntegerTy(1)) {
+          llvmType = llvm::Type::getInt1Ty(context);
+          resolvedTypeName = "bool";
+        } else if (lastValue->getType()->isIntegerTy()) {
+          llvmType = llvm::Type::getInt32Ty(context);
+          resolvedTypeName = "int";
+        } else if (lastValue->getType()->isFloatingPointTy()) {
+          // Default to float for now
+          llvmType = llvm::Type::getFloatTy(context);
+          resolvedTypeName = "float";
         } else {
           llvmType = llvm::Type::getInt32Ty(context);
           resolvedTypeName = "int";
@@ -211,45 +279,22 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     llvm::IRBuilder<> tmpBuilder(&currentFunction->getEntryBlock(),
                                  currentFunction->getEntryBlock().begin());
     llvm::Value* alloca = nullptr;
-    if (llvmType->isPointerTy()) {
-      // Emit call to GC_malloc (Boehm GC) for pointer types
-      auto mallocType = llvm::FunctionType::get(
-          llvmType, {llvm::Type::getInt64Ty(context)}, false);
-      // Note: The exported symbol is GC_malloc (lowercase); GC_MALLOC is a C macro.
-      auto gcMallocFunc = module->getOrInsertFunction("GC_malloc", mallocType);
-      // Use DataLayout to get the correct allocation size
-      llvm::Type* pointeeType =
-          llvm::Type::getInt8Ty(context);  // Default to i8
-      if (auto ptrTy = llvm::dyn_cast<llvm::PointerType>(llvmType)) {
-        // Try to get the element type from semantic analysis
-        if (node.type && semanticAnalyzer) {
-          std::string baseTypeName =
-              semanticAnalyzer->resolveType(node.type.get());
-          if (!baseTypeName.empty() && baseTypeName.back() == '*') {
-            baseTypeName = baseTypeName.substr(0, baseTypeName.size() - 1);
-          }
-          llvm::Type* baseType = getLLVMType(baseTypeName);
-          if (baseType) pointeeType = baseType;
-        }
-      }
-      const llvm::DataLayout& dl = module->getDataLayout();
-      uint64_t typeSize = dl.getTypeAllocSize(pointeeType);
-      llvm::Value* sizeVal =
-          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), typeSize);
-      alloca =
-          builder->CreateCall(gcMallocFunc, {sizeVal}, node.name.getLexeme());
-    } else {
-      alloca =
-          tmpBuilder.CreateAlloca(llvmType, nullptr, node.name.getLexeme());
-    }
+    // Always allocate a stack slot for the variable itself, regardless of
+    // whether it's a pointer type. The slot holds the value (which may be a
+    // pointer) and prevents incorrect sized heap allocations for pointer
+    // variables.
+    alloca = tmpBuilder.CreateAlloca(llvmType, nullptr, node.name.getLexeme());
     symbolTable[node.name.getLexeme()] =
         SymbolInfo{alloca, llvmType, isMutable, resolvedTypeName};
 
     // Initialize if there's an initializer
     if (node.initializer) {
       // Evaluate the initializer
-      node.initializer->accept(*this);
-      llvm::Value* initVal = lastValue;
+      llvm::Value* initVal = initValEarly;
+      if (!initVal) {
+        node.initializer->accept(*this);
+        initVal = lastValue;
+      }
       if (initVal) {
         builder->CreateStore(initVal, alloca);
       }
@@ -297,8 +342,12 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
       }
     }
 
-    auto* gvar = new llvm::GlobalVariable(*module, llvmType, false,
-                                          llvm::GlobalValue::ExternalLinkage,
+    // Use internal linkage for #static qualified globals
+    llvm::GlobalValue::LinkageTypes linkage =
+        (node.qualifier == ast::StorageQualifier::Static)
+            ? llvm::GlobalValue::InternalLinkage
+            : llvm::GlobalValue::ExternalLinkage;
+    auto* gvar = new llvm::GlobalVariable(*module, llvmType, false, linkage,
                                           init, node.name.getLexeme());
     symbolTable[node.name.getLexeme()] =
         SymbolInfo{gvar, llvmType, isMutable, resolvedTypeName};
@@ -399,7 +448,10 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
   // Handle logical operators with short-circuiting
   if (op == "&&") {
     // Short-circuit AND: if left is false, don't evaluate right
-    if (!node.left) { lastValue = nullptr; return; }
+    if (!node.left) {
+      lastValue = nullptr;
+      return;
+    }
     node.left->accept(*this);
     llvm::Value* lhs = lastValue;
     if (!lhs) {
@@ -425,8 +477,11 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
 
     // Right hand side
     builder->SetInsertPoint(rhsBB);
-  if (!node.right) { lastValue = nullptr; return; }
-  node.right->accept(*this);
+    if (!node.right) {
+      lastValue = nullptr;
+      return;
+    }
+    node.right->accept(*this);
     llvm::Value* rhs = lastValue;
     if (!rhs) {
       lastValue = nullptr;
@@ -452,7 +507,10 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     return;
   } else if (op == "||") {
     // Short-circuit OR: if left is true, don't evaluate right
-    if (!node.left) { lastValue = nullptr; return; }
+    if (!node.left) {
+      lastValue = nullptr;
+      return;
+    }
     node.left->accept(*this);
     llvm::Value* lhs = lastValue;
     if (!lhs) {
@@ -478,8 +536,11 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
 
     // Right hand side
     builder->SetInsertPoint(rhsBB);
-  if (!node.right) { lastValue = nullptr; return; }
-  node.right->accept(*this);
+    if (!node.right) {
+      lastValue = nullptr;
+      return;
+    }
+    node.right->accept(*this);
     llvm::Value* rhs = lastValue;
     if (!rhs) {
       lastValue = nullptr;
@@ -506,10 +567,16 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
   }
 
   // For all other operators, evaluate both sides first
-  if (!node.left) { lastValue = nullptr; return; }
+  if (!node.left) {
+    lastValue = nullptr;
+    return;
+  }
   node.left->accept(*this);
   llvm::Value* lhs = lastValue;
-  if (!node.right) { lastValue = nullptr; return; }
+  if (!node.right) {
+    lastValue = nullptr;
+    return;
+  }
   node.right->accept(*this);
   llvm::Value* rhs = lastValue;
 
@@ -565,11 +632,15 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       // Call expression whose return type is known to be string
       if (auto call = dynamic_cast<CallExpr*>(expr)) {
         std::string innerName;
-        if (auto innerIdent = dynamic_cast<IdentifierExpr*>(call->callee.get())) {
+        if (auto innerIdent =
+                dynamic_cast<IdentifierExpr*>(call->callee.get())) {
           innerName = innerIdent->name.getLexeme();
-        } else if (auto innerMember = dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
-          if (auto objIdent = dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
-            innerName = objIdent->name.getLexeme() + "." + innerMember->member.getLexeme();
+        } else if (auto innerMember =
+                       dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
+          if (auto objIdent =
+                  dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
+            innerName = objIdent->name.getLexeme() + "." +
+                        innerMember->member.getLexeme();
           }
         }
         auto itFn = functionReturnTypes.find(innerName);
@@ -587,21 +658,27 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
         // Determine semantic if possible
         if (auto id = dynamic_cast<IdentifierExpr*>(expr)) {
           auto it = symbolTable.find(id->name.getLexeme());
-          if (it != symbolTable.end()) isStr = (it->second.typeName == "string");
+          if (it != symbolTable.end())
+            isStr = (it->second.typeName == "string");
         } else if (auto lit = dynamic_cast<LiteralExpr*>(expr)) {
           using tokens::TokenType;
           isStr = (lit->value.getType() == TokenType::STRING_LITERAL);
         } else if (auto call = dynamic_cast<CallExpr*>(expr)) {
           std::string innerName;
-          if (auto innerIdent = dynamic_cast<IdentifierExpr*>(call->callee.get())) {
+          if (auto innerIdent =
+                  dynamic_cast<IdentifierExpr*>(call->callee.get())) {
             innerName = innerIdent->name.getLexeme();
-          } else if (auto innerMember = dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
-            if (auto objIdent = dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
-              innerName = objIdent->name.getLexeme() + "." + innerMember->member.getLexeme();
+          } else if (auto innerMember =
+                         dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
+            if (auto objIdent =
+                    dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
+              innerName = objIdent->name.getLexeme() + "." +
+                          innerMember->member.getLexeme();
             }
           }
           auto itFn = functionReturnTypes.find(innerName);
-          if (itFn != functionReturnTypes.end()) isStr = (itFn->second == "string");
+          if (itFn != functionReturnTypes.end())
+            isStr = (itFn->second == "string");
         }
         if (isStr) {
           return v;  // already a string pointer
@@ -610,32 +687,37 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
         auto ptrToStrType = llvm::FunctionType::get(
             llvm::PointerType::get(context, 0),
             {llvm::PointerType::get(context, 0)}, false);
-        auto ptrToStrFunc = module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
+        auto ptrToStrFunc =
+            module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
         return builder->CreateCall(ptrToStrFunc, {v});
       }
 
       // Integer (bool handled separately)
       if (v->getType()->isIntegerTy()) {
         if (v->getType()->isIntegerTy(1)) {
-          auto boolToStrType = llvm::FunctionType::get(
-              llvm::PointerType::get(context, 0),
-              {llvm::Type::getInt1Ty(context)}, false);
-          auto boolToStrFunc = module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
+          auto boolToStrType =
+              llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                      {llvm::Type::getInt1Ty(context)}, false);
+          auto boolToStrFunc =
+              module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
           return builder->CreateCall(boolToStrFunc, {v});
         }
         // Cast integers to i32 for printing
         llvm::Value* i32 = v;
         if (!v->getType()->isIntegerTy(32)) {
-          i32 = builder->CreateIntCast(v, llvm::Type::getInt32Ty(context), true);
+          i32 =
+              builder->CreateIntCast(v, llvm::Type::getInt32Ty(context), true);
         }
-        auto intToStrType = llvm::FunctionType::get(
-            llvm::PointerType::get(context, 0),
-            {llvm::Type::getInt32Ty(context)}, false);
-        auto intToStrFunc = module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+        auto intToStrType =
+            llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                    {llvm::Type::getInt32Ty(context)}, false);
+        auto intToStrFunc =
+            module->getOrInsertFunction("tspp_int_to_string", intToStrType);
         return builder->CreateCall(intToStrFunc, {i32});
       }
 
-      // Floating point: support float/double by converting double -> float for now
+      // Floating point: support float/double by converting double -> float for
+      // now
       if (v->getType()->isFloatingPointTy()) {
         llvm::Value* f = v;
         if (v->getType()->isDoubleTy()) {
@@ -644,10 +726,11 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
           // Fallback cast
           f = builder->CreateSIToFP(v, llvm::Type::getFloatTy(context));
         }
-        auto floatToStrType = llvm::FunctionType::get(
-            llvm::PointerType::get(context, 0),
-            {llvm::Type::getFloatTy(context)}, false);
-        auto floatToStrFunc = module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
+        auto floatToStrType =
+            llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                    {llvm::Type::getFloatTy(context)}, false);
+        auto floatToStrFunc =
+            module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
         return builder->CreateCall(floatToStrFunc, {f});
       }
 
@@ -656,23 +739,26 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
         auto ptrToStrType = llvm::FunctionType::get(
             llvm::PointerType::get(context, 0),
             {llvm::PointerType::get(context, 0)}, false);
-        auto ptrToStrFunc = module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
+        auto ptrToStrFunc =
+            module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
         return builder->CreateCall(ptrToStrFunc, {v});
       }
       // As a last resort, cast to i32 and print
       llvm::Value* i32 = v;
       if (!v->getType()->isIntegerTy(32)) {
         if (v->getType()->isIntegerTy()) {
-          i32 = builder->CreateIntCast(v, llvm::Type::getInt32Ty(context), true);
+          i32 =
+              builder->CreateIntCast(v, llvm::Type::getInt32Ty(context), true);
         } else {
           // create a poison i32 to avoid crashes (shouldn't happen normally)
           i32 = llvm::PoisonValue::get(llvm::Type::getInt32Ty(context));
         }
       }
-      auto intToStrType = llvm::FunctionType::get(
-          llvm::PointerType::get(context, 0),
-          {llvm::Type::getInt32Ty(context)}, false);
-      auto intToStrFunc = module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+      auto intToStrType =
+          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                  {llvm::Type::getInt32Ty(context)}, false);
+      auto intToStrFunc =
+          module->getOrInsertFunction("tspp_int_to_string", intToStrType);
       return builder->CreateCall(intToStrFunc, {i32});
     };
 
@@ -683,10 +769,13 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       llvm::Value* lstr = toCString(node.left.get(), lhs);
       llvm::Value* rstr = toCString(node.right.get(), rhs);
       // tspp_string_concat(const char*, const char*) -> char*
-      auto concatTy = llvm::FunctionType::get(
-          llvm::PointerType::get(context, 0),
-          {llvm::PointerType::get(context, 0), llvm::PointerType::get(context, 0)}, false);
-      auto concatFn = module->getOrInsertFunction("tspp_string_concat", concatTy);
+      auto concatTy =
+          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                  {llvm::PointerType::get(context, 0),
+                                   llvm::PointerType::get(context, 0)},
+                                  false);
+      auto concatFn =
+          module->getOrInsertFunction("tspp_string_concat", concatTy);
       lastValue = builder->CreateCall(concatFn, {lstr, rstr});
       return;
     }
@@ -759,6 +848,32 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
   auto funcType = llvm::FunctionType::get(retType, argTypes, false);
   auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
                                      node.name.getLexeme(), module.get());
+  // Attach non-invasive string attributes to preserve source modifiers
+  switch (node.modifier) {
+    case ast::FunctionModifier::Const:
+      func->addFnAttr("tspp.const");
+      break;
+    case ast::FunctionModifier::Constexpr:
+      func->addFnAttr("tspp.constexpr");
+      break;
+    case ast::FunctionModifier::Zerocast:
+      func->addFnAttr("tspp.zerocast");
+      break;
+    case ast::FunctionModifier::Simd:
+      func->addFnAttr("tspp.simd");
+      break;
+    case ast::FunctionModifier::Prefetch:
+      func->addFnAttr("tspp.prefetch");
+      break;
+    case ast::FunctionModifier::Atomic:
+      func->addFnAttr("tspp.atomic");
+      break;
+    case ast::FunctionModifier::Pinned:
+      func->addFnAttr("tspp.pinned");
+      break;
+    default:
+      break;
+  }
   auto entry = llvm::BasicBlock::Create(context, "entry", func);
   builder->SetInsertPoint(entry);
 
@@ -835,14 +950,15 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
             auto boolToStrType = llvm::FunctionType::get(
                 llvm::PointerType::get(context, 0),
                 {llvm::Type::getInt1Ty(context)}, false);
-            auto boolToStr =
-                module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
+            auto boolToStr = module->getOrInsertFunction("tspp_bool_to_string",
+                                                         boolToStrType);
             retVal = builder->CreateCall(boolToStr, {retVal});
           } else {
             // Cast to i32
             llvm::Value* i32 = retVal;
             if (!retVal->getType()->isIntegerTy(32)) {
-              i32 = builder->CreateIntCast(retVal, llvm::Type::getInt32Ty(context), true);
+              i32 = builder->CreateIntCast(
+                  retVal, llvm::Type::getInt32Ty(context), true);
             }
             auto intToStrType = llvm::FunctionType::get(
                 llvm::PointerType::get(context, 0),
@@ -858,11 +974,11 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
           } else if (!retVal->getType()->isFloatTy()) {
             f = builder->CreateSIToFP(retVal, llvm::Type::getFloatTy(context));
           }
-          auto floatToStrType = llvm::FunctionType::get(
-              llvm::PointerType::get(context, 0),
-              {llvm::Type::getFloatTy(context)}, false);
-          auto floatToStr =
-              module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
+          auto floatToStrType =
+              llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                      {llvm::Type::getFloatTy(context)}, false);
+          auto floatToStr = module->getOrInsertFunction("tspp_float_to_string",
+                                                        floatToStrType);
           retVal = builder->CreateCall(floatToStr, {f});
         } else if (retVal->getType()->isPointerTy()) {
           // Assume pointer already represents string if the function expects
@@ -872,14 +988,15 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
           llvm::Value* i32 = retVal;
           if (!retVal->getType()->isIntegerTy(32)) {
             if (retVal->getType()->isIntegerTy()) {
-              i32 = builder->CreateIntCast(retVal, llvm::Type::getInt32Ty(context), true);
+              i32 = builder->CreateIntCast(
+                  retVal, llvm::Type::getInt32Ty(context), true);
             } else {
               i32 = llvm::PoisonValue::get(llvm::Type::getInt32Ty(context));
             }
           }
-          auto intToStrType = llvm::FunctionType::get(
-              llvm::PointerType::get(context, 0),
-              {llvm::Type::getInt32Ty(context)}, false);
+          auto intToStrType =
+              llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                      {llvm::Type::getInt32Ty(context)}, false);
           auto intToStr =
               module->getOrInsertFunction("tspp_int_to_string", intToStrType);
           retVal = builder->CreateCall(intToStr, {i32});
@@ -931,12 +1048,25 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   std::vector<llvm::Value*> args;
   std::vector<std::pair<llvm::Value*, bool>> argWithFree;
   for (auto& arg : node.arguments) {
+    // Reset lastValue defensively before evaluating each arg
+    lastValue = nullptr;
     arg->accept(*this);
     llvm::Value* v = lastValue;
 
     // Skip if the argument couldn't be generated
     if (!v) {
-      continue;
+      // Fallback: if the argument is an identifier that refers to a global
+      // variable, load it directly from the module
+      if (auto idArg = dynamic_cast<IdentifierExpr*>(arg.get())) {
+        if (auto* gvar =
+                module->getGlobalVariable(idArg->name.getLexeme(), true)) {
+          llvm::Type* valTy = gvar->getValueType();
+          v = builder->CreateLoad(valTy, gvar);
+        }
+      }
+      if (!v) {
+        continue;
+      }
     }
 
     bool needsFree = false;
@@ -974,45 +1104,45 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
 
     if (isConsole) {
       if (v->getType()->isIntegerTy(32)) {
-        auto intToStrType = llvm::FunctionType::get(
-            llvm::PointerType::get(context, 0),
-            {llvm::Type::getInt32Ty(context)}, false);
+        auto intToStrType =
+            llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                    {llvm::Type::getInt32Ty(context)}, false);
         auto intToStrFunc =
             module->getOrInsertFunction("tspp_int_to_string", intToStrType);
         v = builder->CreateCall(intToStrFunc, {v});
         needsFree = true;
       } else if (v->getType()->isIntegerTy(1)) {
         // Boolean to string conversion
-        auto boolToStrType = llvm::FunctionType::get(
-            llvm::PointerType::get(context, 0),
-            {llvm::Type::getInt1Ty(context)}, false);
-        auto boolToStrFunc = module->getOrInsertFunction(
-            "tspp_bool_to_string", boolToStrType);
+        auto boolToStrType =
+            llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                    {llvm::Type::getInt1Ty(context)}, false);
+        auto boolToStrFunc =
+            module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
         v = builder->CreateCall(boolToStrFunc, {v});
         needsFree = true;
       } else if (v->getType()->isFloatTy()) {
-        auto floatToStrType = llvm::FunctionType::get(
-            llvm::PointerType::get(context, 0),
-            {llvm::Type::getFloatTy(context)}, false);
-        auto floatToStrFunc = module->getOrInsertFunction(
-            "tspp_float_to_string", floatToStrType);
+        auto floatToStrType =
+            llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                    {llvm::Type::getFloatTy(context)}, false);
+        auto floatToStrFunc =
+            module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
         v = builder->CreateCall(floatToStrFunc, {v});
         needsFree = true;
       } else if (v->getType()->isPointerTy()) {
         // Decide conversion for pointers based on semantic type name
-        bool isString = (!semanticTypeName.empty() &&
-                         semanticTypeName == "string");
-        bool isSemanticPointer = (!semanticTypeName.empty() &&
-                                  semanticTypeName.back() == '*');
-        bool shouldConvert = (!isString) &&
-                              (semanticTypeName.empty() || isSemanticPointer);
+        bool isString =
+            (!semanticTypeName.empty() && semanticTypeName == "string");
+        bool isSemanticPointer =
+            (!semanticTypeName.empty() && semanticTypeName.back() == '*');
+        bool shouldConvert =
+            (!isString) && (semanticTypeName.empty() || isSemanticPointer);
         if (shouldConvert) {
           // Convert raw pointer (non-string) to string representation
           auto ptrToStrType = llvm::FunctionType::get(
               llvm::PointerType::get(context, 0),
               {llvm::PointerType::get(context, 0)}, false);
-          auto ptrToStrFunc = module->getOrInsertFunction(
-              "tspp_ptr_to_string", ptrToStrType);
+          auto ptrToStrFunc =
+              module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
           v = builder->CreateCall(ptrToStrFunc, {v});
           needsFree = true;
         }
@@ -1026,6 +1156,79 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
         llvm::FunctionType::get(llvm::Type::getVoidTy(context),
                                 {llvm::PointerType::get(context, 0)}, false);
     auto logFunc = module->getOrInsertFunction("tspp_console_log", logType);
+    // If no args were produced but there were AST arguments, try a robust
+    // fallback for globals (e.g., static globals not yet in symbol table)
+    if (args.empty()) {
+      if (!node.arguments.empty()) {
+        if (auto idArg =
+                dynamic_cast<IdentifierExpr*>(node.arguments[0].get())) {
+          if (auto* gvar =
+                  module->getGlobalVariable(idArg->name.getLexeme(), true)) {
+            llvm::Type* valTy = gvar->getValueType();
+            llvm::Value* loaded = builder->CreateLoad(valTy, gvar);
+            // Convert to string
+            llvm::Value* vstr = nullptr;
+            bool needsFree = false;
+            if (loaded->getType()->isIntegerTy(1)) {
+              auto boolToStrType = llvm::FunctionType::get(
+                  llvm::PointerType::get(context, 0),
+                  {llvm::Type::getInt1Ty(context)}, false);
+              auto boolToStrFunc = module->getOrInsertFunction(
+                  "tspp_bool_to_string", boolToStrType);
+              vstr = builder->CreateCall(boolToStrFunc, {loaded});
+              needsFree = true;
+            } else if (loaded->getType()->isIntegerTy()) {
+              llvm::Value* i32 = loaded;
+              if (!loaded->getType()->isIntegerTy(32)) {
+                i32 = builder->CreateIntCast(
+                    loaded, llvm::Type::getInt32Ty(context), true);
+              }
+              auto intToStrType = llvm::FunctionType::get(
+                  llvm::PointerType::get(context, 0),
+                  {llvm::Type::getInt32Ty(context)}, false);
+              auto intToStrFunc = module->getOrInsertFunction(
+                  "tspp_int_to_string", intToStrType);
+              vstr = builder->CreateCall(intToStrFunc, {i32});
+              needsFree = true;
+            } else if (loaded->getType()->isFloatingPointTy()) {
+              llvm::Value* f = loaded;
+              if (loaded->getType()->isDoubleTy()) {
+                f = builder->CreateFPTrunc(loaded,
+                                           llvm::Type::getFloatTy(context));
+              } else if (!loaded->getType()->isFloatTy()) {
+                f = builder->CreateSIToFP(loaded,
+                                          llvm::Type::getFloatTy(context));
+              }
+              auto floatToStrType = llvm::FunctionType::get(
+                  llvm::PointerType::get(context, 0),
+                  {llvm::Type::getFloatTy(context)}, false);
+              auto floatToStrFunc = module->getOrInsertFunction(
+                  "tspp_float_to_string", floatToStrType);
+              vstr = builder->CreateCall(floatToStrFunc, {f});
+              needsFree = true;
+            } else if (loaded->getType()->isPointerTy()) {
+              auto ptrToStrType = llvm::FunctionType::get(
+                  llvm::PointerType::get(context, 0),
+                  {llvm::PointerType::get(context, 0)}, false);
+              auto ptrToStrFunc = module->getOrInsertFunction(
+                  "tspp_ptr_to_string", ptrToStrType);
+              vstr = builder->CreateCall(ptrToStrFunc, {loaded});
+              needsFree = true;
+            }
+            if (vstr) {
+              args.push_back(vstr);
+              argWithFree.push_back({vstr, needsFree});
+            }
+          }
+        }
+      }
+      // As a last resort, emit an empty line
+      if (args.empty()) {
+        llvm::Value* emptyStr =
+            builder->CreateGlobalStringPtr("", "", 0, module.get());
+        args.push_back(emptyStr);
+      }
+    }
     builder->CreateCall(logFunc, args);
     // Now free any heap-allocated strings
     auto freeType =

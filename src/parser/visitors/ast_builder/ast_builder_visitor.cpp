@@ -103,6 +103,8 @@ bool ASTBuilderVisitor::isDeclarationStart() const {
     case tokens::TokenType::ENUM:
     case tokens::TokenType::NAMESPACE:
     case tokens::TokenType::STACK:
+    case tokens::TokenType::HEAP:
+    case tokens::TokenType::STATIC:
       return true;
     default:
       return false;

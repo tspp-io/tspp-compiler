@@ -39,12 +39,15 @@ entry:
   ret ptr %value
 }
 
-define i32 @getUnion() {
+define ptr @getUnion() {
 entry:
-  ret i32 42
+  %0 = call ptr @tspp_int_to_string(i32 42)
+  ret ptr %0
 }
 
-define i32 @getConstValue() {
+declare ptr @tspp_int_to_string(i32)
+
+define i32 @getConstValue() #0 {
 entry:
   ret i32 100
 }
@@ -69,18 +72,14 @@ entry:
   %8 = call ptr @tspp_ptr_to_string(ptr %7)
   call void @tspp_console_log(ptr %8)
   call void @tspp_free_string(ptr %8)
-  %9 = call i32 @getUnion()
-  %10 = call ptr @tspp_int_to_string(i32 %9)
-  call void @tspp_console_log(ptr %10)
-  call void @tspp_free_string(ptr %10)
-  %11 = call i32 @getConstValue()
-  %12 = call ptr @tspp_int_to_string(i32 %11)
-  call void @tspp_console_log(ptr %12)
-  call void @tspp_free_string(ptr %12)
+  %9 = call ptr @getUnion()
+  call void @tspp_console_log(ptr %9)
+  %10 = call i32 @getConstValue()
+  %11 = call ptr @tspp_int_to_string(i32 %10)
+  call void @tspp_console_log(ptr %11)
+  call void @tspp_free_string(ptr %11)
   ret void
 }
-
-declare ptr @tspp_int_to_string(i32)
 
 declare void @tspp_console_log(ptr)
 
@@ -91,6 +90,8 @@ declare ptr @tspp_bool_to_string(i1)
 declare ptr @tspp_float_to_string(float)
 
 declare ptr @tspp_ptr_to_string(ptr)
+
+attributes #0 = { "tspp.const" }
 
 define i32 @main() {
 entry:

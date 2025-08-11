@@ -153,9 +153,11 @@ void SemanticAnalyzerVisitor::visit(Parameter& node) {
 
 void SemanticAnalyzerVisitor::visit(ClassDecl& node) {
   std::string className = node.name.getLexeme();
-  if (!currentScope->insert(className, Symbol{className, /*typeName*/ className,
-                                              false, false, true, nullptr})) {
-    reportError("Class '" + className + "' already declared in this scope");
+  // If not already hoisted, insert; otherwise don't re-insert to avoid
+  // duplicates
+  if (!currentScope->lookup(className)) {
+    currentScope->insert(className, Symbol{className, /*typeName*/ className,
+                                           false, false, true, nullptr});
   }
   enterScope();
   if (node.body) node.body->accept(*this);
@@ -164,9 +166,9 @@ void SemanticAnalyzerVisitor::visit(ClassDecl& node) {
 
 void SemanticAnalyzerVisitor::visit(InterfaceDecl& node) {
   std::string ifaceName = node.name.getLexeme();
-  if (!currentScope->insert(ifaceName, Symbol{ifaceName, /*typeName*/ ifaceName,
-                                              false, false, false, nullptr})) {
-    reportError("Interface '" + ifaceName + "' already declared in this scope");
+  if (!currentScope->lookup(ifaceName)) {
+    currentScope->insert(ifaceName, Symbol{ifaceName, /*typeName*/ ifaceName,
+                                           false, false, false, nullptr});
   }
   enterScope();
   if (node.body) node.body->accept(*this);
@@ -177,10 +179,9 @@ void SemanticAnalyzerVisitor::visit(TypeAliasDecl& node) {
   std::string aliasName = node.name.getLexeme();
   // Store the alias mapping in the typeAliases table
   typeAliases[aliasName] = node.aliasedType;
-  if (!currentScope->insert(aliasName, Symbol{aliasName, /*typeName*/ aliasName,
-                                              false, false, false, nullptr})) {
-    reportError("Type alias '" + aliasName +
-                "' already declared in this scope");
+  if (!currentScope->lookup(aliasName)) {
+    currentScope->insert(aliasName, Symbol{aliasName, /*typeName*/ aliasName,
+                                           false, false, false, nullptr});
   }
 }
 
@@ -226,9 +227,52 @@ void SemanticAnalyzerVisitor::visit(NullExpr&) {
 
 void SemanticAnalyzerVisitor::visit(ProgramNode& node) {
   enterScope();
+  // Pass 1: hoist top-level declarations (functions, classes, vars, typedefs)
+  for (auto& decl : node.declarations) {
+    if (!decl) continue;
+    if (auto fn = dynamic_cast<FunctionDecl*>(decl.get())) {
+      std::string name = fn->name.getLexeme();
+      currentScope->insert(
+          name, Symbol{name, /*typeName*/ "", false, true, false, nullptr});
+    } else if (auto var = dynamic_cast<VarDecl*>(decl.get())) {
+      std::string name = var->name.getLexeme();
+      currentScope->insert(name, Symbol{name, resolveType(var->type.get()),
+                                        var->isConst, false, false, nullptr});
+    } else if (auto cls = dynamic_cast<ClassDecl*>(decl.get())) {
+      std::string name = cls->name.getLexeme();
+      currentScope->insert(name,
+                           Symbol{name, name, false, false, true, nullptr});
+    } else if (auto alias = dynamic_cast<TypeAliasDecl*>(decl.get())) {
+      std::string name = alias->name.getLexeme();
+      typeAliases[name] = alias->aliasedType;
+      currentScope->insert(name,
+                           Symbol{name, name, false, false, false, nullptr});
+    }
+  }
+  // Pass 1b: hoist top-level variable declarations that appear as statements
+  for (auto& stmt : node.statements) {
+    if (!stmt) continue;
+    if (auto exprStmt = dynamic_cast<ExprStmt*>(stmt.get())) {
+      if (exprStmt->expression) {
+        if (auto varDecl = dynamic_cast<VarDecl*>(exprStmt->expression.get())) {
+          std::string name = varDecl->name.getLexeme();
+          currentScope->insert(name,
+                               Symbol{name, resolveType(varDecl->type.get()),
+                                      varDecl->isConst, false, false, nullptr});
+        }
+      }
+    } else if (auto varDecl = dynamic_cast<VarDecl*>(stmt.get())) {
+      std::string name = varDecl->name.getLexeme();
+      currentScope->insert(
+          name, Symbol{name, resolveType(varDecl->type.get()), varDecl->isConst,
+                       false, false, nullptr});
+    }
+  }
+  // Pass 2: analyze declarations fully
   for (auto& decl : node.declarations) {
     if (decl) decl->accept(*this);
   }
+  // Pass 3: analyze top-level statements
   for (auto& stmt : node.statements) {
     if (stmt) stmt->accept(*this);
   }
@@ -264,8 +308,11 @@ void SemanticAnalyzerVisitor::visit(VarDecl& node) {
   Symbol sym{
       varName, /*typeName*/ typeName, node.isConst, false, false, nullptr,
       llvmType};
-  if (!currentScope->insert(varName, sym)) {
-    reportError("Variable '" + varName + "' already declared in this scope");
+  // If already hoisted in the current scope, don't re-insert or error
+  if (!currentScope->lookup(varName)) {
+    if (!currentScope->insert(varName, sym)) {
+      reportError("Variable '" + varName + "' already declared in this scope");
+    }
   }
   if (node.initializer) {
     node.initializer->accept(*this);
@@ -275,9 +322,12 @@ void SemanticAnalyzerVisitor::visit(VarDecl& node) {
 
 void SemanticAnalyzerVisitor::visit(FunctionDecl& node) {
   std::string funcName = node.name.getLexeme();
-  if (!currentScope->insert(funcName, Symbol{funcName, /*typeName*/ "", false,
-                                             true, false, nullptr})) {
-    reportError("Function '" + funcName + "' already declared in this scope");
+  // If already hoisted in the current scope, don't re-insert or error
+  if (!currentScope->lookup(funcName)) {
+    if (!currentScope->insert(funcName, Symbol{funcName, /*typeName*/ "", false,
+                                               true, false, nullptr})) {
+      reportError("Function '" + funcName + "' already declared in this scope");
+    }
   }
   enterScope();
   for (auto& param : node.params) {
