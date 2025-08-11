@@ -212,10 +212,11 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
                                  currentFunction->getEntryBlock().begin());
     llvm::Value* alloca = nullptr;
     if (llvmType->isPointerTy()) {
-      // Emit call to GC_MALLOC for pointer types
+      // Emit call to GC_malloc (Boehm GC) for pointer types
       auto mallocType = llvm::FunctionType::get(
           llvmType, {llvm::Type::getInt64Ty(context)}, false);
-      auto gcMallocFunc = module->getOrInsertFunction("GC_MALLOC", mallocType);
+      // Note: The exported symbol is GC_malloc (lowercase); GC_MALLOC is a C macro.
+      auto gcMallocFunc = module->getOrInsertFunction("GC_malloc", mallocType);
       // Use DataLayout to get the correct allocation size
       llvm::Type* pointeeType =
           llvm::Type::getInt8Ty(context);  // Default to i8
@@ -387,11 +388,18 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     return;
   }
 
+  // Defensive: ensure both operands exist before visiting
+  if (!node.left || !node.right) {
+    lastValue = nullptr;
+    return;
+  }
+
   std::string op = node.op.getLexeme();
 
   // Handle logical operators with short-circuiting
   if (op == "&&") {
     // Short-circuit AND: if left is false, don't evaluate right
+    if (!node.left) { lastValue = nullptr; return; }
     node.left->accept(*this);
     llvm::Value* lhs = lastValue;
     if (!lhs) {
@@ -417,7 +425,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
 
     // Right hand side
     builder->SetInsertPoint(rhsBB);
-    node.right->accept(*this);
+  if (!node.right) { lastValue = nullptr; return; }
+  node.right->accept(*this);
     llvm::Value* rhs = lastValue;
     if (!rhs) {
       lastValue = nullptr;
@@ -443,6 +452,7 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     return;
   } else if (op == "||") {
     // Short-circuit OR: if left is true, don't evaluate right
+    if (!node.left) { lastValue = nullptr; return; }
     node.left->accept(*this);
     llvm::Value* lhs = lastValue;
     if (!lhs) {
@@ -468,7 +478,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
 
     // Right hand side
     builder->SetInsertPoint(rhsBB);
-    node.right->accept(*this);
+  if (!node.right) { lastValue = nullptr; return; }
+  node.right->accept(*this);
     llvm::Value* rhs = lastValue;
     if (!rhs) {
       lastValue = nullptr;
@@ -495,8 +506,10 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
   }
 
   // For all other operators, evaluate both sides first
+  if (!node.left) { lastValue = nullptr; return; }
   node.left->accept(*this);
   llvm::Value* lhs = lastValue;
+  if (!node.right) { lastValue = nullptr; return; }
   node.right->accept(*this);
   llvm::Value* rhs = lastValue;
 
@@ -535,6 +548,148 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
   }
 
   if (op == "+") {
+    // Special-case string concatenation only if either operand is a string
+    auto isStringOperand = [&](ast::Expr* expr, llvm::Type* /*ty*/) -> bool {
+      // Quick path: string literal
+      if (auto lit = dynamic_cast<LiteralExpr*>(expr)) {
+        using tokens::TokenType;
+        return lit->value.getType() == TokenType::STRING_LITERAL;
+      }
+      // Identifier with semantic type 'string'
+      if (auto id = dynamic_cast<IdentifierExpr*>(expr)) {
+        auto it = symbolTable.find(id->name.getLexeme());
+        if (it != symbolTable.end()) {
+          return it->second.typeName == std::string("string");
+        }
+      }
+      // Call expression whose return type is known to be string
+      if (auto call = dynamic_cast<CallExpr*>(expr)) {
+        std::string innerName;
+        if (auto innerIdent = dynamic_cast<IdentifierExpr*>(call->callee.get())) {
+          innerName = innerIdent->name.getLexeme();
+        } else if (auto innerMember = dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
+          if (auto objIdent = dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
+            innerName = objIdent->name.getLexeme() + "." + innerMember->member.getLexeme();
+          }
+        }
+        auto itFn = functionReturnTypes.find(innerName);
+        if (itFn != functionReturnTypes.end()) {
+          return itFn->second == std::string("string");
+        }
+      }
+      return false;
+    };
+
+    auto toCString = [&](ast::Expr* expr, llvm::Value* v) -> llvm::Value* {
+      // If it's already an i8* (string literal or string var), just use it
+      if (v->getType()->isPointerTy()) {
+        bool isStr = false;
+        // Determine semantic if possible
+        if (auto id = dynamic_cast<IdentifierExpr*>(expr)) {
+          auto it = symbolTable.find(id->name.getLexeme());
+          if (it != symbolTable.end()) isStr = (it->second.typeName == "string");
+        } else if (auto lit = dynamic_cast<LiteralExpr*>(expr)) {
+          using tokens::TokenType;
+          isStr = (lit->value.getType() == TokenType::STRING_LITERAL);
+        } else if (auto call = dynamic_cast<CallExpr*>(expr)) {
+          std::string innerName;
+          if (auto innerIdent = dynamic_cast<IdentifierExpr*>(call->callee.get())) {
+            innerName = innerIdent->name.getLexeme();
+          } else if (auto innerMember = dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
+            if (auto objIdent = dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
+              innerName = objIdent->name.getLexeme() + "." + innerMember->member.getLexeme();
+            }
+          }
+          auto itFn = functionReturnTypes.find(innerName);
+          if (itFn != functionReturnTypes.end()) isStr = (itFn->second == "string");
+        }
+        if (isStr) {
+          return v;  // already a string pointer
+        }
+        // Treat any other pointer as raw pointer -> convert to string address
+        auto ptrToStrType = llvm::FunctionType::get(
+            llvm::PointerType::get(context, 0),
+            {llvm::PointerType::get(context, 0)}, false);
+        auto ptrToStrFunc = module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
+        return builder->CreateCall(ptrToStrFunc, {v});
+      }
+
+      // Integer (bool handled separately)
+      if (v->getType()->isIntegerTy()) {
+        if (v->getType()->isIntegerTy(1)) {
+          auto boolToStrType = llvm::FunctionType::get(
+              llvm::PointerType::get(context, 0),
+              {llvm::Type::getInt1Ty(context)}, false);
+          auto boolToStrFunc = module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
+          return builder->CreateCall(boolToStrFunc, {v});
+        }
+        // Cast integers to i32 for printing
+        llvm::Value* i32 = v;
+        if (!v->getType()->isIntegerTy(32)) {
+          i32 = builder->CreateIntCast(v, llvm::Type::getInt32Ty(context), true);
+        }
+        auto intToStrType = llvm::FunctionType::get(
+            llvm::PointerType::get(context, 0),
+            {llvm::Type::getInt32Ty(context)}, false);
+        auto intToStrFunc = module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+        return builder->CreateCall(intToStrFunc, {i32});
+      }
+
+      // Floating point: support float/double by converting double -> float for now
+      if (v->getType()->isFloatingPointTy()) {
+        llvm::Value* f = v;
+        if (v->getType()->isDoubleTy()) {
+          f = builder->CreateFPTrunc(v, llvm::Type::getFloatTy(context));
+        } else if (!v->getType()->isFloatTy()) {
+          // Fallback cast
+          f = builder->CreateSIToFP(v, llvm::Type::getFloatTy(context));
+        }
+        auto floatToStrType = llvm::FunctionType::get(
+            llvm::PointerType::get(context, 0),
+            {llvm::Type::getFloatTy(context)}, false);
+        auto floatToStrFunc = module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
+        return builder->CreateCall(floatToStrFunc, {f});
+      }
+
+      // Unknown type: best-effort cast to pointer for address printing
+      if (v->getType()->isPointerTy()) {
+        auto ptrToStrType = llvm::FunctionType::get(
+            llvm::PointerType::get(context, 0),
+            {llvm::PointerType::get(context, 0)}, false);
+        auto ptrToStrFunc = module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
+        return builder->CreateCall(ptrToStrFunc, {v});
+      }
+      // As a last resort, cast to i32 and print
+      llvm::Value* i32 = v;
+      if (!v->getType()->isIntegerTy(32)) {
+        if (v->getType()->isIntegerTy()) {
+          i32 = builder->CreateIntCast(v, llvm::Type::getInt32Ty(context), true);
+        } else {
+          // create a poison i32 to avoid crashes (shouldn't happen normally)
+          i32 = llvm::PoisonValue::get(llvm::Type::getInt32Ty(context));
+        }
+      }
+      auto intToStrType = llvm::FunctionType::get(
+          llvm::PointerType::get(context, 0),
+          {llvm::Type::getInt32Ty(context)}, false);
+      auto intToStrFunc = module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+      return builder->CreateCall(intToStrFunc, {i32});
+    };
+
+    bool leftIsString = isStringOperand(node.left.get(), lhsTy);
+    bool rightIsString = isStringOperand(node.right.get(), rhsTy);
+    if (leftIsString || rightIsString) {
+      // Convert both operands to C-strings before concatenating
+      llvm::Value* lstr = toCString(node.left.get(), lhs);
+      llvm::Value* rstr = toCString(node.right.get(), rhs);
+      // tspp_string_concat(const char*, const char*) -> char*
+      auto concatTy = llvm::FunctionType::get(
+          llvm::PointerType::get(context, 0),
+          {llvm::PointerType::get(context, 0), llvm::PointerType::get(context, 0)}, false);
+      auto concatFn = module->getOrInsertFunction("tspp_string_concat", concatTy);
+      lastValue = builder->CreateCall(concatFn, {lstr, rstr});
+      return;
+    }
     lastValue = isFP ? builder->CreateFAdd(lhs, rhs, "faddtmp")
                      : builder->CreateAdd(lhs, rhs, "addtmp");
   } else if (op == "-") {
@@ -578,8 +733,14 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
   std::string resolvedRetType = "int";
   llvm::Type* retType = llvm::Type::getInt32Ty(context);
   if (semanticAnalyzer && node.returnType) {
-    resolvedRetType = semanticAnalyzer->resolveType(node.returnType.get());
-    retType = getLLVMType(resolvedRetType);
+    // If it's a union type, lower to string for now
+    if (dynamic_cast<ast::UnionTypeNode*>(node.returnType.get()) != nullptr) {
+      resolvedRetType = "string";
+      retType = getLLVMType(resolvedRetType);  // i8*
+    } else {
+      resolvedRetType = semanticAnalyzer->resolveType(node.returnType.get());
+      retType = getLLVMType(resolvedRetType);
+    }
   }
   // Record function return type for later call-site conversions
   functionReturnTypes[node.name.getLexeme()] = resolvedRetType;
@@ -659,7 +820,73 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
   // evaluate the returned expression if present
   if (node.value) {
     node.value->accept(*this);
-    if (lastValue) builder->CreateRet(lastValue);
+    if (lastValue) {
+      // If the function expects a pointer (e.g., string), convert scalars
+      // appropriately
+      llvm::Type* expectedTy = nullptr;
+      if (currentFunction) {
+        expectedTy = currentFunction->getReturnType();
+      }
+      llvm::Value* retVal = lastValue;
+      if (expectedTy && expectedTy->isPointerTy()) {
+        // Convert ints/bools/floats to strings
+        if (retVal->getType()->isIntegerTy()) {
+          if (retVal->getType()->isIntegerTy(1)) {
+            auto boolToStrType = llvm::FunctionType::get(
+                llvm::PointerType::get(context, 0),
+                {llvm::Type::getInt1Ty(context)}, false);
+            auto boolToStr =
+                module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
+            retVal = builder->CreateCall(boolToStr, {retVal});
+          } else {
+            // Cast to i32
+            llvm::Value* i32 = retVal;
+            if (!retVal->getType()->isIntegerTy(32)) {
+              i32 = builder->CreateIntCast(retVal, llvm::Type::getInt32Ty(context), true);
+            }
+            auto intToStrType = llvm::FunctionType::get(
+                llvm::PointerType::get(context, 0),
+                {llvm::Type::getInt32Ty(context)}, false);
+            auto intToStr =
+                module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+            retVal = builder->CreateCall(intToStr, {i32});
+          }
+        } else if (retVal->getType()->isFloatingPointTy()) {
+          llvm::Value* f = retVal;
+          if (retVal->getType()->isDoubleTy()) {
+            f = builder->CreateFPTrunc(retVal, llvm::Type::getFloatTy(context));
+          } else if (!retVal->getType()->isFloatTy()) {
+            f = builder->CreateSIToFP(retVal, llvm::Type::getFloatTy(context));
+          }
+          auto floatToStrType = llvm::FunctionType::get(
+              llvm::PointerType::get(context, 0),
+              {llvm::Type::getFloatTy(context)}, false);
+          auto floatToStr =
+              module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
+          retVal = builder->CreateCall(floatToStr, {f});
+        } else if (retVal->getType()->isPointerTy()) {
+          // Assume pointer already represents string if the function expects
+          // string
+        } else {
+          // Fallback: cast to i32 and stringify
+          llvm::Value* i32 = retVal;
+          if (!retVal->getType()->isIntegerTy(32)) {
+            if (retVal->getType()->isIntegerTy()) {
+              i32 = builder->CreateIntCast(retVal, llvm::Type::getInt32Ty(context), true);
+            } else {
+              i32 = llvm::PoisonValue::get(llvm::Type::getInt32Ty(context));
+            }
+          }
+          auto intToStrType = llvm::FunctionType::get(
+              llvm::PointerType::get(context, 0),
+              {llvm::Type::getInt32Ty(context)}, false);
+          auto intToStr =
+              module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+          retVal = builder->CreateCall(intToStr, {i32});
+        }
+      }
+      builder->CreateRet(retVal);
+    }
   } else {
     builder->CreateRetVoid();
   }
@@ -698,6 +925,9 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
       funcName = objIdent->name.getLexeme() + "." + member->member.getLexeme();
     }
   }
+  // Identify stdlib console functions where we need to stringify arguments
+  bool isConsole = (funcName == "console.log" || funcName == "console.error" ||
+                    funcName == "console.warn");
   std::vector<llvm::Value*> args;
   std::vector<std::pair<llvm::Value*, bool>> argWithFree;
   for (auto& arg : node.arguments) {
@@ -742,48 +972,50 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
       }
     }
 
-    if (v->getType()->isIntegerTy(32)) {
-      auto intToStrType =
-          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
-                                  {llvm::Type::getInt32Ty(context)}, false);
-      auto intToStrFunc =
-          module->getOrInsertFunction("tspp_int_to_string", intToStrType);
-      v = builder->CreateCall(intToStrFunc, {v});
-      needsFree = true;
-    } else if (v->getType()->isIntegerTy(1)) {
-      // Boolean to string conversion
-      auto boolToStrType =
-          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
-                                  {llvm::Type::getInt1Ty(context)}, false);
-      auto boolToStrFunc =
-          module->getOrInsertFunction("tspp_bool_to_string", boolToStrType);
-      v = builder->CreateCall(boolToStrFunc, {v});
-      needsFree = true;
-    } else if (v->getType()->isFloatTy()) {
-      auto floatToStrType =
-          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
-                                  {llvm::Type::getFloatTy(context)}, false);
-      auto floatToStrFunc =
-          module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
-      v = builder->CreateCall(floatToStrFunc, {v});
-      needsFree = true;
-    } else if (v->getType()->isPointerTy()) {
-      // Decide conversion for pointers based on semantic type name
-      bool isString =
-          (!semanticTypeName.empty() && semanticTypeName == "string");
-      bool isSemanticPointer =
-          (!semanticTypeName.empty() && semanticTypeName.back() == '*');
-      bool shouldConvert =
-          (!isString) && (semanticTypeName.empty() || isSemanticPointer);
-      if (shouldConvert) {
-        // Convert raw pointer (non-string) to string representation
-        auto ptrToStrType = llvm::FunctionType::get(
+    if (isConsole) {
+      if (v->getType()->isIntegerTy(32)) {
+        auto intToStrType = llvm::FunctionType::get(
             llvm::PointerType::get(context, 0),
-            {llvm::PointerType::get(context, 0)}, false);
-        auto ptrToStrFunc =
-            module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
-        v = builder->CreateCall(ptrToStrFunc, {v});
+            {llvm::Type::getInt32Ty(context)}, false);
+        auto intToStrFunc =
+            module->getOrInsertFunction("tspp_int_to_string", intToStrType);
+        v = builder->CreateCall(intToStrFunc, {v});
         needsFree = true;
+      } else if (v->getType()->isIntegerTy(1)) {
+        // Boolean to string conversion
+        auto boolToStrType = llvm::FunctionType::get(
+            llvm::PointerType::get(context, 0),
+            {llvm::Type::getInt1Ty(context)}, false);
+        auto boolToStrFunc = module->getOrInsertFunction(
+            "tspp_bool_to_string", boolToStrType);
+        v = builder->CreateCall(boolToStrFunc, {v});
+        needsFree = true;
+      } else if (v->getType()->isFloatTy()) {
+        auto floatToStrType = llvm::FunctionType::get(
+            llvm::PointerType::get(context, 0),
+            {llvm::Type::getFloatTy(context)}, false);
+        auto floatToStrFunc = module->getOrInsertFunction(
+            "tspp_float_to_string", floatToStrType);
+        v = builder->CreateCall(floatToStrFunc, {v});
+        needsFree = true;
+      } else if (v->getType()->isPointerTy()) {
+        // Decide conversion for pointers based on semantic type name
+        bool isString = (!semanticTypeName.empty() &&
+                         semanticTypeName == "string");
+        bool isSemanticPointer = (!semanticTypeName.empty() &&
+                                  semanticTypeName.back() == '*');
+        bool shouldConvert = (!isString) &&
+                              (semanticTypeName.empty() || isSemanticPointer);
+        if (shouldConvert) {
+          // Convert raw pointer (non-string) to string representation
+          auto ptrToStrType = llvm::FunctionType::get(
+              llvm::PointerType::get(context, 0),
+              {llvm::PointerType::get(context, 0)}, false);
+          auto ptrToStrFunc = module->getOrInsertFunction(
+              "tspp_ptr_to_string", ptrToStrType);
+          v = builder->CreateCall(ptrToStrFunc, {v});
+          needsFree = true;
+        }
       }
     }
     args.push_back(v);
