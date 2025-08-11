@@ -2,6 +2,7 @@
 
 #include <gc.h>
 #include <llvm/IR/DerivedTypes.h>  // Required for PointerType
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
@@ -367,14 +368,26 @@ void LLVMCodeGenerator::visit(LiteralExpr& node) {
   } else if (type == TokenType::FALSE) {
     lastValue = llvm::ConstantInt::getFalse(context);
   } else if (type == TokenType::STRING_LITERAL) {
+    // Strip surrounding quotes and simple escaped quotes for internal storage
+    if (val.size() >= 2 && (val.front() == '"' && val.back() == '"')) {
+      val = val.substr(1, val.size() - 2);
+    }
+    // Replace escaped quotes \" with " (basic unescape)
+    size_t pos = 0;
+    while ((pos = val.find("\\\"", pos)) != std::string::npos) {
+      val.replace(pos, 2, "\"");
+      pos += 1;
+    }
     // For string literals, we need different handling at global vs function
     // scope
     if (currentFunction) {
-      // Inside a function: emit a global string pointer
+      // Inside a function: emit a global string pointer of unquoted raw content
       lastValue = builder->CreateGlobalStringPtr(val, "", 0, module.get());
     } else {
-      // At global scope: create a constant global string
-      auto* strConstant = llvm::ConstantDataArray::getString(context, val);
+      // At global scope: create a constant global string of unquoted raw
+      // content
+      auto* strConstant =
+          llvm::ConstantDataArray::getString(context, val, true);
       auto* globalStr = new llvm::GlobalVariable(
           *module, strConstant->getType(), true,
           llvm::GlobalValue::PrivateLinkage, strConstant);
@@ -616,11 +629,22 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
 
   if (op == "+") {
     // Special-case string concatenation only if either operand is a string
-    auto isStringOperand = [&](ast::Expr* expr, llvm::Type* /*ty*/) -> bool {
+    // Recursive detector for whether an expression should be treated as string
+    // in '+'
+    std::function<bool(ast::Expr*)> isStringOperand =
+        [&](ast::Expr* expr) -> bool {
       // Quick path: string literal
       if (auto lit = dynamic_cast<LiteralExpr*>(expr)) {
         using tokens::TokenType;
         return lit->value.getType() == TokenType::STRING_LITERAL;
+      }
+      // Recursive: nested binary '+' that itself represents string concat
+      if (auto bin = dynamic_cast<BinaryExpr*>(expr)) {
+        if (bin->op.getLexeme() == "+") {
+          // If either side qualifies as string operand, treat this as string
+          return isStringOperand(bin->left.get()) ||
+                 isStringOperand(bin->right.get());
+        }
       }
       // Identifier with semantic type 'string'
       if (auto id = dynamic_cast<IdentifierExpr*>(expr)) {
@@ -680,8 +704,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
           if (itFn != functionReturnTypes.end())
             isStr = (itFn->second == "string");
         }
-        if (isStr) {
-          return v;  // already a string pointer
+        if (isStr || dynamic_cast<BinaryExpr*>(expr) != nullptr) {
+          return v;  // already a (concatenated) string pointer
         }
         // Treat any other pointer as raw pointer -> convert to string address
         auto ptrToStrType = llvm::FunctionType::get(
@@ -762,9 +786,33 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       return builder->CreateCall(intToStrFunc, {i32});
     };
 
-    bool leftIsString = isStringOperand(node.left.get(), lhsTy);
-    bool rightIsString = isStringOperand(node.right.get(), rhsTy);
-    if (leftIsString || rightIsString) {
+    bool leftIsString = isStringOperand(node.left.get());
+    bool rightIsString = isStringOperand(node.right.get());
+    // Treat '+' as string concatenation if either side is a string literal/expr
+    // OR one side is already an i8* and the other is a primitive
+    // (int/float/bool/pointer)
+    auto looksConcatenable = [&](llvm::Value* V, ast::Expr* expr) -> bool {
+      if (!V) return false;
+      if (V->getType()->isPointerTy()) {
+        // Consider pointer concatenable if semantic type says string OR we will
+        // stringify it
+        if (auto id = dynamic_cast<IdentifierExpr*>(expr)) {
+          auto it = symbolTable.find(id->name.getLexeme());
+          if (it != symbolTable.end() && it->second.typeName == "string")
+            return true;
+        }
+        return true;  // generic pointer can be stringified
+      }
+      if (V->getType()->isIntegerTy() || V->getType()->isFloatingPointTy())
+        return true;
+      return false;
+    };
+    bool forceConcat = (!leftIsString && !rightIsString) &&
+                       ((lhs->getType()->isPointerTy() &&
+                         looksConcatenable(rhs, node.right.get())) ||
+                        (rhs->getType()->isPointerTy() &&
+                         looksConcatenable(lhs, node.left.get())));
+    if (leftIsString || rightIsString || forceConcat) {
       // Convert both operands to C-strings before concatenating
       llvm::Value* lstr = toCString(node.left.get(), lhs);
       llvm::Value* rstr = toCString(node.right.get(), rhs);
@@ -1146,6 +1194,29 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
           v = builder->CreateCall(ptrToStrFunc, {v});
           needsFree = true;
         }
+      }
+      // If semantic type is string (or literal) and we haven't already wrapped
+      // quotes, add them
+      if (!args.empty()) {
+        // Determine if original arg was a string literal or semantic string
+      }
+      if (!semanticTypeName.empty() && semanticTypeName == "string") {
+        // Prepend and append quotes by concatenating
+        auto makeLiteral = [&](const std::string& s) -> llvm::Value* {
+          return builder->CreateGlobalStringPtr(s, "", 0, module.get());
+        };
+        auto concatTy =
+            llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                    {llvm::PointerType::get(context, 0),
+                                     llvm::PointerType::get(context, 0)},
+                                    false);
+        auto concatFn =
+            module->getOrInsertFunction("tspp_string_concat", concatTy);
+        llvm::Value* quote = makeLiteral("\"");
+        llvm::Value* tmp = builder->CreateCall(concatFn, {quote, v});
+        v = builder->CreateCall(concatFn, {tmp, quote});
+        // Result allocated via GC; original v may need free if we converted it
+        // earlier We only free original if we flagged it
       }
     }
     args.push_back(v);
