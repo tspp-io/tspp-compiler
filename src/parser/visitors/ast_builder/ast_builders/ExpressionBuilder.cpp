@@ -1,5 +1,6 @@
 #include "ExpressionBuilder.h"
 
+#include <iostream>
 #include <memory>
 
 #include "core/common/macros.h"

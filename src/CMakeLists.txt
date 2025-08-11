@@ -49,6 +49,14 @@ target_link_libraries(tspp_codegen
 # Find LLVM package
 find_package(LLVM REQUIRED CONFIG)
 
+# Find Boehm GC
+find_library(BOEHM_GC_LIB gc)
+if(BOEHM_GC_LIB)
+    message(STATUS "Found Boehm GC: ${BOEHM_GC_LIB}")
+else()
+    message(FATAL_ERROR "Boehm GC library not found. Please install libgc-dev.")
+endif()
+
 # Include LLVM directories
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
@@ -58,7 +66,7 @@ target_link_libraries(core PUBLIC tokens)
 target_link_libraries(tokens PUBLIC core)
 target_link_libraries(lexer PUBLIC core tokens)
 target_link_libraries(parser PUBLIC core tokens)
-target_link_libraries(tspp_codegen PUBLIC core parser LLVM)
+target_link_libraries(tspp_codegen PUBLIC core parser LLVM ${BOEHM_GC_LIB})
 
 
 # Include directories

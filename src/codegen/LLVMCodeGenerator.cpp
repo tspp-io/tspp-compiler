@@ -1,5 +1,6 @@
 #include "LLVMCodeGenerator.h"
 
+#include <gc.h>
 #include <llvm/IR/DerivedTypes.h>  // Required for PointerType
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
@@ -77,18 +78,51 @@ llvm::Type* LLVMCodeGenerator::getLLVMType(const std::string& typeName) {
   }
 
   // Default to int32 for unknown types
-  std::cerr << "Warning: Unknown type '" << typeName << "', defaulting to int32"
-            << std::endl;
+  // Unknown type: default to int32 silently
   return llvm::Type::getInt32Ty(context);
 }
 
 void LLVMCodeGenerator::generate(ast::BaseNode* root,
                                  const std::string& outFile) {
   if (!root) return;
+
+  // Emit GC_INIT() at program startup (global constructor)
+  // Only emit once per module
+  auto gcInitType =
+      llvm::FunctionType::get(llvm::Type::getVoidTy(context), {}, false);
+  // Boehm GC exposes GC_init; GC_INIT is a macro in C headers, so target
+  // GC_init here
+  auto gcInitFunc = module->getOrInsertFunction("GC_init", gcInitType);
+  // Create a global constructor function that calls GC_INIT
+  llvm::Function* ctorFunc = llvm::Function::Create(
+      llvm::FunctionType::get(llvm::Type::getVoidTy(context), false),
+      llvm::GlobalValue::InternalLinkage, "__tspp_gc_ctor", module.get());
+  llvm::BasicBlock* ctorBB =
+      llvm::BasicBlock::Create(context, "entry", ctorFunc);
+  llvm::IRBuilder<> ctorBuilder(ctorBB);
+  ctorBuilder.CreateCall(gcInitFunc);
+  ctorBuilder.CreateRetVoid();
+  // Register the constructor in llvm.global_ctors (3-field form: {i32, ptr,
+  // ptr})
+  llvm::Constant* ctorPriority =
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 65535);
+  llvm::PointerType* int8PtrTy =
+      llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0);
+  llvm::Constant* ctorCast =
+      llvm::ConstantExpr::getBitCast(ctorFunc, int8PtrTy);
+  llvm::Constant* nullPtr = llvm::ConstantPointerNull::get(int8PtrTy);
+  llvm::StructType* ctorStructTy = llvm::StructType::get(
+      context, {llvm::Type::getInt32Ty(context), int8PtrTy, int8PtrTy});
+  llvm::Constant* ctorStruct = llvm::ConstantStruct::get(
+      ctorStructTy, {ctorPriority, ctorCast, nullPtr});
+  llvm::ArrayType* ctorArrayTy = llvm::ArrayType::get(ctorStructTy, 1);
+  auto* gCtor = new llvm::GlobalVariable(
+      *module, ctorArrayTy, true, llvm::GlobalValue::AppendingLinkage,
+      llvm::ConstantArray::get(ctorArrayTy, {ctorStruct}), "llvm.global_ctors");
+  (void)gCtor;
+
   root->accept(*this);
   llvm::verifyModule(*module, &llvm::errs());
-  // Print to stdout as before
-  module->print(llvm::outs(), nullptr);
   // Write to file if requested
   if (!outFile.empty()) {
     std::error_code EC;
@@ -99,6 +133,11 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root,
       llvm::errs() << "Could not write IR to file: " << outFile << "\n";
     }
   }
+
+  // Explicitly reset smart pointers to force destruction before exit (fixes
+  // LeakSanitizer false positive)
+  builder.reset();
+  module.reset();
 }
 
 // Visit ProgramNode: emit all declarations
@@ -171,10 +210,39 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     // Local variable allocation
     llvm::IRBuilder<> tmpBuilder(&currentFunction->getEntryBlock(),
                                  currentFunction->getEntryBlock().begin());
-    llvm::Value* alloca =
-        tmpBuilder.CreateAlloca(llvmType, nullptr, node.name.getLexeme());
+    llvm::Value* alloca = nullptr;
+    if (llvmType->isPointerTy()) {
+      // Emit call to GC_MALLOC for pointer types
+      auto mallocType = llvm::FunctionType::get(
+          llvmType, {llvm::Type::getInt64Ty(context)}, false);
+      auto gcMallocFunc = module->getOrInsertFunction("GC_MALLOC", mallocType);
+      // Use DataLayout to get the correct allocation size
+      llvm::Type* pointeeType =
+          llvm::Type::getInt8Ty(context);  // Default to i8
+      if (auto ptrTy = llvm::dyn_cast<llvm::PointerType>(llvmType)) {
+        // Try to get the element type from semantic analysis
+        if (node.type && semanticAnalyzer) {
+          std::string baseTypeName =
+              semanticAnalyzer->resolveType(node.type.get());
+          if (!baseTypeName.empty() && baseTypeName.back() == '*') {
+            baseTypeName = baseTypeName.substr(0, baseTypeName.size() - 1);
+          }
+          llvm::Type* baseType = getLLVMType(baseTypeName);
+          if (baseType) pointeeType = baseType;
+        }
+      }
+      const llvm::DataLayout& dl = module->getDataLayout();
+      uint64_t typeSize = dl.getTypeAllocSize(pointeeType);
+      llvm::Value* sizeVal =
+          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), typeSize);
+      alloca =
+          builder->CreateCall(gcMallocFunc, {sizeVal}, node.name.getLexeme());
+    } else {
+      alloca =
+          tmpBuilder.CreateAlloca(llvmType, nullptr, node.name.getLexeme());
+    }
     symbolTable[node.name.getLexeme()] =
-        SymbolInfo{alloca, llvmType, isMutable};
+        SymbolInfo{alloca, llvmType, isMutable, resolvedTypeName};
 
     // Initialize if there's an initializer
     if (node.initializer) {
@@ -231,7 +299,8 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     auto* gvar = new llvm::GlobalVariable(*module, llvmType, false,
                                           llvm::GlobalValue::ExternalLinkage,
                                           init, node.name.getLexeme());
-    symbolTable[node.name.getLexeme()] = SymbolInfo{gvar, llvmType, isMutable};
+    symbolTable[node.name.getLexeme()] =
+        SymbolInfo{gvar, llvmType, isMutable, resolvedTypeName};
 
     // If initializer is not constant, we'll need to store at runtime
     // This should be handled by ProgramNode's deferred initialization logic
@@ -437,28 +506,67 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     return;
   }
 
+  // Determine if we should use floating-point math by inspecting operand types
+  auto lhsTy = lhs->getType();
+  auto rhsTy = rhs->getType();
+  bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
+
+  // Simple promotion: if either side is double, convert the other to double;
+  // else if either is float, convert the other to float
+  if (isFP) {
+    if (lhsTy->isDoubleTy() || rhsTy->isDoubleTy()) {
+      if (!lhsTy->isDoubleTy())
+        lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(context),
+                                    "sitofp");
+      if (!rhsTy->isDoubleTy())
+        rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(context),
+                                    "sitofp");
+      lhsTy = rhsTy = llvm::Type::getDoubleTy(context);
+    } else {
+      // Use float
+      if (!lhsTy->isFloatTy())
+        lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(context),
+                                    "sitofp");
+      if (!rhsTy->isFloatTy())
+        rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(context),
+                                    "sitofp");
+      lhsTy = rhsTy = llvm::Type::getFloatTy(context);
+    }
+  }
+
   if (op == "+") {
-    lastValue = builder->CreateAdd(lhs, rhs, "addtmp");
+    lastValue = isFP ? builder->CreateFAdd(lhs, rhs, "faddtmp")
+                     : builder->CreateAdd(lhs, rhs, "addtmp");
   } else if (op == "-") {
-    lastValue = builder->CreateSub(lhs, rhs, "subtmp");
+    lastValue = isFP ? builder->CreateFSub(lhs, rhs, "fsubtmp")
+                     : builder->CreateSub(lhs, rhs, "subtmp");
   } else if (op == "*") {
-    lastValue = builder->CreateMul(lhs, rhs, "multmp");
+    lastValue = isFP ? builder->CreateFMul(lhs, rhs, "fmultmp")
+                     : builder->CreateMul(lhs, rhs, "multmp");
   } else if (op == "/") {
-    lastValue = builder->CreateSDiv(lhs, rhs, "divtmp");
+    lastValue = isFP ? builder->CreateFDiv(lhs, rhs, "fdivtmp")
+                     : builder->CreateSDiv(lhs, rhs, "divtmp");
   } else if (op == "%") {
-    lastValue = builder->CreateSRem(lhs, rhs, "modtmp");
+    lastValue = isFP ? builder->CreateFRem(lhs, rhs, "fmodtmp")
+                     : builder->CreateSRem(lhs, rhs, "modtmp");
   } else if (op == "<") {
-    lastValue = builder->CreateICmpSLT(lhs, rhs, "cmptmp");
+    lastValue = isFP ? builder->CreateFCmpOLT(lhs, rhs, "fcmpolt")
+                     : builder->CreateICmpSLT(lhs, rhs, "icmpolt");
   } else if (op == ">") {
-    lastValue = builder->CreateICmpSGT(lhs, rhs, "cmptmp");
+    lastValue = isFP ? builder->CreateFCmpOGT(lhs, rhs, "fcmpogt")
+                     : builder->CreateICmpSGT(lhs, rhs, "icmpogt");
   } else if (op == "<=") {
-    lastValue = builder->CreateICmpSLE(lhs, rhs, "cmptmp");
+    lastValue = isFP ? builder->CreateFCmpOLE(lhs, rhs, "fcmpole")
+                     : builder->CreateICmpSLE(lhs, rhs, "icmpole");
   } else if (op == ">=") {
-    lastValue = builder->CreateICmpSGE(lhs, rhs, "cmptmp");
+    lastValue = isFP ? builder->CreateFCmpOGE(lhs, rhs, "fcmpoge")
+                     : builder->CreateICmpSGE(lhs, rhs, "icmpoge");
   } else if (op == "==") {
-    lastValue = builder->CreateICmpEQ(lhs, rhs, "cmptmp");
+    lastValue = isFP ? builder->CreateFCmpOEQ(lhs, rhs, "fcmpeq")
+                     : builder->CreateICmpEQ(lhs, rhs, "icmpeq");
   } else if (op == "!=") {
-    lastValue = builder->CreateICmpNE(lhs, rhs, "cmptmp");
+    lastValue = isFP ? builder->CreateFCmpONE(lhs, rhs, "fcmpne")
+                     : builder->CreateICmpNE(lhs, rhs, "icmpne");
   } else {
     lastValue = nullptr;
   }
@@ -466,40 +574,103 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
 
 // Visit FunctionDecl: emit function definition
 void LLVMCodeGenerator::visit(FunctionDecl& node) {
-  // Only handle int->int or bool->bool, no params for now
-  llvm::Type* retType = llvm::Type::getInt1Ty(context);  // bool
+  // Resolve return type using semantic analyzer if available
+  std::string resolvedRetType = "int";
+  llvm::Type* retType = llvm::Type::getInt32Ty(context);
+  if (semanticAnalyzer && node.returnType) {
+    resolvedRetType = semanticAnalyzer->resolveType(node.returnType.get());
+    retType = getLLVMType(resolvedRetType);
+  }
+  // Record function return type for later call-site conversions
+  functionReturnTypes[node.name.getLexeme()] = resolvedRetType;
+
   std::vector<llvm::Type*> argTypes;
   for (auto& param : node.params) {
-    argTypes.push_back(llvm::Type::getInt32Ty(context));
+    std::string paramTypeName = "int";
+    llvm::Type* paramType = llvm::Type::getInt32Ty(context);
+    if (semanticAnalyzer && param->type) {
+      paramTypeName = semanticAnalyzer->resolveType(param->type.get());
+      paramType = getLLVMType(paramTypeName);
+    }
+    argTypes.push_back(paramType);
   }
+
   auto funcType = llvm::FunctionType::get(retType, argTypes, false);
   auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
                                      node.name.getLexeme(), module.get());
   auto entry = llvm::BasicBlock::Create(context, "entry", func);
   builder->SetInsertPoint(entry);
-  // Track current function for alloca placement
+
   auto* prevFunction = currentFunction;
   currentFunction = func;
-  // Body
-  if (node.body) node.body->accept(*this);
-  // For now, always return false if no explicit return
-  if (!entry->getTerminator()) {
-    builder->CreateRet(llvm::ConstantInt::getFalse(context));
+
+  // Bind parameters to local allocas and add to symbol table
+  unsigned idx = 0;
+  for (auto& param : node.params) {
+    llvm::Argument* arg = func->getArg(idx++);
+    arg->setName(param->name.getLexeme());
+    llvm::IRBuilder<> tmpBuilder(&entry->getParent()->getEntryBlock(),
+                                 entry->getParent()->getEntryBlock().begin());
+    llvm::Value* alloca =
+        tmpBuilder.CreateAlloca(arg->getType(), nullptr, arg->getName());
+    builder->CreateStore(arg, alloca);
+    // Store parameter with resolved semantic type name
+    std::string paramResolvedName = "int";
+    if (semanticAnalyzer && param->type) {
+      paramResolvedName = semanticAnalyzer->resolveType(param->type.get());
+    }
+    symbolTable[param->name.getLexeme()] =
+        SymbolInfo{alloca, arg->getType(), true, paramResolvedName};
   }
+
+  if (node.body) node.body->accept(*this);
+
+  // If no explicit return, emit default value for the return type
+  if (!entry->getTerminator()) {
+    if (retType->isIntegerTy(1)) {
+      builder->CreateRet(llvm::ConstantInt::getFalse(context));
+    } else if (retType->isIntegerTy()) {
+      builder->CreateRet(llvm::ConstantInt::get(retType, 0));
+    } else if (retType->isFloatTy()) {
+      builder->CreateRet(llvm::ConstantFP::get(retType, 0.0));
+    } else if (retType->isDoubleTy()) {
+      builder->CreateRet(llvm::ConstantFP::get(retType, 0.0));
+    } else if (retType->isPointerTy()) {
+      builder->CreateRet(llvm::ConstantPointerNull::get(
+          llvm::cast<llvm::PointerType>(retType)));
+    } else if (retType->isVoidTy()) {
+      builder->CreateRetVoid();
+    } else {
+      // Default to zero for unknown types
+      builder->CreateRet(llvm::Constant::getNullValue(retType));
+    }
+  }
+
   currentFunction = prevFunction;
 }
-
 // Visit ReturnStmt: emit return
 void LLVMCodeGenerator::visit(ReturnStmt& node) {
+  // do nothing if we’re not inside a block or the block already has a
+  // terminator
+  auto* currentBB = builder->GetInsertBlock();
+  if (!currentBB || currentBB->getTerminator()) {
+    return;
+  }
+  // evaluate the returned expression if present
   if (node.value) {
     node.value->accept(*this);
-    builder->CreateRet(lastValue);
+    if (lastValue) builder->CreateRet(lastValue);
+  } else {
+    builder->CreateRetVoid();
   }
 }
 
 // Visit BlockStmt: emit all statements
 void LLVMCodeGenerator::visit(BlockStmt& node) {
+  // run through each statement, but stop after emitting a terminator
   for (auto& stmt : node.statements) {
+    auto* bb = builder->GetInsertBlock();
+    if (bb && bb->getTerminator()) break;
     if (stmt) stmt->accept(*this);
   }
 }
@@ -507,9 +678,20 @@ void LLVMCodeGenerator::visit(BlockStmt& node) {
 // Visit CallExpr: emit function call (including stdlib like console.log)
 void LLVMCodeGenerator::visit(CallExpr& node) {
   // Only support direct identifier or member access for now
+  // If at global scope, skip generating calls (invalid outside functions)
+  if (!currentFunction) {
+    lastValue = nullptr;
+    return;
+  }
   std::string funcName;
+  // Attempt to determine callee's return type to help with argument conversions
+  std::string calleeRetType;
   if (auto ident = dynamic_cast<IdentifierExpr*>(node.callee.get())) {
     funcName = ident->name.getLexeme();
+    auto itFn = functionReturnTypes.find(funcName);
+    if (itFn != functionReturnTypes.end()) {
+      calleeRetType = itFn->second;
+    }
   } else if (auto member = dynamic_cast<MemberAccessExpr*>(node.callee.get())) {
     // e.g., console.log
     if (auto objIdent = dynamic_cast<IdentifierExpr*>(member->object.get())) {
@@ -528,6 +710,38 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
     }
 
     bool needsFree = false;
+    // Look up a semantic type name if available (identifiers, calls, literals)
+    std::string semanticTypeName;
+    if (auto idArg = dynamic_cast<IdentifierExpr*>(arg.get())) {
+      auto itSym = symbolTable.find(idArg->name.getLexeme());
+      if (itSym != symbolTable.end()) {
+        semanticTypeName = itSym->second.typeName;
+      }
+    } else if (auto callArg = dynamic_cast<CallExpr*>(arg.get())) {
+      // Determine inner callee name and look up its return type
+      std::string innerName;
+      if (auto innerIdent =
+              dynamic_cast<IdentifierExpr*>(callArg->callee.get())) {
+        innerName = innerIdent->name.getLexeme();
+      } else if (auto innerMember =
+                     dynamic_cast<MemberAccessExpr*>(callArg->callee.get())) {
+        if (auto objIdent =
+                dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
+          innerName = objIdent->name.getLexeme() + "." +
+                      innerMember->member.getLexeme();
+        }
+      }
+      auto itFn2 = functionReturnTypes.find(innerName);
+      if (itFn2 != functionReturnTypes.end()) {
+        semanticTypeName = itFn2->second;
+      }
+    } else if (auto litArg = dynamic_cast<LiteralExpr*>(arg.get())) {
+      using tokens::TokenType;
+      if (litArg->value.getType() == TokenType::STRING_LITERAL) {
+        semanticTypeName = "string";
+      }
+    }
+
     if (v->getType()->isIntegerTy(32)) {
       auto intToStrType =
           llvm::FunctionType::get(llvm::PointerType::get(context, 0),
@@ -553,6 +767,24 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
           module->getOrInsertFunction("tspp_float_to_string", floatToStrType);
       v = builder->CreateCall(floatToStrFunc, {v});
       needsFree = true;
+    } else if (v->getType()->isPointerTy()) {
+      // Decide conversion for pointers based on semantic type name
+      bool isString =
+          (!semanticTypeName.empty() && semanticTypeName == "string");
+      bool isSemanticPointer =
+          (!semanticTypeName.empty() && semanticTypeName.back() == '*');
+      bool shouldConvert =
+          (!isString) && (semanticTypeName.empty() || isSemanticPointer);
+      if (shouldConvert) {
+        // Convert raw pointer (non-string) to string representation
+        auto ptrToStrType = llvm::FunctionType::get(
+            llvm::PointerType::get(context, 0),
+            {llvm::PointerType::get(context, 0)}, false);
+        auto ptrToStrFunc =
+            module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrType);
+        v = builder->CreateCall(ptrToStrFunc, {v});
+        needsFree = true;
+      }
     }
     args.push_back(v);
     argWithFree.push_back({v, needsFree});
@@ -915,14 +1147,12 @@ void LLVMCodeGenerator::visit(ast::TypeConstraintNode& node) {
 
 void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
   // Basic class declaration handling
-  std::cerr << "Warning: ClassDecl '" << node.name.getLexeme()
-            << "' parsed but not implemented in codegen (skipped)" << std::endl;
+  // Not implemented in codegen yet
 }
 
 void LLVMCodeGenerator::visit(ast::InterfaceDecl& node) {
   // Basic interface declaration handling
-  std::cerr << "Warning: InterfaceDecl '" << node.name.getLexeme()
-            << "' parsed but not implemented in codegen (skipped)" << std::endl;
+  // Not implemented in codegen yet
 }
 
 void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
@@ -946,10 +1176,9 @@ llvm::Constant* LLVMCodeGenerator::constantValueToLLVM(
     // For strings, create a global constant and return pointer to it
     llvm::Constant* strConstant =
         llvm::ConstantDataArray::getString(context, constVal.asString());
-    llvm::GlobalVariable* globalStr = new llvm::GlobalVariable(
+    auto* globalStr = new llvm::GlobalVariable(
         *module, strConstant->getType(), true,
         llvm::GlobalValue::PrivateLinkage, strConstant, "");
-    // Use pointer type instead of deprecated getInt8PtrTy
     return llvm::ConstantExpr::getBitCast(globalStr,
                                           llvm::PointerType::get(context, 0));
   }

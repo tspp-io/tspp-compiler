@@ -51,6 +51,7 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void visit(GroupingExpr&) override;
   void visit(ThisExpr&) override;
   void visit(NullExpr&) override;
+  void visit(StatementSequenceNode&) override;
 
   // Get all semantic errors found
   const std::vector<std::string>& getErrors() const;

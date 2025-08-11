@@ -5,6 +5,7 @@
 
 #include "parser/nodes/meta_nodes.h"
 #include "parser/nodes/misc_nodes.h"
+#include "parser/nodes/statement_sequence_node.h"  // Ensure StatementSequenceNode is a complete type
 #include "parser/nodes/type_nodes.h"
 #include "parser/visitors/semantic/Symbol.h"
 
@@ -118,7 +119,14 @@ void SemanticAnalyzerVisitor::visit(MemberAccessExpr& node) {
 }
 
 void SemanticAnalyzerVisitor::visit(ExprStmt& node) {
-  if (node.expression) node.expression->accept(*this);
+  // Patch: If the expression is a variable declaration, visit as VarDecl
+  if (node.expression) {
+    if (auto varDecl = dynamic_cast<VarDecl*>(node.expression.get())) {
+      varDecl->accept(*this);
+    } else {
+      node.expression->accept(*this);
+    }
+  }
 }
 
 void SemanticAnalyzerVisitor::visit(IfStmt& node) {
@@ -228,25 +236,31 @@ void SemanticAnalyzerVisitor::visit(ProgramNode& node) {
 }
 
 void SemanticAnalyzerVisitor::visit(BlockStmt& node) {
-  enterScope();
-  for (auto& stmt : node.statements) {
-    if (stmt) stmt->accept(*this);
+  for (size_t i = 0; i < node.statements.size(); ++i) {
+    auto& stmt = node.statements[i];
+    if (!stmt) continue;
+    // Patch: If statement is ExprStmt and contains VarDecl, visit as VarDecl
+    if (auto exprStmt = dynamic_cast<ExprStmt*>(stmt.get())) {
+      if (exprStmt->expression) {
+        if (auto varDecl = dynamic_cast<VarDecl*>(exprStmt->expression.get())) {
+          varDecl->accept(*this);
+          continue;
+        }
+      }
+    }
+    stmt->accept(*this);
   }
-  exitScope();
 }
 
 void SemanticAnalyzerVisitor::visit(VarDecl& node) {
   std::string varName = node.name.getLexeme();
-  // Resolve the type (handle type aliases)
   std::string typeName = resolveType(node.type.get());
-
   void* llvmType = nullptr;
   if (typeName == "int") {
-    llvmType = (void*)nullptr;  // will be set in codegen
+    llvmType = (void*)nullptr;
   } else if (typeName == "string") {
-    llvmType = (void*)nullptr;  // will be set in codegen
+    llvmType = (void*)nullptr;
   }
-
   Symbol sym{
       varName, /*typeName*/ typeName, node.isConst, false, false, nullptr,
       llvmType};
@@ -273,13 +287,27 @@ void SemanticAnalyzerVisitor::visit(FunctionDecl& node) {
                                              false, false, nullptr});
     }
   }
-  if (node.body) node.body->accept(*this);
+  if (node.body) {
+    // Try BlockStmt first
+    if (auto block = dynamic_cast<BlockStmt*>(node.body.get())) {
+      block->accept(*this);
+    }
+    // Try StatementSequenceNode next
+    else if (auto seq = dynamic_cast<StatementSequenceNode*>(node.body.get())) {
+      seq->accept(*this);
+    }
+    // Fallback: treat as generic Stmt
+    else {
+      node.body->accept(*this);
+    }
+  }
   exitScope();
 }
 
 void SemanticAnalyzerVisitor::visit(IdentifierExpr& node) {
   std::string idName = node.name.getLexeme();
-  if (!currentScope->lookup(idName)) {
+  auto sym = currentScope->lookup(idName);
+  if (!sym) {
     reportError("Use of undeclared identifier '" + idName + "'");
   }
 }
@@ -339,6 +367,14 @@ void SemanticAnalyzerVisitor::visit(ReturnStmt& node) {
   if (node.value) {
     node.value->accept(*this);
     // TODO: Check return type matches function signature
+  }
+}
+
+void SemanticAnalyzerVisitor::visit(StatementSequenceNode& node) {
+  for (size_t i = 0; i < node.statements.size(); ++i) {
+    if (node.statements[i]) {
+      node.statements[i]->accept(*this);
+    }
   }
 }
 

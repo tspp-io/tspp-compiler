@@ -4,6 +4,7 @@
 
 #include "core/common/macros.h"
 #include "parser/nodes/statement_nodes.h"
+#include "parser/visitors/ast_builder/ast_builders/DeclarationBuilder.h"
 #include "parser/visitors/ast_builder/ast_builders/ExpressionBuilder.h"
 
 namespace parser {
@@ -21,6 +22,15 @@ Shared(ast::Stmt) StatementBuilder::build(tokens::TokenStream& stream) {
       return buildFor(stream);
     case tokens::TokenType::RETURN:
       return buildReturn(stream);
+    case tokens::TokenType::LET:
+    case tokens::TokenType::CONST: {
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::None);
+      if (varDecl)
+        return std::static_pointer_cast<ast::Stmt>(varDecl);
+      else
+        return nullptr;
+    }
     default:
       return buildExpressionStatement(stream);
   }
@@ -35,6 +45,18 @@ Shared(ast::BlockStmt)
   stream.advance();  // consume '{'
   while (!stream.isAtEnd() &&
          stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
+    // Patch: handle local variable declarations as VarDecl nodes
+    if (stream.peek().getType() == tokens::TokenType::LET ||
+        stream.peek().getType() == tokens::TokenType::CONST) {
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::None);
+      if (varDecl)
+        block->statements.push_back(
+            std::static_pointer_cast<ast::Stmt>(varDecl));
+      else
+        stream.advance();
+      continue;
+    }
     auto stmt = build(stream);
     if (stmt)
       block->statements.push_back(stmt);

@@ -5,6 +5,7 @@ extern "C" {
 char* tspp_int_to_string(int value);
 char* tspp_float_to_string(float value);
 char* tspp_bool_to_string(bool value);
+char* tspp_ptr_to_string(void* value);
 void tspp_free_string(char* p);
 #ifdef __cplusplus
 }

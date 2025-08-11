@@ -21,7 +21,10 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
       modifier = stream.peek();
       stream.advance();
     }
-    auto baseType = build(stream);
+    auto baseType = buildBasic(stream);
+    if (!baseType) {
+      // base type build failed
+    }
     if (stream.peek().getType() == tokens::TokenType::STAR) {
       stream.advance();  // consume '*'
       auto ptrNode = std::make_shared<ast::PointerTypeNode>();
@@ -31,7 +34,7 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
           baseType ? baseType->location : tokens::Token().getLocation();
       return ptrNode;
     }
-    // Error: expected '*'
+    // expected '*'
     return nullptr;
   }
 
@@ -155,6 +158,7 @@ bool TypeBuilder::isBasicType(tokens::TokenType type) {
     case tokens::TokenType::FLOAT:
     case tokens::TokenType::BOOLEAN:
     case tokens::TokenType::STRING:
+    case tokens::TokenType::VOID:
       return true;
     default:
       return false;

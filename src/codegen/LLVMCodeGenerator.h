@@ -57,6 +57,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
     llvm::Value* value;
     llvm::Type* type;
     bool isMutable;
+    // Resolved semantic type name (e.g., "int", "string", "int*", etc.)
+    std::string typeName;
   };
   std::unordered_map<std::string, SymbolInfo> symbolTable;
   llvm::Value* lastValue = nullptr;
@@ -67,6 +69,9 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
 
   // Constant expression evaluator for global initializers
   ast::ConstantExpressionEvaluator constantEvaluator;
+
+  // Track function return types by name (resolved via semantic analyzer)
+  std::unordered_map<std::string, std::string> functionReturnTypes;
 
   // Helper method to convert semantic type to LLVM type
   llvm::Type* getLLVMType(const std::string& typeName);

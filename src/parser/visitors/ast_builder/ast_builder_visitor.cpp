@@ -41,18 +41,34 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
       continue;
     }
 
-    // Handle declarations
+    // Handle declarations (functions, classes, etc.)
     if (isDeclarationStart()) {
-      // Use DeclarationBuilder to create the declaration node
-      // This will handle variable, function, class, interface, etc.
-      auto decl = DeclarationBuilder::build(stream_);
-      if (decl) {
-        decl->location = stream_.peek().getLocation();
-        program.declarations.push_back(decl);
+      auto node = DeclarationBuilder::build(stream_);
+      if (node) {
+        node->location = stream_.peek().getLocation();
+        if (auto asDecl = std::dynamic_pointer_cast<ast::Decl>(node)) {
+          program.declarations.push_back(asDecl);
+        } else if (auto asStmt = std::dynamic_pointer_cast<ast::Stmt>(node)) {
+          program.statements.push_back(asStmt);
+        }
       } else {
         stream_.advance();
       }
-      // Optionally consume a semicolon after a declaration
+      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream_.advance();
+      }
+      continue;
+    }
+
+    // Handle variable declarations as statements
+    if (stream_.peek().getType() == tokens::TokenType::LET ||
+        stream_.peek().getType() == tokens::TokenType::CONST) {
+      auto stmt = StatementBuilder::build(stream_);
+      if (stmt) {
+        program.statements.push_back(stmt);
+      } else {
+        stream_.advance();
+      }
       if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
         stream_.advance();
       }
@@ -79,8 +95,6 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
 
 bool ASTBuilderVisitor::isDeclarationStart() const {
   switch (stream_.peek().getType()) {
-    case tokens::TokenType::LET:
-    case tokens::TokenType::CONST:
     case tokens::TokenType::CONST_FUNCTION:
     case tokens::TokenType::FUNCTION:
     case tokens::TokenType::CLASS:
@@ -99,7 +113,8 @@ bool ASTBuilderVisitor::isStatementStart() const {
   auto type = stream_.peek().getType();
   return type == tokens::TokenType::IF || type == tokens::TokenType::WHILE ||
          type == tokens::TokenType::FOR || type == tokens::TokenType::RETURN ||
-         type == tokens::TokenType::LEFT_BRACE;  // Block statement
+         type == tokens::TokenType::LEFT_BRACE ||
+         type == tokens::TokenType::LET || type == tokens::TokenType::CONST;
 }
 
 }  // namespace parser

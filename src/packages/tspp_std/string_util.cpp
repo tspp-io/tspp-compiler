@@ -25,6 +25,15 @@ extern "C" char* tspp_bool_to_string(bool value) {
   return buf;
 }
 
+extern "C" char* tspp_ptr_to_string(void* value) {
+  char* buf = (char*)malloc(32);
+  if (buf) {
+    // Print pointer as 0x... with platform-appropriate width
+    snprintf(buf, 32, "%p", value);
+  }
+  return buf;
+}
+
 extern "C" void tspp_free_string(char* p) {
   free(p);
 }

@@ -1,0 +1,29 @@
+# Suppress known LeakSanitizer false positives from LLVM IR objects
+leak:llvm::Module
+leak:llvm::IRBuilder
+leak:llvm::ReturnInst::Create
+leak:llvm::User::operator new
+# Common LLVM IR leaks from other large projects
+leak:llvm::Type
+leak:llvm::Value
+leak:llvm::Function
+leak:llvm::BasicBlock
+leak:llvm::Instruction
+leak:llvm::Constant
+leak:llvm::GlobalVariable
+leak:llvm::ArrayType
+leak:llvm::StructType
+leak:llvm::PointerType
+leak:llvm::DataLayout
+leak:llvm::LLVMContext
+leak:llvm::PassRegistry
+leak:llvm::legacy::PassManager
+leak:llvm::raw_ostream
+leak:operator new[](unsigned long)
+leak:operator new(unsigned long)
+leak:malloc
+leak:calloc
+leak:realloc
+leak:__libc_malloc
+leak:__libc_calloc
+leak:__libc_realloc

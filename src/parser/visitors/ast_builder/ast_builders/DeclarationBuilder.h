@@ -17,7 +17,9 @@ class DeclarationBuilder {
    * @param stream Token stream to parse from
    * @return Shared pointer to declaration node, or nullptr on error
    */
-  static Shared(ast::Decl) build(tokens::TokenStream& stream);
+  // May return either a Decl (e.g., FunctionDecl, ClassDecl, InterfaceDecl,
+  // TypeAliasDecl) or a Stmt (e.g., VarDecl) depending on the construct.
+  static Shared(ast::BaseNode) build(tokens::TokenStream& stream);
 
   /**
    * @brief Build import declaration specifically
@@ -38,7 +40,7 @@ class DeclarationBuilder {
    * @param stream Token stream to parse from
    * @return Shared pointer to variable declaration, or nullptr on error
    */
-  static Shared(ast::VarDecl) buildVariable(
+  static Shared(ast::Stmt) buildVariable(
       tokens::TokenStream& stream,
       ast::StorageQualifier storageQualifier = ast::StorageQualifier::None);
 

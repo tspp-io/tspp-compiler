@@ -25,7 +25,7 @@ enum class ClassModifier { None, Packed, Abstract, Pinned };
     visitor.visit(*this);                     \
   }
 
-class VarDecl : public Decl {
+class VarDecl : public Stmt {
  public:
   StorageQualifier qualifier;
   Shared(TypeNode) type;

@@ -11,7 +11,7 @@
 
 namespace parser {
 
-Shared(ast::Decl) DeclarationBuilder::build(tokens::TokenStream& stream) {
+Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
   if (stream.isAtEnd()) return nullptr;
 
   ast::StorageQualifier storageQualifier = ast::StorageQualifier::None;
@@ -32,42 +32,42 @@ Shared(ast::Decl) DeclarationBuilder::build(tokens::TokenStream& stream) {
       break;
   }
 
+  // Optional function modifier (applies only when followed by 'function')
   ast::FunctionModifier functionModifier = ast::FunctionModifier::None;
-
-  switch (stream.peek().getType()) {
-    case tokens::TokenType::CONST:
-      functionModifier = ast::FunctionModifier::Const;
-      stream.advance();
-      break;
-    case tokens::TokenType::CONST_EXPR:
-      functionModifier = ast::FunctionModifier::Constexpr;
-      stream.advance();
-      break;
-    case tokens::TokenType::ZEROCAST:
-      functionModifier = ast::FunctionModifier::Zerocast;
-      stream.advance();
-      break;
-    case tokens::TokenType::SIMD:
-      functionModifier = ast::FunctionModifier::Simd;
-      stream.advance();
-      break;
-    case tokens::TokenType::PREFETCH:
-      functionModifier = ast::FunctionModifier::Prefetch;
-      stream.advance();
-      break;
-    case tokens::TokenType::ATOMIC:
-      functionModifier = ast::FunctionModifier::Atomic;
-      stream.advance();
-      break;
-    case tokens::TokenType::PINNED:
-      if (stream.peekNext().getType() == tokens::TokenType::FUNCTION) {
-        // 'pinned' can be used as a function modifier
+  if (tokens::isFunctionModifier(stream.peek().getType()) &&
+      stream.peekNext().getType() == tokens::TokenType::FUNCTION) {
+    switch (stream.peek().getType()) {
+      case tokens::TokenType::CONST_FUNCTION:
+        functionModifier = ast::FunctionModifier::Const;
+        stream.advance();
+        break;
+      case tokens::TokenType::CONSTEXPR:
+        functionModifier = ast::FunctionModifier::Constexpr;
+        stream.advance();
+        break;
+      case tokens::TokenType::ZEROCAST:
+        functionModifier = ast::FunctionModifier::Zerocast;
+        stream.advance();
+        break;
+      case tokens::TokenType::SIMD:
+        functionModifier = ast::FunctionModifier::Simd;
+        stream.advance();
+        break;
+      case tokens::TokenType::PREFETCH:
+        functionModifier = ast::FunctionModifier::Prefetch;
+        stream.advance();
+        break;
+      case tokens::TokenType::ATOMIC:
+        functionModifier = ast::FunctionModifier::Atomic;
+        stream.advance();
+        break;
+      case tokens::TokenType::PINNED:
         functionModifier = ast::FunctionModifier::Pinned;
         stream.advance();
-      }
-      break;
-    default:
-      break;
+        break;
+      default:
+        break;
+    }
   }
 
   ast::ClassModifier classModifier = ast::ClassModifier::None;
@@ -89,17 +89,19 @@ Shared(ast::Decl) DeclarationBuilder::build(tokens::TokenStream& stream) {
   }
 
   switch (stream.peek().getType()) {
+    case tokens::TokenType::FUNCTION: {
+      return buildFunction(stream, functionModifier);
+    }
     case tokens::TokenType::LET:
     case tokens::TokenType::CONST:
       return buildVariable(stream, storageQualifier);
-    case tokens::TokenType::FUNCTION:
-      return buildFunction(stream, functionModifier);
-    case tokens::TokenType::CLASS:
-      return buildClass(stream);
+    case tokens::TokenType::CLASS: {
+      // Support class declarations with optional prior class modifiers
+      return buildClass(stream, classModifier);
+    }
     case tokens::TokenType::INTERFACE:
       return buildInterface(stream);
     case tokens::TokenType::TYPEDEF:
-      // Handle type alias declaration
       return buildTypeDef(stream);
     default:
       return nullptr;
@@ -180,7 +182,7 @@ Shared(ast::ImportDecl)
   return importDecl;
 }
 
-Shared(ast::VarDecl) DeclarationBuilder::buildVariable(
+Shared(ast::Stmt) DeclarationBuilder::buildVariable(
     tokens::TokenStream& stream, ast::StorageQualifier storageQualifier) {
   if (stream.peek().getType() != tokens::TokenType::LET &&
       stream.peek().getType() != tokens::TokenType::CONST) {
@@ -252,7 +254,6 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
     return nullptr;
   }
   stream.advance();  // consume 'function'
-
   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
     stream.advance();  // Skip faulty token
     return nullptr;
@@ -264,7 +265,6 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
   funcDecl->name = funcName;
   funcDecl->location = funcLoc;
   stream.advance();  // consume identifier
-
   if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
     stream.advance();  // Skip faulty token
     return nullptr;
@@ -304,7 +304,6 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
     return nullptr;
   }
   stream.advance();  // consume ')'
-
   if (stream.peek().getType() == tokens::TokenType::COLON) {
     stream.advance();  // consume ':'
     funcDecl->returnType = TypeBuilder::build(stream);
@@ -313,7 +312,6 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
       return nullptr;
     }
   }
-
   if (stream.peek().getType() != tokens::TokenType::LEFT_BRACE) {
     stream.advance();  // Skip faulty token
     return nullptr;
@@ -369,43 +367,21 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
   classDecl->name = className;
   classDecl->location = classLoc;
   classDecl->body = std::make_shared<ast::BlockStmt>();
-  if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
-    stream.advance();  // consume '{'
-    // while (stream.peek().getType() != tokens::TokenType::RIGHT_BRACE &&
-    //        !stream.isAtEnd()) {
-    //   auto stmt = StatementBuilder::build(stream);
-    if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
-      stream.advance();  // consume '{'
-      // while (stream.peek().getType() != tokens::TokenType::RIGHT_BRACE &&
-      //        !stream.isAtEnd()) {
-      //   auto stmt = StatementBuilder::build(stream);
-      //   if (stmt) {
-      //     classDecl->body->statements.push_back(stmt);
-      //   } else {
-      //     stream.advance();  // Skip faulty token
-      //   }
-      // }
-      // if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE    ) {
-      //   stream.advance();  // consume '}'
-      // } else {
-      //   std::cerr << "Error: Class body is not properly closed at "
-      //             << classLoc.toString() << std::endl;
-      //   return nullptr;
-      // }
-      // } else {
-      //   std::cerr << "Error: Class body is missing at " <<
-      //   classLoc.toString()
-      //             << std::endl;
-      //   return nullptr;
-      // }
-      // if (classDecl->body->statements.empty()) {
-      //   std::cerr << "Error: Class body is empty at " << classLoc.toString()
-      //             << std::endl;
-      //   return nullptr;
-      // }
-    }
-    return classDecl;
+  if (stream.peek().getType() != tokens::TokenType::LEFT_BRACE) {
+    // No body provided; error out gracefully
+    std::cerr << "Error: Class body is missing at " << classLoc.toString()
+              << std::endl;
+    return nullptr;
   }
+  // Delegate to StatementBuilder to parse the whole block including braces
+  auto block = StatementBuilder::buildBlock(stream);
+  if (!block) {
+    std::cerr << "Error: Class body is not properly closed at "
+              << classLoc.toString() << std::endl;
+    return nullptr;
+  }
+  classDecl->body = block;
+  return classDecl;
 }
 
 Shared(ast::InterfaceDecl)

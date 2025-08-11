@@ -12,15 +12,24 @@ namespace ast {
 
 // Value type for constant expression evaluation
 struct ConstantValue {
-  enum Type { INT, BOOL, FLOAT, STRING };
+  enum Type { INT, BOOL, FLOAT, STRING, NULL_PTR };
   Type type;
-  std::variant<int, bool, float, std::string> value;
+  std::variant<int, bool, float, std::string, void*> value;
 
   ConstantValue() : type(INT), value(0) {}  // Default constructor
   ConstantValue(int val) : type(INT), value(val) {}
   ConstantValue(bool val) : type(BOOL), value(val) {}
   ConstantValue(float val) : type(FLOAT), value(val) {}
   ConstantValue(const std::string& val) : type(STRING), value(val) {}
+  ConstantValue(void* ptr) : type(NULL_PTR), value(ptr) {}
+
+  // Constructor for null pointer
+  static ConstantValue nullPtr() {
+    ConstantValue val;
+    val.type = NULL_PTR;
+    val.value = static_cast<void*>(nullptr);
+    return val;
+  }
 
   int asInt() const {
     return std::get<int>(value);
@@ -33,6 +42,12 @@ struct ConstantValue {
   }
   std::string asString() const {
     return std::get<std::string>(value);
+  }
+  void* asPointer() const {
+    return std::get<void*>(value);
+  }
+  bool isNull() const {
+    return type == NULL_PTR;
   }
 };
 
@@ -62,10 +77,34 @@ class ConstantExpressionEvaluator : public ASTVisitor {
   void visit(IdentifierExpr& node) override;
   void visit(BinaryExpr& node) override;
   void visit(UnaryExpr& node) override;
+  void visit(MemberAccessExpr& node) override;
+  void visit(GroupingExpr& node) override;
+  void visit(ThisExpr& node) override;
+  void visit(NullExpr& node) override;
 
   // Non-constant expressions - these fail evaluation
   void visit(CallExpr& node) override;
   void visit(AssignmentExpr& node) override;
+
+  // Statement visitors (no-op for constant evaluation)
+  void visit(BlockStmt& node) override {}
+  void visit(ExprStmt& node) override {}
+  void visit(IfStmt& node) override {}
+  void visit(WhileStmt& node) override {}
+  void visit(ForStmt& node) override {}
+  void visit(ReturnStmt& node) override {}
+
+  // Declaration visitors (no-op for constant evaluation)
+  void visit(VarDecl& node) override {}
+  void visit(Parameter& node) override {}
+  void visit(FunctionDecl& node) override {}
+  void visit(ClassDecl& node) override {}
+  void visit(InterfaceDecl& node) override {}
+  void visit(TypeAliasDecl& node) override {}
+  void visit(ImportDecl& node) override {}
+
+  // Program node visitor (no-op for constant evaluation)
+  void visit(ProgramNode& node) override {}
 
   // Type node visitors (no-op for constant evaluation)
   void visit(ast::BasicTypeNode&) override {}

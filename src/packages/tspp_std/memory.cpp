@@ -6,47 +6,47 @@ namespace tspp_std {
 
 void MemoryStd::registerMakeShared() {
   // Register make_shared<T> function
-  std::cout << "Registering make_shared function" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerMakeUnique() {
   // Register make_unique<T> function
-  std::cout << "Registering make_unique function" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerMakeWeak() {
   // Register make_weak<T> function
-  std::cout << "Registering make_weak function" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerSmartPtrValid() {
   // Register valid() method for smart pointers
-  std::cout << "Registering smart pointer valid() method" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerSmartPtrReset() {
   // Register reset() method for smart pointers
-  std::cout << "Registering smart pointer reset() method" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerSmartPtrGet() {
   // Register get() method for smart pointers
-  std::cout << "Registering smart pointer get() method" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerAlloc() {
   // Register alloc function for manual memory management
-  std::cout << "Registering alloc function" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerFree() {
   // Register free function for manual memory management
-  std::cout << "Registering free function" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerDestroy() {
   // Register destroy function
-  std::cout << "Registering destroy function" << std::endl;
+  // no-op
 }
 
 void MemoryStd::registerAll() {

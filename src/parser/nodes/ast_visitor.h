@@ -41,6 +41,7 @@ class ParameterListNode;
 class GroupingExpr;
 class ThisExpr;
 class NullExpr;
+class StatementSequenceNode;
 
 class ASTVisitor {
  public:
@@ -81,6 +82,7 @@ class ASTVisitor {
   virtual void visit(GroupingExpr&) {}
   virtual void visit(ThisExpr&) {}
   virtual void visit(NullExpr&) {}
+  virtual void visit(StatementSequenceNode&) {}
   virtual ~ASTVisitor() = default;
 };
 

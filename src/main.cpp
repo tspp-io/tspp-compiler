@@ -1,15 +1,16 @@
+#include <llvm/Support/ManagedStatic.h>
+
 #include <fstream>
 #include <iostream>
 #include <string>
 
-#include "ast/ASTPrinter.h"
 #include "codegen/LLVMCodeGenerator.h"
-#include "core/utils/log_utils.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "parser/visitors/semantic/SemanticAnalyzerVisitor.h"
 
 int main(int argc, char* argv[]) {
+  llvm::llvm_shutdown_obj shutdown_on_exit;
   if (argc < 2) {
     std::cerr << "Usage: " << argv[0] << " <file.tspp>" << std::endl;
     return 1;
@@ -25,23 +26,10 @@ int main(int argc, char* argv[]) {
   // Tokenize
   lexer::Lexer lexer(source);
   auto tokens = lexer.tokenize();
-  std::cout << "Tokenized " << tokens.size() << " tokens." << std::endl;
-
-  // printing tokens
-  // for (const auto& token : tokens) {
-  //   printToken(token);
-  // }
+  (void)tokens;  // suppress unused warning if not inspected further
   // Parse into AST
   auto ast = parser::buildAST(tokens);
   if (ast) {
-    std::cout << "Successfully built AST!" << std::endl;
-
-    // Print AST
-    ast::ASTPrinter printer;
-    std::cout << "AST Structure:" << std::endl;
-    // ast->accept(printer);
-    std::cout << std::endl;
-
     // === Semantic Analysis ===
     ast::SemanticAnalyzerVisitor semanticAnalyzer;
     ast->accept(semanticAnalyzer);
@@ -53,18 +41,17 @@ int main(int argc, char* argv[]) {
         std::cerr << "  Error: " << error << std::endl;
       }
       // Continue with codegen even if there are semantic errors (for now)
-    } else {
-      std::cout << "Semantic analysis passed!" << std::endl;
     }
 
     // === LLVM Code Generation ===
-    codegen::LLVMCodeGenerator codegen(&semanticAnalyzer);
-    // Write IR to file: <input>.ll
-    std::string outFile = std::string(argv[1]) + ".ll";
-    codegen.generate(ast.get(), outFile);
-    // std::cout << "\nLLVM IR written to: " << outFile << std::endl;
+    {
+      codegen::LLVMCodeGenerator codegen(&semanticAnalyzer);
+      // Write IR to file: <input>.ll
+      std::string outFile = std::string(argv[1]) + ".ll";
+      codegen.generate(ast.get(), outFile);
+    }  // codegen and its module destroyed here before shutdown
   } else {
-    std::cout << "Failed to build AST." << std::endl;
+    std::cerr << "Failed to build AST." << std::endl;
     return 1;
   }
 
