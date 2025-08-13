@@ -2,9 +2,11 @@
 source_filename = "tspp_module"
 
 @llvm.global_ctors = appending constant [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__tspp_gc_ctor, ptr null }]
-@0 = private unnamed_addr constant [3 x i8] c"\22\22\00", align 1
-@1 = private unnamed_addr constant [5 x i8] c"\22hi\22\00", align 1
-@2 = private unnamed_addr constant [4 x i8] c"\22s\22\00", align 1
+@0 = private unnamed_addr constant [1 x i8] zeroinitializer, align 1
+@1 = private unnamed_addr constant [3 x i8] c"hi\00", align 1
+@2 = private unnamed_addr constant [2 x i8] c"\22\00", align 1
+@3 = private unnamed_addr constant [2 x i8] c"s\00", align 1
+@4 = private unnamed_addr constant [2 x i8] c"\22\00", align 1
 
 declare void @GC_init()
 
@@ -50,11 +52,11 @@ entry:
 define ptr @greetNTimes(ptr %who, i32 %n) {
 entry:
   %i = alloca i32, align 4
+  %acc = alloca ptr, align 8
   %n2 = alloca i32, align 4
   %who1 = alloca ptr, align 8
   store ptr %who, ptr %who1, align 8
   store i32 %n, ptr %n2, align 4
-  %acc = call ptr @GC_malloc(i64 8)
   store ptr @0, ptr %acc, align 8
   store i32 0, ptr %i, align 4
   br label %while.cond
@@ -79,8 +81,6 @@ while.end:                                        ; preds = %while.cond
   %6 = load ptr, ptr %acc, align 8
   ret ptr %6
 }
-
-declare ptr @GC_malloc(i64)
 
 declare ptr @tspp_string_concat(ptr, ptr)
 
@@ -120,14 +120,18 @@ entry:
   call void @tspp_console_log(ptr %3)
   call void @tspp_free_string(ptr %3)
   %4 = call ptr @greetNTimes(ptr @1, i32 3)
-  call void @tspp_console_log(ptr %4)
-  %5 = call ptr @unionPick(i1 false, i32 7, ptr @2)
-  call void @tspp_console_log(ptr %5)
+  %5 = call ptr @tspp_string_concat(ptr @2, ptr %4)
+  %6 = call ptr @tspp_string_concat(ptr %5, ptr @2)
+  call void @tspp_console_log(ptr %6)
+  %7 = call ptr @unionPick(i1 false, i32 7, ptr @3)
+  %8 = call ptr @tspp_string_concat(ptr @4, ptr %7)
+  %9 = call ptr @tspp_string_concat(ptr %8, ptr @4)
+  call void @tspp_console_log(ptr %9)
   store i32 10, ptr %v, align 4
-  %6 = load i32, ptr %p, align 4
-  %7 = call ptr @tspp_int_to_string(i32 %6)
-  call void @tspp_console_log(ptr %7)
-  call void @tspp_free_string(ptr %7)
+  %10 = load i32, ptr %p, align 4
+  %11 = call ptr @tspp_int_to_string(i32 %10)
+  call void @tspp_console_log(ptr %11)
+  call void @tspp_free_string(ptr %11)
   ret void
 }
 

@@ -4,7 +4,7 @@ source_filename = "tspp_module"
 @llvm.global_ctors = appending constant [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__tspp_gc_ctor, ptr null }]
 @a = global i32 42
 @pa = global ptr null
-@0 = private unnamed_addr constant [30 x i8] c"Testing @ address-of operator\00", align 1
+@0 = private unnamed_addr constant [24 x i8] c"Testing simple pointers\00", align 1
 @1 = private unnamed_addr constant [2 x i8] c"\22\00", align 1
 
 declare void @GC_init()
@@ -16,7 +16,7 @@ entry:
   ret void
 }
 
-define i1 @main() {
+define i1 @test() {
 entry:
   %0 = call ptr @tspp_string_concat(ptr @1, ptr @0)
   %1 = call ptr @tspp_string_concat(ptr %0, ptr @1)
@@ -40,3 +40,9 @@ declare void @tspp_console_log(ptr)
 declare void @tspp_free_string(ptr)
 
 declare ptr @tspp_int_to_string(i32)
+
+define i1 @main() {
+entry:
+  %0 = call i1 @test()
+  ret i1 %0
+}

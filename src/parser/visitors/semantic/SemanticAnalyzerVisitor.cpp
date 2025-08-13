@@ -159,9 +159,38 @@ void SemanticAnalyzerVisitor::visit(ClassDecl& node) {
     currentScope->insert(className, Symbol{className, /*typeName*/ className,
                                            false, false, true, nullptr});
   }
+  // Hoist methods as free functions with ClassName.method signature
+  for (auto& method : node.methods) {
+    if (!method) continue;
+    std::string mname = method->name.getLexeme();
+    std::string fq = className + "." + mname;
+    if (!currentScope->lookup(fq)) {
+      currentScope->insert(
+          fq, Symbol{fq, /*typeName*/ "", false, true, false, nullptr});
+    }
+  }
+  // Hoist constructor as __ctor_ClassName
+  if (node.constructor) {
+    std::string ctorName = std::string("__ctor_") + className;
+    if (!currentScope->lookup(ctorName)) {
+      currentScope->insert(ctorName, Symbol{ctorName, /*typeName*/ "", false,
+                                            true, false, nullptr});
+    }
+  }
+  classStack.push_back(className);
   enterScope();
+  // Visit new structured members if present
+  for (auto& field : node.fields) {
+    if (field) field->accept(*this);
+  }
+  for (auto& method : node.methods) {
+    if (method) method->accept(*this);
+  }
+  if (node.constructor) node.constructor->accept(*this);
+  // Preserve legacy behavior to allow any stray body statements
   if (node.body) node.body->accept(*this);
   exitScope();
+  classStack.pop_back();
 }
 
 void SemanticAnalyzerVisitor::visit(InterfaceDecl& node) {
@@ -204,19 +233,15 @@ void SemanticAnalyzerVisitor::visit(GroupingExpr& node) {
 }
 
 void SemanticAnalyzerVisitor::visit(ThisExpr& node) {
-  // Check if 'this' is valid in the current context (must be inside a class)
+  // 'this' is valid if we're currently visiting a class
+  if (!classStack.empty()) return;
+  // Fallback: scan scope chain for any class symbol
   std::shared_ptr<SemanticScope> scope = currentScope;
-  bool foundClass = false;
   while (scope) {
-    if (scope->containsClassSymbol()) {
-      foundClass = true;
-      break;
-    }
+    if (scope->containsClassSymbol()) return;
     scope = scope->getParent();
   }
-  if (!foundClass) {
-    reportError("'this' used outside of a class context");
-  }
+  reportError("'this' used outside of a class context");
 }
 
 void SemanticAnalyzerVisitor::visit(NullExpr&) {
@@ -354,6 +379,20 @@ void SemanticAnalyzerVisitor::visit(FunctionDecl& node) {
   exitScope();
 }
 
+void SemanticAnalyzerVisitor::visit(ConstructorDecl& node) {
+  // Constructor introduces a new scope for its parameters and body
+  enterScope();
+  for (auto& param : node.params) {
+    if (param) {
+      std::string paramName = param->name.getLexeme();
+      currentScope->insert(paramName, Symbol{paramName, /*typeName*/ "", false,
+                                             false, false, nullptr});
+    }
+  }
+  if (node.body) node.body->accept(*this);
+  exitScope();
+}
+
 void SemanticAnalyzerVisitor::visit(IdentifierExpr& node) {
   std::string idName = node.name.getLexeme();
   auto sym = currentScope->lookup(idName);
@@ -363,7 +402,7 @@ void SemanticAnalyzerVisitor::visit(IdentifierExpr& node) {
 }
 
 void SemanticAnalyzerVisitor::visit(AssignmentExpr& node) {
-  // For now, only support identifier assignments
+  // Support identifier assignments and member assignments (e.g., this.x = y)
   if (auto targetIdent = dynamic_cast<IdentifierExpr*>(node.target.get())) {
     std::string varName = targetIdent->name.getLexeme();
     auto sym = currentScope->lookup(varName);
@@ -375,12 +414,17 @@ void SemanticAnalyzerVisitor::visit(AssignmentExpr& node) {
     } else {
       reportError("Assignment to undeclared variable '" + varName + "'");
     }
+  } else if (auto memberTarget =
+                 dynamic_cast<MemberAccessExpr*>(node.target.get())) {
+    // For now, allow member assignments without detailed checks.
+    // If it's 'this.something', 'this' validity will be checked when visiting
+    // the target.
+    (void)memberTarget;  // suppress unused warning in some builds
   } else {
-    // TODO: Support member access assignments
     reportError("Unsupported assignment target");
   }
 
-  // Visit the target and value for completeness
+  // Visit the target and value for completeness (also validates 'this' usage)
   if (node.target) node.target->accept(*this);
   if (node.value) node.value->accept(*this);
 }
@@ -391,9 +435,26 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
   if (auto id = dynamic_cast<IdentifierExpr*>(node.callee.get())) {
     funcName = id->name.getLexeme();
   } else if (auto member = dynamic_cast<MemberAccessExpr*>(node.callee.get())) {
-    // Compose full name: e.g., console.log
+    // Compose name for console.* or ClassName.method
     if (auto objIdent = dynamic_cast<IdentifierExpr*>(member->object.get())) {
-      funcName = objIdent->name.getLexeme() + "." + member->member.getLexeme();
+      std::string objName = objIdent->name.getLexeme();
+      if (objName == "console") {
+        funcName = objName + "." + member->member.getLexeme();
+      } else {
+        // Look up variable type; if it's a class type, use that
+        auto sym = currentScope->lookup(objName);
+        if (sym && !sym->typeName.empty()) {
+          std::string typeName = sym->typeName;
+          // strip pointer star if present
+          if (!typeName.empty() && typeName.back() == '*') typeName.pop_back();
+          funcName = typeName + "." + member->member.getLexeme();
+        }
+      }
+    } else if (dynamic_cast<ThisExpr*>(member->object.get())) {
+      // this.method() inside class -> ClassName.method
+      if (!classStack.empty()) {
+        funcName = classStack.back() + "." + member->member.getLexeme();
+      }
     }
   }
   // Allow built-in console methods

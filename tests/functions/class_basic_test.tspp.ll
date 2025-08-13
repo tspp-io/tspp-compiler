@@ -11,27 +11,6 @@ entry:
   ret void
 }
 
-define i32 @Point_sum(ptr %this, i32 %a, i32 %b) {
-entry:
-  %b3 = alloca i32, align 4
-  %a2 = alloca i32, align 4
-  %this1 = alloca ptr, align 8
-  store ptr %this, ptr %this1, align 8
-  store i32 %a, ptr %a2, align 4
-  store i32 %b, ptr %b3, align 4
-  %0 = load i32, ptr %a2, align 4
-  %1 = load i32, ptr %b3, align 4
-  %addtmp = add i32 %0, %1
-  ret i32 %addtmp
-}
-
-define i32 @Point_selfSum(ptr %this) {
-entry:
-  %this1 = alloca ptr, align 8
-  store ptr %this, ptr %this1, align 8
-  ret i32 0
-}
-
 define i32 @main() {
 entry:
   ret i32 0

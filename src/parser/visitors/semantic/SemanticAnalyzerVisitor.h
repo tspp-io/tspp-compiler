@@ -35,6 +35,7 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void visit(VarDecl&) override;
   void visit(Parameter&) override;
   void visit(FunctionDecl&) override;
+  void visit(ConstructorDecl&) override;
   void visit(ClassDecl&) override;
   void visit(InterfaceDecl&) override;
   void visit(TypeAliasDecl&) override;
@@ -63,6 +64,8 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   std::unordered_map<std::string, std::shared_ptr<TypeNode>> typeAliases;
   std::shared_ptr<SemanticScope> currentScope;
   std::vector<std::string> errors;
+  // Track nested class contexts for resolving 'this' and method lookups
+  std::vector<std::string> classStack;
 
   void enterScope();
   void exitScope();

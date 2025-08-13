@@ -2,7 +2,8 @@
 source_filename = "tspp_module"
 
 @llvm.global_ctors = appending constant [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__tspp_gc_ctor, ptr null }]
-@0 = private unnamed_addr constant [8 x i8] c"\22param\22\00", align 1
+@0 = private unnamed_addr constant [6 x i8] c"param\00", align 1
+@1 = private unnamed_addr constant [2 x i8] c"\22\00", align 1
 
 declare void @GC_init()
 
@@ -91,12 +92,14 @@ entry:
   call void @tspp_console_log(ptr %5)
   call void @tspp_free_string(ptr %5)
   %6 = call ptr @echo(ptr @0)
-  call void @tspp_console_log(ptr %6)
-  store i32 42, ptr %value, align 4
-  %7 = call ptr @idPtr(ptr %value)
-  %8 = call ptr @tspp_ptr_to_string(ptr %7)
+  %7 = call ptr @tspp_string_concat(ptr @1, ptr %6)
+  %8 = call ptr @tspp_string_concat(ptr %7, ptr @1)
   call void @tspp_console_log(ptr %8)
-  call void @tspp_free_string(ptr %8)
+  store i32 42, ptr %value, align 4
+  %9 = call ptr @idPtr(ptr %value)
+  %10 = call ptr @tspp_ptr_to_string(ptr %9)
+  call void @tspp_console_log(ptr %10)
+  call void @tspp_free_string(ptr %10)
   ret void
 }
 
@@ -109,6 +112,8 @@ declare void @tspp_free_string(ptr)
 declare ptr @tspp_bool_to_string(i1)
 
 declare ptr @tspp_float_to_string(float)
+
+declare ptr @tspp_string_concat(ptr, ptr)
 
 declare ptr @tspp_ptr_to_string(ptr)
 

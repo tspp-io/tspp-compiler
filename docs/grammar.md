@@ -120,13 +120,14 @@ ReturnStatement ::= 'return' [ Expression ] ';'
 ## 8. Expressions
 
 ```ebnf
-Expression     ::= Assignment | Binary | Unary | Call | MemberAccess | Literal | Identifier
+Expression     ::= Assignment | Binary | Unary | Call | MemberAccess | Literal | Identifier | This
 Assignment     ::= Identifier '=' Expression
 Binary         ::= Expression Operator Expression
 Unary          ::= Operator Expression
 Call           ::= Expression '(' [ ArgumentList ] ')'
-MemberAccess   ::= Expression '.' Identifier
+MemberAccess   ::= (Identifier | This) '.' Identifier
 Literal        ::= Number | StringLiteral | Boolean | Null
+This           ::= 'this'
 ArgumentList   ::= Expression { ',' Expression }
 ```
 

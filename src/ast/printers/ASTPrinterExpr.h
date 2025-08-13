@@ -166,6 +166,26 @@ class ASTPrinterExpr : public ASTVisitor {
     printKey("nullToken");
     std::cout << '"' << node.nullToken.getLexeme() << "\" }";
   }
+  void visit(NewExpr& node) override {
+    printIndent();
+    std::cout << "{ ";
+    printKey("type");
+    std::cout << "\"NewExpr\", ";
+    printKey("className");
+    std::cout << '"' << node.className.getLexeme() << "\"";
+    std::cout << ", ";
+    printKey("arguments");
+    std::cout << " [\n";
+    ++indentLevel;
+    for (size_t i = 0; i < node.arguments.size(); ++i) {
+      node.arguments[i]->accept(*this);
+      if (i + 1 < node.arguments.size()) std::cout << ",\n";
+    }
+    std::cout << "\n";
+    --indentLevel;
+    printIndent();
+    std::cout << "] }";
+  }
   // Add more visit methods for other expression types if needed...
 };
 

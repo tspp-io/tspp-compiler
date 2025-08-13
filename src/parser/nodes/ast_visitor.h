@@ -25,6 +25,7 @@ class ReturnStmt;
 class VarDecl;
 class Parameter;
 class FunctionDecl;
+class ConstructorDecl;
 class ClassDecl;
 class InterfaceDecl;
 class TypeAliasDecl;
@@ -41,6 +42,7 @@ class ParameterListNode;
 class GroupingExpr;
 class ThisExpr;
 class NullExpr;
+class NewExpr;
 class StatementSequenceNode;
 
 class ASTVisitor {
@@ -66,6 +68,7 @@ class ASTVisitor {
   virtual void visit(VarDecl&) {}
   virtual void visit(Parameter&) {}
   virtual void visit(FunctionDecl&) {}
+  virtual void visit(ConstructorDecl&) {}
   virtual void visit(ClassDecl&) {}
   virtual void visit(InterfaceDecl&) {}
   virtual void visit(TypeAliasDecl&) {}
@@ -82,6 +85,7 @@ class ASTVisitor {
   virtual void visit(GroupingExpr&) {}
   virtual void visit(ThisExpr&) {}
   virtual void visit(NullExpr&) {}
+  virtual void visit(NewExpr&) {}
   virtual void visit(StatementSequenceNode&) {}
   virtual ~ASTVisitor() = default;
 };

@@ -255,7 +255,11 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
     return nullptr;
   }
   stream.advance();  // consume 'function'
-  if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
+  // Accept identifier-like names including GET/SET keywords
+  auto nameTokType = stream.peek().getType();
+  if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
+        nameTokType == tokens::TokenType::GET ||
+        nameTokType == tokens::TokenType::SET)) {
     stream.advance();  // Skip faulty token
     return nullptr;
   }
@@ -354,14 +358,58 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
   auto classDecl = std::make_shared<ast::ClassDecl>();
 
   stream.advance();  // consume identifier
+
+  // Optional generic type parameters: < ... > (skip content for now)
+  if (stream.peek().getType() == tokens::TokenType::LESS) {
+    int depth = 0;
+    do {
+      if (stream.peek().getType() == tokens::TokenType::LESS) depth++;
+      if (stream.peek().getType() == tokens::TokenType::GREATER) depth--;
+      stream.advance();
+    } while (!stream.isAtEnd() && depth > 0);
+  }
   if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
     stream.advance();  // consume 'extends'
     if (stream.peek().getType() == tokens::TokenType::IDENTIFIER) {
       classDecl->baseClass = stream.peek();
       stream.advance();  // consume identifier
+      // Optional type arguments: < ... > (skip)
+      if (stream.peek().getType() == tokens::TokenType::LESS) {
+        int d = 0;
+        do {
+          if (stream.peek().getType() == tokens::TokenType::LESS) d++;
+          if (stream.peek().getType() == tokens::TokenType::GREATER) d--;
+          stream.advance();
+        } while (!stream.isAtEnd() && d > 0);
+      }
     } else {
       stream.advance();  // Skip faulty token
       return nullptr;
+    }
+  }
+
+  // Optional implements list: implements Identifier [<...>] { , Identifier
+  // [<...>] }
+  if (stream.peek().getType() == tokens::TokenType::IMPLEMENTS) {
+    stream.advance();
+    while (!stream.isAtEnd()) {
+      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) break;
+      classDecl->interfaces.push_back(stream.peek());
+      stream.advance();
+      // Skip optional type arguments
+      if (stream.peek().getType() == tokens::TokenType::LESS) {
+        int d = 0;
+        do {
+          if (stream.peek().getType() == tokens::TokenType::LESS) d++;
+          if (stream.peek().getType() == tokens::TokenType::GREATER) d--;
+          stream.advance();
+        } while (!stream.isAtEnd() && d > 0);
+      }
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+        continue;
+      }
+      break;
     }
   }
   classDecl->modifier = modifier;
@@ -374,14 +422,250 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
               << std::endl;
     return nullptr;
   }
-  // Delegate to StatementBuilder to parse the whole block including braces
-  auto block = StatementBuilder::buildBlock(stream);
-  if (!block) {
+  // Parse class body with members: fields, methods, constructor
+  stream.advance();  // consume '{'
+  while (!stream.isAtEnd() &&
+         stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
+    // Skip stray semicolons
+    if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+      stream.advance();
+      continue;
+    }
+
+    // Capture optional access modifier for members
+    ast::AccessModifier access = ast::AccessModifier::Default;
+    if (tokens::isAccessModifier(stream.peek().getType())) {
+      switch (stream.peek().getType()) {
+        case tokens::TokenType::PUBLIC:
+          access = ast::AccessModifier::Public;
+          break;
+        case tokens::TokenType::PRIVATE:
+          access = ast::AccessModifier::Private;
+          break;
+        case tokens::TokenType::PROTECTED:
+          access = ast::AccessModifier::Protected;
+          break;
+        default:
+          break;
+      }
+      stream.advance();
+    }
+
+    // Collect optional attribute-style modifiers before a member
+    // - Storage qualifiers for fields: #static/#heap/#stack
+    // - Function modifiers for methods: #constexpr/#simd/#atomic/... (ignored if not a method)
+    // - Generic attributes we don't recognize: skip safely
+    ast::StorageQualifier memberStorage = ast::StorageQualifier::None;
+    ast::FunctionModifier memberFuncMod = ast::FunctionModifier::None;
+    while (true) {
+      auto t = stream.peek().getType();
+      if (t == tokens::TokenType::STACK) {
+        memberStorage = ast::StorageQualifier::Stack;
+        stream.advance();
+        continue;
+      }
+      if (t == tokens::TokenType::HEAP) {
+        memberStorage = ast::StorageQualifier::Heap;
+        stream.advance();
+        continue;
+      }
+      if (t == tokens::TokenType::STATIC) {
+        // Could be a storage qualifier for a field, or a static initialization block
+        // Defer handling of static block below; for now, record storage and keep token consumed
+        memberStorage = ast::StorageQualifier::Static;
+        stream.advance();
+        // If immediately followed by a block, treat as a static initialization block
+        if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
+          auto staticBody = StatementBuilder::buildBlock(stream);
+          if (staticBody) {
+            classDecl->body->statements.push_back(staticBody);
+            // Static block is a standalone member; continue to next member
+            continue;  // continue outer while-loop
+          }
+        }
+        continue;
+      }
+      // Function modifiers before methods
+      if (tokens::isFunctionModifier(t)) {
+        switch (t) {
+          case tokens::TokenType::CONST_FUNCTION:
+            memberFuncMod = ast::FunctionModifier::Const;
+            break;
+          case tokens::TokenType::CONSTEXPR:
+            memberFuncMod = ast::FunctionModifier::Constexpr;
+            break;
+          case tokens::TokenType::ZEROCAST:
+            memberFuncMod = ast::FunctionModifier::Zerocast;
+            break;
+          case tokens::TokenType::SIMD:
+            memberFuncMod = ast::FunctionModifier::Simd;
+            break;
+          case tokens::TokenType::PREFETCH:
+            memberFuncMod = ast::FunctionModifier::Prefetch;
+            break;
+          case tokens::TokenType::ATOMIC:
+            memberFuncMod = ast::FunctionModifier::Atomic;
+            break;
+          case tokens::TokenType::PINNED:
+            memberFuncMod = ast::FunctionModifier::Pinned;
+            break;
+          default:
+            break;
+        }
+        stream.advance();
+        continue;
+      }
+      // Unrecognized attribute tokens: skip them so syntax like #inline doesn't block parsing
+      if (t == tokens::TokenType::ATTRIBUTE) {
+        stream.advance();
+        continue;
+      }
+      break;
+    }
+
+    // Methods: 'function' Identifier ... (allow identifier-like keywords
+    // GET/SET)
+    if (stream.peek().getType() == tokens::TokenType::FUNCTION) {
+      auto method = buildFunction(stream, memberFuncMod);
+      if (method) {
+        method->access = access;
+        classDecl->methods.push_back(method);
+        continue;
+      } else {
+        // error recovery
+        stream.advance();
+        continue;
+      }
+    }
+
+    // Constructor: 'constructor' '(' ... ')' Block
+    if (stream.peek().getType() == tokens::TokenType::CONSTRUCTOR) {
+      tokens::Token ctorTok = stream.peek();
+      auto ctorLoc = ctorTok.getLocation();
+      stream.advance();  // consume 'constructor'
+      if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
+        // malformed, recover
+        stream.advance();
+        continue;
+      }
+      stream.advance();  // consume '('
+      auto ctor = std::make_shared<ast::ConstructorDecl>();
+      ctor->keyword = ctorTok;
+      ctor->location = ctorLoc;
+      ctor->access = access;
+      // Parameters
+      while (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN &&
+             !stream.isAtEnd()) {
+        if (stream.peek().getType() == tokens::TokenType::COMMA) {
+          stream.advance();
+          continue;
+        }
+        auto param = std::make_shared<ast::Parameter>();
+        if (stream.peek().getType() == tokens::TokenType::IDENTIFIER) {
+          tokens::Token paramName = stream.peek();
+          auto paramLoc = stream.peek().getLocation();
+          stream.advance();  // consume identifier
+          if (stream.peek().getType() == tokens::TokenType::COLON) {
+            stream.advance();  // consume ':'
+            auto paramType = TypeBuilder::build(stream);
+            if (!paramType) {
+              stream.advance();
+            } else {
+              param->name = paramName;
+              param->type = paramType;
+              param->location = paramLoc;
+              ctor->params.push_back(param);
+            }
+          }
+        } else {
+          // skip unexpected token
+          stream.advance();
+        }
+      }
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
+        stream.advance();
+      // Body
+      if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
+        auto body = StatementBuilder::buildBlock(stream);
+        ctor->body = body;
+      } else {
+        // recover
+        stream.advance();
+      }
+      classDecl->constructor = ctor;
+      continue;
+    }
+
+    // Fields: let/const identifier [: Type] [= expr] ;
+    if (stream.peek().getType() == tokens::TokenType::LET ||
+        stream.peek().getType() == tokens::TokenType::CONST) {
+      auto fieldStmt = buildVariable(stream, memberStorage);
+      if (fieldStmt) {
+        if (auto var = std::dynamic_pointer_cast<ast::VarDecl>(fieldStmt)) {
+          var->access = access;
+          classDecl->fields.push_back(var);
+        }
+        classDecl->body->statements.push_back(fieldStmt);
+        continue;
+      } else {
+        stream.advance();
+        continue;
+      }
+    }
+
+    // Bare field syntax: Identifier ':' Type [ '=' initializer ] ';'
+    if (stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
+        stream.peekNext().getType() == tokens::TokenType::COLON) {
+      tokens::Token fieldName = stream.peek();
+      auto fieldLoc = fieldName.getLocation();
+      stream.advance();  // consume identifier
+      stream.advance();  // consume ':'
+
+      Shared(ast::TypeNode) fieldType = TypeBuilder::build(stream);
+      if (!fieldType) {
+        // malformed type, try to recover
+        stream.advance();
+        continue;
+      }
+
+      Shared(ast::Expr) initializer = nullptr;
+      if (stream.peek().getType() == tokens::TokenType::EQUALS) {
+        stream.advance();  // consume '='
+        initializer = ExpressionBuilder::build(stream);
+      }
+      if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream.advance();  // consume ';'
+      }
+
+      auto varDecl = std::make_shared<ast::VarDecl>();
+      varDecl->name = fieldName;
+      varDecl->type = fieldType;
+      varDecl->initializer = initializer;
+      varDecl->qualifier = ast::StorageQualifier::None;
+      varDecl->isConst = false;
+      varDecl->access = access;
+      varDecl->location = fieldLoc;
+
+      classDecl->fields.push_back(varDecl);
+      classDecl->body->statements.push_back(varDecl);
+      continue;
+    }
+
+    // Fallback: parse any statement for resilience
+    auto stmt = StatementBuilder::build(stream);
+    if (stmt) {
+      classDecl->body->statements.push_back(stmt);
+    } else {
+      // error recovery to avoid infinite loop
+      stream.advance();
+    }
+  }
+  if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
+    stream.advance();  // consume '}'
+  } else {
     std::cerr << "Error: Class body is not properly closed at "
               << classLoc.toString() << std::endl;
-    return nullptr;
   }
-  classDecl->body = block;
   return classDecl;
 }
 
@@ -413,36 +697,168 @@ Shared(ast::InterfaceDecl)
   interfaceDecl->location = interfaceLoc;
   interfaceDecl->body = std::make_shared<ast::BlockStmt>();
 
-  // std::cout << "[DEBUG] Checking if next token is BLOCK for interface
-  // body\n"; if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
-  //   stream.advance();  // consume '{'
-  //   // while (stream.peek().getType() != tokens::TokenType::RIGHT_BRACE &&
-  //   //        !stream.isAtEnd()) {
-  //   //   auto stmt = StatementBuilder::build(stream);
-  //   //   if (stmt) {
-  //   //     interfaceDecl->body->statements.push_back(stmt);
-  //   //   } else {
-  //   //     stream.advance();  // Skip faulty token
-  //   //   }
-  //   // }
-  //   // if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
-  //   //   stream.advance();  // consume '}'
-  //   // } else {
-  //   //   std::cerr << "Error: Interface body is not properly closed at "
-  //   //             << interfaceLoc.toString() << std::endl;
-  //   //   return nullptr;
-  //   // }
-  //   return interfaceDecl;
-  // }
-  // std::cerr << "Error: Interface body is missing at " <<
-  // interfaceLoc.toString()
-  //           << std::endl;
-  // return nullptr;
-  // // if (interfaceDecl->body->statements.empty()) {
-  // //   std::cerr << "Error: Interface body is empty at "
-  // //             << interfaceLoc.toString() << std::endl;
-  // //   return nullptr;
-  // // }
+  // Optional generic params after interface name: <...> (skip)
+  if (stream.peek().getType() == tokens::TokenType::LESS) {
+    int depth = 0;
+    do {
+      if (stream.peek().getType() == tokens::TokenType::LESS) depth++;
+      if (stream.peek().getType() == tokens::TokenType::GREATER) depth--;
+      stream.advance();
+    } while (!stream.isAtEnd() && depth > 0);
+  }
+
+  // Optional: extends Interface { , Interface }
+  if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
+    stream.advance();
+    while (!stream.isAtEnd()) {
+      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) break;
+      interfaceDecl->bases.push_back(stream.peek());
+      stream.advance();
+      // Skip optional type arguments <...>
+      if (stream.peek().getType() == tokens::TokenType::LESS) {
+        int d = 0;
+        do {
+          if (stream.peek().getType() == tokens::TokenType::LESS) d++;
+          if (stream.peek().getType() == tokens::TokenType::GREATER) d--;
+          stream.advance();
+        } while (!stream.isAtEnd() && d > 0);
+      }
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+        continue;
+      }
+      break;
+    }
+  }
+
+  // Body: '{' (propertySig | methodSig | ';')* '}'
+  if (stream.peek().getType() != tokens::TokenType::LEFT_BRACE) {
+    std::cerr << "Error: Interface body is missing at "
+              << interfaceLoc.toString() << std::endl;
+    return nullptr;
+  }
+  stream.advance();  // consume '{'
+  while (!stream.isAtEnd() &&
+         stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
+    if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+      stream.advance();
+      continue;
+    }
+
+    // Method signature: 'function' Identifier '(' [params] ')' [':' Type] ';'
+    if (stream.peek().getType() == tokens::TokenType::FUNCTION) {
+      auto funcDecl = std::make_shared<ast::FunctionDecl>();
+      funcDecl->modifier = ast::FunctionModifier::None;
+      stream.advance();  // consume 'function'
+      auto nameTokType = stream.peek().getType();
+      if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
+            nameTokType == tokens::TokenType::GET ||
+            nameTokType == tokens::TokenType::SET)) {
+        // recovery
+        stream.advance();
+        continue;
+      }
+      funcDecl->name = stream.peek();
+      funcDecl->location = stream.peek().getLocation();
+      stream.advance();  // consume name
+      if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
+        // recovery
+        stream.advance();
+        continue;
+      }
+      stream.advance();  // consume '('
+      // Parse parameter list: Identifier ':' Type { ',' Identifier ':' Type }
+      while (!stream.isAtEnd() &&
+             stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+        if (stream.peek().getType() == tokens::TokenType::COMMA) {
+          stream.advance();
+          continue;
+        }
+        if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
+          // skip unexpected token
+          stream.advance();
+          continue;
+        }
+        tokens::Token paramName = stream.peek();
+        auto paramLoc = paramName.getLocation();
+        stream.advance();  // consume name
+        if (stream.peek().getType() != tokens::TokenType::COLON) {
+          // missing type annotation; recover by skipping to next comma/paren
+          while (!stream.isAtEnd() &&
+                 stream.peek().getType() != tokens::TokenType::COMMA &&
+                 stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+            stream.advance();
+          }
+          continue;
+        }
+        stream.advance();  // consume ':'
+        auto paramType = TypeBuilder::build(stream);
+        if (!paramType) {
+          // recover similarly
+          while (!stream.isAtEnd() &&
+                 stream.peek().getType() != tokens::TokenType::COMMA &&
+                 stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+            stream.advance();
+          }
+          continue;
+        }
+        auto param = std::make_shared<ast::Parameter>();
+        param->name = paramName;
+        param->type = paramType;
+        param->location = paramLoc;
+        funcDecl->params.push_back(param);
+      }
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+        stream.advance();  // consume ')'
+      }
+      if (stream.peek().getType() == tokens::TokenType::COLON) {
+        stream.advance();  // consume ':'
+        funcDecl->returnType = TypeBuilder::build(stream);
+      }
+      // Expect optional ';'
+      if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream.advance();
+      }
+      funcDecl->body = nullptr;  // interface method has no body
+      interfaceDecl->methods.push_back(funcDecl);
+      continue;
+    }
+
+    // Property signature: Identifier ':' Type ';'
+    if (stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
+        stream.peekNext().getType() == tokens::TokenType::COLON) {
+      tokens::Token propName = stream.peek();
+      auto propLoc = propName.getLocation();
+      stream.advance();  // name
+      stream.advance();  // ':'
+      auto typeNode = TypeBuilder::build(stream);
+      if (!typeNode) {
+        // malformed type; recover forward
+        stream.advance();
+        continue;
+      }
+      if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream.advance();
+      }
+      auto var = std::make_shared<ast::VarDecl>();
+      var->name = propName;
+      var->type = typeNode;
+      var->qualifier = ast::StorageQualifier::None;
+      var->isConst = false;
+      var->location = propLoc;
+      interfaceDecl->properties.push_back(var);
+      continue;
+    }
+
+    // Unknown member: try to recover
+    stream.advance();
+  }
+  if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
+    stream.advance();
+  } else {
+    std::cerr << "Error: Interface body is not properly closed at "
+              << interfaceLoc.toString() << std::endl;
+  }
   return interfaceDecl;
 }
 

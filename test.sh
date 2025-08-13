@@ -26,14 +26,27 @@ sed -i '/^[[:space:]]*target triple[[:space:]]*=/Id' "$LLVM_IR"
 grep -ni 'target triple' "$LLVM_IR" || echo "No target triple line remains in $LLVM_IR"
 
 # 3.5. Ensure executable entrypoint returns int: wrap void @main() if present
-if grep -q '^define[[:space:]]\+void[[:space:]]\+@main()' "$LLVM_IR"; then
+# Match lines like: "define dso_local void @main() ..." as well as plain ones.
+if grep -Eq '^\s*define\s+.*\bvoid\b.*@main\s*\(' "$LLVM_IR"; then
   # Rename the user's void main to @main_tspp and add a tiny wrapper int main()
-  sed -i 's/^define[[:space:]]\+void[[:space:]]\+@main()/define void @main_tspp()/g' "$LLVM_IR"
+  # Only modify the definition line, keep attributes as-is.
+  sed -Ei '/^\s*define\s+.*\bvoid\b.*@main\s*\(/ s/@main\s*\(/@main_tspp(/' "$LLVM_IR"
   cat >> "$LLVM_IR" <<'EOF'
 
 define i32 @main() {
 entry:
   call void @main_tspp()
+  ret i32 0
+}
+EOF
+fi
+
+# 3.6. If there's no main at all, append a trivial one (avoid duplicate redefinition)
+if ! grep -Eq '^\s*define\s+.*@main\s*\(' "$LLVM_IR"; then
+  cat >> "$LLVM_IR" <<'EOF'
+
+define i32 @main() {
+entry:
   ret i32 0
 }
 EOF
@@ -60,8 +73,19 @@ fi
 # 5. Run the compiled program with sanitizer settings that avoid non-zero exits
 export ASAN_OPTIONS="detect_leaks=0:halt_on_error=0:abort_on_error=0:exitcode=0"
 export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=0:exitcode=0"
-./temp_exec 2>&1 | grep -v 'LeakSanitizer' | grep -v 'SUMMARY: AddressSanitizer'
-echo "Exit code: ${PIPESTATUS[0]}"
+
+# Run and capture output without failing the script if there's no stdout
+set +e
+PROGRAM_OUTPUT=$(./temp_exec 2>&1)
+RUN_EXIT=$?
+set -e
+
+# Filter sanitizer noise and print any remaining output (if any)
+FILTERED_OUTPUT=$(printf "%s\n" "$PROGRAM_OUTPUT" | grep -v 'LeakSanitizer' | grep -v 'SUMMARY: AddressSanitizer' || true)
+if [ -n "$FILTERED_OUTPUT" ]; then
+  printf "%s\n" "$FILTERED_OUTPUT"
+fi
+echo "Exit code: $RUN_EXIT"
 
 
 # 6. (Optional) Run with LLVM interpreter (will fail for external symbols)

@@ -68,6 +68,38 @@
 			"type": "shell",
 			"command": "./build.sh",
 			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
+		},
+		{
+			"label": "Run function tests",
+			"type": "shell",
+			"command": "./test.sh",
+			"args": [
+				"tests/functions/simple_test.tspp"
+			]
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
 		}
 	]
 }

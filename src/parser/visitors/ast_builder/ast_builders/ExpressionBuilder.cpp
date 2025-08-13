@@ -5,6 +5,8 @@
 
 #include "core/common/macros.h"
 #include "parser/nodes/expression_nodes.h"
+// For ThisExpr and GroupingExpr/NullExpr definitions
+#include "parser/nodes/misc_nodes.h"
 
 namespace parser {
 
@@ -18,6 +20,40 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
   auto type = stream.peek().getType();
 
   switch (type) {
+    // Handle 'new' operator: new ClassName(args)
+    case tokens::TokenType::NEW: {
+      auto newTok = stream.peek();
+      stream.advance();
+      // Expect class identifier
+      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
+        // Malformed; return null to avoid crash
+        return nullptr;
+      }
+      auto classTok = stream.peek();
+      stream.advance();
+      auto newExpr = std::make_shared<ast::NewExpr>();
+      newExpr->keyword = newTok;
+      newExpr->className = classTok;
+      newExpr->location = newTok.getLocation();
+      // Parse optional constructor args: '(' ... ')'
+      if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
+        stream.advance();
+        while (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN &&
+               !stream.isAtEnd()) {
+          auto arg = build(stream);
+          if (arg) newExpr->arguments.push_back(arg);
+          if (stream.peek().getType() == tokens::TokenType::COMMA) {
+            stream.advance();
+          } else {
+            break;
+          }
+        }
+        if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+          stream.advance();
+        }
+      }
+      return newExpr;
+    }
     // Handle literals (numbers, strings, booleans, chars)
     case tokens::TokenType::CHAR_LITERAL:
     case tokens::TokenType::STRING_LITERAL:
@@ -30,6 +66,37 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       stream.advance();
       return expr;
     }
+    // Handle 'this' keyword as a primary expression, with member access/calls
+    case tokens::TokenType::THIS: {
+      auto thisToken = stream.peek();
+      stream.advance();
+      auto thisExpr = std::make_shared<ast::ThisExpr>();
+      thisExpr->keyword = thisToken;
+      thisExpr->location = thisToken.getLocation();
+      // Support chained member access: this.foo.bar
+      Shared(ast::Expr) object = thisExpr;
+      while (stream.peek().getType() == tokens::TokenType::DOT) {
+        stream.advance();  // consume '.'
+        auto t = stream.peek().getType();
+        if (t == tokens::TokenType::IDENTIFIER || t == tokens::TokenType::GET ||
+            t == tokens::TokenType::SET) {
+          auto memberToken = stream.peek();
+          stream.advance();
+          auto memberExpr = std::make_shared<ast::MemberAccessExpr>();
+          memberExpr->object = object;
+          memberExpr->member = memberToken;
+          memberExpr->location = object->location;
+          object = memberExpr;
+        } else {
+          break;  // Malformed member access; exit gracefully
+        }
+      }
+      // If next token is '(', treat as a function call on the member chain
+      if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
+        return buildCall(stream, object);
+      }
+      return object;
+    }
     // Handle identifiers and member access (console.log, foo.bar.baz)
     case tokens::TokenType::IDENTIFIER: {
       auto expr = std::make_shared<ast::IdentifierExpr>();
@@ -41,7 +108,9 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       while (stream.peek().getType() == tokens::TokenType::DOT) {
         auto dotToken = stream.peek();
         stream.advance();  // consume '.'
-        if (stream.peek().getType() == tokens::TokenType::IDENTIFIER) {
+        auto t = stream.peek().getType();
+        if (t == tokens::TokenType::IDENTIFIER || t == tokens::TokenType::GET ||
+            t == tokens::TokenType::SET) {
           auto memberToken = stream.peek();
           stream.advance();
           auto memberExpr = std::make_shared<ast::MemberAccessExpr>();

@@ -29,4 +29,15 @@ class NullExpr : public Expr {
   }
 };
 
+// "new" operator for class/struct instantiation
+class NewExpr : public Expr {
+ public:
+  tokens::Token keyword;                // 'new'
+  tokens::Token className;              // Identifier of the class
+  std::vector<Shared(Expr)> arguments;  // constructor arguments
+  void accept(ASTVisitor& visitor) override {
+    visitor.visit(*this);
+  }
+};
+
 }  // namespace ast

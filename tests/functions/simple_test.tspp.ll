@@ -2,7 +2,9 @@
 source_filename = "tspp_module"
 
 @llvm.global_ctors = appending constant [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__tspp_gc_ctor, ptr null }]
-@0 = private unnamed_addr constant [15 x i8] c"\22Hello, world\22\00", align 1
+@0 = private unnamed_addr constant [13 x i8] c"Hello, world\00", align 1
+@1 = private unnamed_addr constant [2 x i8] c"\22\00", align 1
+@2 = private unnamed_addr constant [2 x i8] c"\22\00", align 1
 
 declare void @GC_init()
 
@@ -63,21 +65,25 @@ entry:
   call void @tspp_console_log(ptr %3)
   call void @tspp_free_string(ptr %3)
   %4 = call ptr @greet()
-  call void @tspp_console_log(ptr %4)
-  %5 = call float @average()
-  %6 = call ptr @tspp_float_to_string(float %5)
+  %5 = call ptr @tspp_string_concat(ptr @1, ptr %4)
+  %6 = call ptr @tspp_string_concat(ptr %5, ptr @1)
   call void @tspp_console_log(ptr %6)
-  call void @tspp_free_string(ptr %6)
-  %7 = call ptr @getPointer()
-  %8 = call ptr @tspp_ptr_to_string(ptr %7)
+  %7 = call float @average()
+  %8 = call ptr @tspp_float_to_string(float %7)
   call void @tspp_console_log(ptr %8)
   call void @tspp_free_string(ptr %8)
-  %9 = call ptr @getUnion()
-  call void @tspp_console_log(ptr %9)
-  %10 = call i32 @getConstValue()
-  %11 = call ptr @tspp_int_to_string(i32 %10)
-  call void @tspp_console_log(ptr %11)
-  call void @tspp_free_string(ptr %11)
+  %9 = call ptr @getPointer()
+  %10 = call ptr @tspp_ptr_to_string(ptr %9)
+  call void @tspp_console_log(ptr %10)
+  call void @tspp_free_string(ptr %10)
+  %11 = call ptr @getUnion()
+  %12 = call ptr @tspp_string_concat(ptr @2, ptr %11)
+  %13 = call ptr @tspp_string_concat(ptr %12, ptr @2)
+  call void @tspp_console_log(ptr %13)
+  %14 = call i32 @getConstValue()
+  %15 = call ptr @tspp_int_to_string(i32 %14)
+  call void @tspp_console_log(ptr %15)
+  call void @tspp_free_string(ptr %15)
   ret void
 }
 
@@ -86,6 +92,8 @@ declare void @tspp_console_log(ptr)
 declare void @tspp_free_string(ptr)
 
 declare ptr @tspp_bool_to_string(i1)
+
+declare ptr @tspp_string_concat(ptr, ptr)
 
 declare ptr @tspp_float_to_string(float)
 
