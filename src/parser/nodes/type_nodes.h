@@ -46,6 +46,14 @@ class TypeConstraintNode : public TypeNode {
   AST_ACCEPT_IMPL(TypeConstraintNode);
 };
 
+// Generic type application: Name<Arg1, Arg2, ...>
+class GenericTypeNode : public TypeNode {
+ public:
+  tokens::Token name;  // base type identifier
+  std::vector<Shared(TypeNode)> typeArgs;  // type arguments in order
+  AST_ACCEPT_IMPL(GenericTypeNode);
+};
+
 #undef AST_ACCEPT_IMPL
 
 }  // namespace ast

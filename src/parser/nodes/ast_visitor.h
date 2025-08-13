@@ -35,6 +35,8 @@ class PointerTypeNode;
 class SmartPointerTypeNode;
 class UnionTypeNode;
 class TypeConstraintNode;
+class GenericTypeNode;
+class TypeParam;
 class ProgramNode;
 class ModifierNode;
 class StorageQualifierNode;
@@ -78,6 +80,8 @@ class ASTVisitor {
   virtual void visit(SmartPointerTypeNode&) {}
   virtual void visit(UnionTypeNode&) {}
   virtual void visit(TypeConstraintNode&) {}
+  virtual void visit(GenericTypeNode&) {}
+  virtual void visit(TypeParam&) {}
   virtual void visit(ProgramNode&) {}
   virtual void visit(ModifierNode&) {}
   virtual void visit(StorageQualifierNode&) {}

@@ -59,12 +59,22 @@ class Parameter : public BaseNode {
   AST_ACCEPT_IMPL(Parameter);
 };
 
+// Type parameter for generics: T or T extends Base
+class TypeParam : public BaseNode {
+ public:
+  tokens::Token name;
+  Shared(TypeNode) constraint;  // optional: extends Base
+  AST_ACCEPT_IMPL(TypeParam);
+};
+
 class FunctionDecl : public Decl {
  public:
   FunctionModifier modifier;
   // Additional method attributes (inline/virtual/override)
   std::vector<MethodAttribute> methodAttributes;
   tokens::Token name;
+  // Optional generic parameters
+  std::vector<Shared(TypeParam)> typeParams;
   std::vector<Shared(Parameter)> params;
   Shared(TypeNode) returnType;
   Shared(BlockStmt) body;
@@ -91,6 +101,8 @@ class ClassDecl : public Decl {
   // Full list of parsed class modifiers (e.g., #abstract #packed #final)
   std::vector<ClassModifier> modifiers;
   tokens::Token name;
+  // Optional generic parameters: <T, U extends Base>
+  std::vector<Shared(TypeParam)> typeParams;
   tokens::Token baseClass;  // optional
   // Optional implemented interfaces (names only for now)
   std::vector<tokens::Token> interfaces;
@@ -106,6 +118,8 @@ class ClassDecl : public Decl {
 class InterfaceDecl : public Decl {
  public:
   tokens::Token name;
+  // Optional generic parameters: <T, U extends Base>
+  std::vector<Shared(TypeParam)> typeParams;
   // Optional base interfaces this interface extends
   std::vector<tokens::Token> bases;
   // Parsed members: property signatures and method signatures (no bodies)

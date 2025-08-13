@@ -66,15 +66,39 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
 
   // Handle basic types and identifiers
   if (isBasicType(type) || type == tokens::TokenType::IDENTIFIER) {
-    auto baseType = buildBasic(stream);
-    if (!baseType) return nullptr;
+    // Peek identifier or primitive
+    auto startTok = stream.peek();
+    auto baseBasic = buildBasic(stream);
+    if (!baseBasic) return nullptr;
 
     // Convert to TypeNode for further processing
     Shared(ast::TypeNode) resultType =
-        std::static_pointer_cast<ast::TypeNode>(baseType);
+        std::static_pointer_cast<ast::TypeNode>(baseBasic);
 
-    // Check for pointer suffix: Type '*' (without @ prefix)
-    if (stream.peek().getType() == tokens::TokenType::STAR) {
+    // Handle generic type application: Identifier '<' Type {',' Type} '>'
+    if (startTok.getType() == tokens::TokenType::IDENTIFIER &&
+        stream.peek().getType() == tokens::TokenType::LESS) {
+      stream.advance();  // consume '<'
+      auto genNode = std::make_shared<ast::GenericTypeNode>();
+      genNode->name = startTok;
+      genNode->location = startTok.getLocation();
+      // Parse one or more type arguments until '>'
+      while (!stream.isAtEnd() && stream.peek().getType() != tokens::TokenType::GREATER) {
+        auto argTy = build(stream);
+        if (argTy) genNode->typeArgs.push_back(argTy);
+        if (stream.peek().getType() == tokens::TokenType::COMMA) {
+          stream.advance();  // consume ',' and continue
+        } else {
+          break;
+        }
+      }
+      if (stream.peek().getType() == tokens::TokenType::GREATER)
+        stream.advance();  // consume '>' if present
+      resultType = genNode;
+    }
+
+    // Check for pointer suffix chain: Type '*'* (without @ prefix)
+    while (stream.peek().getType() == tokens::TokenType::STAR) {
       stream.advance();  // consume '*'
       auto ptrNode = std::make_shared<ast::PointerTypeNode>();
       ptrNode->qualifier = tokens::Token();  // no qualifier for suffix syntax
@@ -83,8 +107,8 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
       resultType = ptrNode;
     }
 
-    // Check for union types: Type '|' Type { '|' Type }
-    if (stream.peek().getType() == tokens::TokenType::PIPE) {
+  // Check for union types: Type '|' Type { '|' Type }
+  if (stream.peek().getType() == tokens::TokenType::PIPE) {
       auto unionNode = std::make_shared<ast::UnionTypeNode>();
       unionNode->types.push_back(resultType);
       unionNode->location = resultType->location;

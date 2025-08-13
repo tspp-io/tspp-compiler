@@ -1857,6 +1857,14 @@ void LLVMCodeGenerator::visit(ast::TypeConstraintNode& node) {
   }
 }
 
+void LLVMCodeGenerator::visit(ast::GenericTypeNode& node) {
+  // Generics are erased in codegen for now
+}
+
+void LLVMCodeGenerator::visit(ast::TypeParam& node) {
+  // Type parameters have no runtime representation in current codegen
+}
+
 void LLVMCodeGenerator::visit(ast::ConstructorDecl& node) {
   // We'll lower constructor as a function: __ctor_<ClassName>(i8* this, ...)
   // This visitor is invoked inside ClassDecl emission where current class name

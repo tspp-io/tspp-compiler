@@ -284,6 +284,29 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
   funcDecl->name = funcName;
   funcDecl->location = funcLoc;
   stream.advance();  // consume identifier
+  // Optional generic type parameters for function: <T, U extends Base>
+  if (stream.peek().getType() == tokens::TokenType::LESS) {
+    stream.advance();
+    while (!stream.isAtEnd() &&
+           stream.peek().getType() != tokens::TokenType::GREATER) {
+      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) break;
+      auto tp = std::make_shared<ast::TypeParam>();
+      tp->name = stream.peek();
+      tp->location = stream.peek().getLocation();
+      stream.advance();
+      if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
+        stream.advance();
+        tp->constraint = TypeBuilder::build(stream);
+      }
+      funcDecl->typeParams.push_back(tp);
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+        continue;
+      }
+      break;
+    }
+    if (stream.peek().getType() == tokens::TokenType::GREATER) stream.advance();
+  }
   if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
     stream.advance();  // Skip faulty token
     return nullptr;
@@ -374,14 +397,29 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
 
   stream.advance();  // consume identifier
 
-  // Optional generic type parameters: < ... > (skip content for now)
+  // Optional generic type parameters: <T, U extends Base>
   if (stream.peek().getType() == tokens::TokenType::LESS) {
-    int depth = 0;
-    do {
-      if (stream.peek().getType() == tokens::TokenType::LESS) depth++;
-      if (stream.peek().getType() == tokens::TokenType::GREATER) depth--;
+    stream.advance();  // consume '<'
+    while (!stream.isAtEnd() &&
+           stream.peek().getType() != tokens::TokenType::GREATER) {
+      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) break;
+      auto tp = std::make_shared<ast::TypeParam>();
+      tp->name = stream.peek();
+      tp->location = stream.peek().getLocation();
       stream.advance();
-    } while (!stream.isAtEnd() && depth > 0);
+      if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
+        stream.advance();
+        tp->constraint = TypeBuilder::build(stream);
+      }
+      classDecl->typeParams.push_back(tp);
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+        continue;
+      }
+      break;
+    }
+    if (stream.peek().getType() == tokens::TokenType::GREATER)
+      stream.advance();
   }
   if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
     stream.advance();  // consume 'extends'
@@ -782,14 +820,28 @@ Shared(ast::InterfaceDecl)
   interfaceDecl->location = interfaceLoc;
   interfaceDecl->body = std::make_shared<ast::BlockStmt>();
 
-  // Optional generic params after interface name: <...> (skip)
+  // Optional generic params after interface name: <T, U extends Base>
   if (stream.peek().getType() == tokens::TokenType::LESS) {
-    int depth = 0;
-    do {
-      if (stream.peek().getType() == tokens::TokenType::LESS) depth++;
-      if (stream.peek().getType() == tokens::TokenType::GREATER) depth--;
+    stream.advance();
+    while (!stream.isAtEnd() &&
+           stream.peek().getType() != tokens::TokenType::GREATER) {
+      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) break;
+      auto tp = std::make_shared<ast::TypeParam>();
+      tp->name = stream.peek();
+      tp->location = stream.peek().getLocation();
       stream.advance();
-    } while (!stream.isAtEnd() && depth > 0);
+      if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
+        stream.advance();
+        tp->constraint = TypeBuilder::build(stream);
+      }
+      interfaceDecl->typeParams.push_back(tp);
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+        continue;
+      }
+      break;
+    }
+    if (stream.peek().getType() == tokens::TokenType::GREATER) stream.advance();
   }
 
   // Optional: extends Interface { , Interface }

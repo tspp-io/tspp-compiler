@@ -53,6 +53,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::SmartPointerTypeNode&) override;
   void visit(ast::UnionTypeNode&) override;
   void visit(ast::TypeConstraintNode&) override;
+  void visit(ast::GenericTypeNode&) override;
+  void visit(ast::TypeParam&) override;
 
  private:
   llvm::LLVMContext context;

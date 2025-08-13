@@ -27,6 +27,14 @@ class ASTPrinterDecl : public ASTVisitor {
   // Declaration nodes
   void visit(FunctionDecl& node) override {
     printIndent();
+    printKey("typeParams");
+    std::cout << "[ ";
+    for (size_t i = 0; i < node.typeParams.size(); ++i) {
+      std::cout << '"' << node.typeParams[i]->name.getLexeme() << '"';
+      if (i + 1 < node.typeParams.size()) std::cout << ", ";
+    }
+    std::cout << " ],\n";
+    printIndent();
     std::cout << "{\n";
     ++indentLevel;
     printIndent();
@@ -153,6 +161,14 @@ class ASTPrinterDecl : public ASTVisitor {
   }
   void visit(ClassDecl& node) override {
     printIndent();
+    printKey("typeParams");
+    std::cout << "[ ";
+    for (size_t i = 0; i < node.typeParams.size(); ++i) {
+      std::cout << '"' << node.typeParams[i]->name.getLexeme() << '"';
+      if (i + 1 < node.typeParams.size()) std::cout << ", ";
+    }
+    std::cout << " ],\n";
+    printIndent();
     std::cout << "{\n";
     ++indentLevel;
     printIndent();
@@ -183,6 +199,14 @@ class ASTPrinterDecl : public ASTVisitor {
     std::cout << "}";
   }
   void visit(InterfaceDecl& node) override {
+    printIndent();
+    printKey("typeParams");
+    std::cout << "[ ";
+    for (size_t i = 0; i < node.typeParams.size(); ++i) {
+      std::cout << '"' << node.typeParams[i]->name.getLexeme() << '"';
+      if (i + 1 < node.typeParams.size()) std::cout << ", ";
+    }
+    std::cout << " ],\n";
     printIndent();
     std::cout << "{\n";
     ++indentLevel;
