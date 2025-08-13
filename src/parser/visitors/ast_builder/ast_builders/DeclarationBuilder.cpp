@@ -453,7 +453,8 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
 
     // Collect optional attribute-style modifiers before a member
     // - Storage qualifiers for fields: #static/#heap/#stack
-    // - Function modifiers for methods: #constexpr/#simd/#atomic/... (ignored if not a method)
+    // - Function modifiers for methods: #constexpr/#simd/#atomic/... (ignored
+    // if not a method)
     // - Generic attributes we don't recognize: skip safely
     ast::StorageQualifier memberStorage = ast::StorageQualifier::None;
     ast::FunctionModifier memberFuncMod = ast::FunctionModifier::None;
@@ -470,11 +471,13 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         continue;
       }
       if (t == tokens::TokenType::STATIC) {
-        // Could be a storage qualifier for a field, or a static initialization block
-        // Defer handling of static block below; for now, record storage and keep token consumed
+        // Could be a storage qualifier for a field, or a static initialization
+        // block Defer handling of static block below; for now, record storage
+        // and keep token consumed
         memberStorage = ast::StorageQualifier::Static;
         stream.advance();
-        // If immediately followed by a block, treat as a static initialization block
+        // If immediately followed by a block, treat as a static initialization
+        // block
         if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
           auto staticBody = StatementBuilder::buildBlock(stream);
           if (staticBody) {
@@ -515,7 +518,8 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         stream.advance();
         continue;
       }
-      // Unrecognized attribute tokens: skip them so syntax like #inline doesn't block parsing
+      // Unrecognized attribute tokens: skip them so syntax like #inline doesn't
+      // block parsing
       if (t == tokens::TokenType::ATTRIBUTE) {
         stream.advance();
         continue;
