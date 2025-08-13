@@ -51,6 +51,44 @@ inline const char* classModifierToString(ClassModifier mod) {
       return "Packed";
     case ClassModifier::Pinned:
       return "Pinned";
+    case ClassModifier::Final:
+      return "Final";
+    default:
+      return "None";
+  }
+}
+
+inline const char* methodAttributeToString(MethodAttribute a) {
+  switch (a) {
+    case MethodAttribute::None:
+      return "None";
+    case MethodAttribute::Inline:
+      return "Inline";
+    case MethodAttribute::Virtual:
+      return "Virtual";
+    case MethodAttribute::Override:
+      return "Override";
+    case MethodAttribute::Static:
+      return "Static";
+    case MethodAttribute::Abstract:
+      return "Abstract";
+    default:
+      return "None";
+  }
+}
+
+inline const char* fieldModifierToString(FieldModifier m) {
+  switch (m) {
+    case FieldModifier::None:
+      return "None";
+    case FieldModifier::Readonly:
+      return "Readonly";
+    case FieldModifier::Volatile:
+      return "Volatile";
+    case FieldModifier::Atomic:
+      return "Atomic";
+    case FieldModifier::Constexpr:
+      return "Constexpr";
     default:
       return "None";
   }

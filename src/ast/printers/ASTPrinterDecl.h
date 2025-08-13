@@ -40,6 +40,15 @@ class ASTPrinterDecl : public ASTVisitor {
     std::cout << "\"" << functionModifierToString(node.modifier) << "\","
               << "\n";
     printIndent();
+    printKey("methodAttributes");
+    std::cout << "[ ";
+    for (size_t i = 0; i < node.methodAttributes.size(); ++i) {
+      std::cout << '"' << methodAttributeToString(node.methodAttributes[i])
+                << '"';
+      if (i + 1 < node.methodAttributes.size()) std::cout << ", ";
+    }
+    std::cout << " ],\n";
+    printIndent();
     printKey("params");
     std::cout << "[\n";
     ++indentLevel;
@@ -91,6 +100,14 @@ class ASTPrinterDecl : public ASTVisitor {
     printKey("isConst");
     std::cout << (node.isConst ? "true" : "false");
     std::cout << ",\n";
+    printIndent();
+    printKey("fieldModifiers");
+    std::cout << "[ ";
+    for (size_t i = 0; i < node.fieldModifiers.size(); ++i) {
+      std::cout << '"' << fieldModifierToString(node.fieldModifiers[i]) << '"';
+      if (i + 1 < node.fieldModifiers.size()) std::cout << ", ";
+    }
+    std::cout << " ],\n";
     printIndent();
     printKey("typeNode");
     if (node.type) {

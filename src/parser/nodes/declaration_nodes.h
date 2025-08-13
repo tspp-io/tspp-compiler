@@ -20,7 +20,16 @@ enum class FunctionModifier {
   Atomic,
   Pinned
 };
-enum class ClassModifier { None, Packed, Abstract, Pinned };
+enum class MethodAttribute {
+  None,
+  Inline,
+  Virtual,
+  Override,
+  Static,
+  Abstract
+};
+enum class FieldModifier { None, Readonly, Volatile, Atomic, Constexpr };
+enum class ClassModifier { None, Packed, Abstract, Pinned, Final };
 // Access modifiers for class members (optional, may be ignored by backends)
 enum class AccessModifier { Default, Public, Private, Protected };
 
@@ -37,6 +46,8 @@ class VarDecl : public Stmt {
   bool isConst = false;  // true if 'const' keyword is used
   // Optional access modifier when declared inside a class
   AccessModifier access = AccessModifier::Default;
+  // Field-specific modifiers (e.g., #readonly, #volatile)
+  std::vector<FieldModifier> fieldModifiers;
   Shared(Expr) initializer;
   AST_ACCEPT_IMPL(VarDecl);
 };
@@ -51,6 +62,8 @@ class Parameter : public BaseNode {
 class FunctionDecl : public Decl {
  public:
   FunctionModifier modifier;
+  // Additional method attributes (inline/virtual/override)
+  std::vector<MethodAttribute> methodAttributes;
   tokens::Token name;
   std::vector<Shared(Parameter)> params;
   Shared(TypeNode) returnType;
@@ -73,7 +86,10 @@ class ConstructorDecl : public Decl {
 
 class ClassDecl : public Decl {
  public:
+  // Legacy single modifier (kept for backward compatibility)
   ClassModifier modifier;
+  // Full list of parsed class modifiers (e.g., #abstract #packed #final)
+  std::vector<ClassModifier> modifiers;
   tokens::Token name;
   tokens::Token baseClass;  // optional
   // Optional implemented interfaces (names only for now)

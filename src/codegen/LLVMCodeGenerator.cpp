@@ -71,7 +71,7 @@ llvm::Type* LLVMCodeGenerator::getLLVMType(const std::string& typeName) {
     return llvm::Type::getFloatTy(context);
   } else if (typeName == "double") {
     return llvm::Type::getDoubleTy(context);
-  } else if (typeName == "bool") {
+  } else if (typeName == "bool" || typeName == "boolean") {
     return llvm::Type::getInt1Ty(context);
   } else if (typeName == "string") {
     return llvm::PointerType::get(context, 0);
@@ -1173,14 +1173,35 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   // and push as first arg
   if (!isConsole) {
     if (auto member = dynamic_cast<MemberAccessExpr*>(node.callee.get())) {
-      // Evaluate object expression to get pointer
-      lastValue = nullptr;
-      member->object->accept(*this);
-      llvm::Value* objPtr = lastValue;
-      if (objPtr) {
-        // Methods expect i8* as first argument; bitcast if needed
-        objPtr = ensureBitcast(objPtr, getPointerTy());
-        args.push_back(objPtr);
+      bool passThis = true;
+      // Determine class and method name
+      std::string className;
+      if (auto objIdent = dynamic_cast<IdentifierExpr*>(member->object.get())) {
+        auto itSym = symbolTable.find(objIdent->name.getLexeme());
+        if (itSym != symbolTable.end()) className = itSym->second.typeName;
+        if (!className.empty() && className.back() == '*') className.pop_back();
+      } else if (dynamic_cast<ThisExpr*>(member->object.get())) {
+        if (!classNameStack.empty()) className = classNameStack.back();
+      }
+      if (!className.empty()) {
+        auto itCls = classes.find(className);
+        if (itCls != classes.end()) {
+          if (itCls->second.staticMethods.count(member->member.getLexeme()) >
+              0) {
+            passThis = false;
+          }
+        }
+      }
+      if (passThis) {
+        // Evaluate object expression to get pointer
+        lastValue = nullptr;
+        member->object->accept(*this);
+        llvm::Value* objPtr = lastValue;
+        if (objPtr) {
+          // Methods expect i8* as first argument; bitcast if needed
+          objPtr = ensureBitcast(objPtr, getPointerTy());
+          args.push_back(objPtr);
+        }
       }
     }
   }
@@ -1924,7 +1945,18 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     info.fieldTypes[f->name.getLexeme()] = fty;
     fieldTypesOrdered.push_back(fty);
   }
-  info.structTy->setBody(fieldTypesOrdered, /*isPacked*/ false);
+  // Use packed layout if class declared with #packed (either legacy single or
+  // in modifiers list)
+  bool isPacked = (node.modifier == ast::ClassModifier::Packed);
+  if (!isPacked) {
+    for (auto m : node.modifiers) {
+      if (m == ast::ClassModifier::Packed) {
+        isPacked = true;
+        break;
+      }
+    }
+  }
+  info.structTy->setBody(fieldTypesOrdered, /*isPacked*/ isPacked);
 
   // Emit methods and constructor
   classNameStack.push_back(className);
@@ -1941,8 +1973,18 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
       retName = semanticAnalyzer->resolveType(m->returnType.get());
       retTy = getLLVMType(retName);
     }
+    // Determine if method is static via attributes
+    bool isStatic = false;
+    for (auto a : m->methodAttributes) {
+      if (a == ast::MethodAttribute::Static) {
+        isStatic = true;
+        break;
+      }
+    }
     std::vector<llvm::Type*> argTys;
-    argTys.push_back(getPointerTy());
+    if (!isStatic) {
+      argTys.push_back(getPointerTy());
+    }
     for (auto& p : m->params) {
       std::string t = "int";
       if (semanticAnalyzer && p->type)
@@ -1955,6 +1997,29 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     if (!func)
       func = llvm::Function::Create(fnTy, llvm::Function::ExternalLinkage,
                                     fnName, module.get());
+    // Attach method attributes for reference
+    for (auto a : m->methodAttributes) {
+      switch (a) {
+        case ast::MethodAttribute::Inline:
+          func->addFnAttr("tspp.inline");
+          break;
+        case ast::MethodAttribute::Virtual:
+          func->addFnAttr("tspp.virtual");
+          break;
+        case ast::MethodAttribute::Override:
+          func->addFnAttr("tspp.override");
+          break;
+        case ast::MethodAttribute::Static:
+          info.staticMethods.insert(m->name.getLexeme());
+          func->addFnAttr("tspp.static");
+          break;
+        case ast::MethodAttribute::Abstract:
+          func->addFnAttr("tspp.abstract");
+          break;
+        default:
+          break;
+      }
+    }
     auto entry = llvm::BasicBlock::Create(context, "entry", func);
     builder->SetInsertPoint(entry);
     auto* prevFunction = currentFunction;
@@ -1963,19 +2028,20 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     unsigned idx = 0;
     for (auto& arg : func->args()) {
       std::string pname;
-      if (idx == 0)
+      if (!isStatic && idx == 0)
         pname = "this";
       else
-        pname = m->params[idx - 1]->name.getLexeme();
+        pname = m->params[isStatic ? idx : (idx - 1)]->name.getLexeme();
       arg.setName(pname);
       llvm::IRBuilder<> tmpBuilder(&entry->getParent()->getEntryBlock(),
                                    entry->getParent()->getEntryBlock().begin());
       llvm::Value* alloca =
           tmpBuilder.CreateAlloca(arg.getType(), nullptr, pname);
       builder->CreateStore(&arg, alloca);
-      symbolTable[pname] = SymbolInfo{
-          alloca, arg.getType(), true,
-          (idx == 0 ? std::string(className + "*") : std::string(""))};
+      symbolTable[pname] =
+          SymbolInfo{alloca, arg.getType(), true,
+                     (!isStatic && idx == 0) ? std::string(className + "*")
+                                             : std::string("")};
       idx++;
     }
     if (m->body) m->body->accept(*this);

@@ -100,6 +100,12 @@
 			"type": "shell",
 			"command": "./build.sh",
 			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
 		}
 	]
 }

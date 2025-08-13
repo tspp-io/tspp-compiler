@@ -77,12 +77,16 @@ const std::unordered_map<std::string, tokens::TokenType> &getKeywordMapImpl() {
       {"prefetch", tokens::TokenType::PREFETCH},
       {"atomic", tokens::TokenType::ATOMIC},
       {"pinned", tokens::TokenType::PINNED},
+      {"inline", tokens::TokenType::INLINE},
+      {"virtual", tokens::TokenType::VIRTUAL},
+      {"override", tokens::TokenType::OVERRIDE},
       // Pointer Type Modifiers
       {"unsafe", tokens::TokenType::UNSAFE},
       {"aligned", tokens::TokenType::ALIGNED},
       // Class Modifiers
       {"packed", tokens::TokenType::PACKED},
       {"abstract", tokens::TokenType::ABSTRACT},
+      {"final", tokens::TokenType::FINAL},
       // Other attributes/keywords
       {"attribute", tokens::TokenType::ATTRIBUTE},
       {"zerocast", tokens::TokenType::ZEROCAST},
@@ -201,6 +205,18 @@ tokens::Token IdentifierScanner::scanAttribute() {
     type = tokens::TokenType::ATOMIC;
   else if (attrName == "pinned")
     type = tokens::TokenType::PINNED;
+  // Method attributes
+  else if (attrName == "inline")
+    type = tokens::TokenType::INLINE;
+  else if (attrName == "virtual")
+    type = tokens::TokenType::VIRTUAL;
+  else if (attrName == "override")
+    type = tokens::TokenType::OVERRIDE;
+  // Field modifiers
+  else if (attrName == "readonly")
+    type = tokens::TokenType::READONLY;
+  else if (attrName == "volatile")
+    type = tokens::TokenType::VOLATILE;
 
   // Pointer Type Modifiers
   else if (attrName == "unsafe")
@@ -213,6 +229,8 @@ tokens::Token IdentifierScanner::scanAttribute() {
     type = tokens::TokenType::PACKED;
   else if (attrName == "abstract")
     type = tokens::TokenType::ABSTRACT;
+  else if (attrName == "final")
+    type = tokens::TokenType::FINAL;
 
   // Other recognized attributes
   else if (attrName == "asm") {
@@ -222,6 +240,8 @@ tokens::Token IdentifierScanner::scanAttribute() {
     type = tokens::TokenType::PACKED;
   else if (attrName == "abstract")
     type = tokens::TokenType::ABSTRACT;
+  else if (attrName == "final")
+    type = tokens::TokenType::FINAL;
 
   // Handle aligned attribute parameters if present
   if (peek() == '(') {

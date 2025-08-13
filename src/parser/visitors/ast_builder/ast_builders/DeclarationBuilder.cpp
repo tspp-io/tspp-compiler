@@ -71,21 +71,35 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
   }
 
   ast::ClassModifier classModifier = ast::ClassModifier::None;
-  switch (stream.peek().getType()) {
-    case tokens::TokenType::ABSTRACT:
-      classModifier = ast::ClassModifier::Abstract;
-      stream.advance();
-      break;
-    case tokens::TokenType::PACKED:
-      classModifier = ast::ClassModifier::Packed;
-      stream.advance();
-      break;
-    case tokens::TokenType::PINNED:
+  std::vector<ast::ClassModifier> classModifiers;
+  // Collect multiple leading class modifiers if present
+  bool seenAnyClassMod = false;
+  while (true) {
+    auto tt = stream.peek().getType();
+    ast::ClassModifier cm = ast::ClassModifier::None;
+    bool isClassMod = false;
+    if (tt == tokens::TokenType::ABSTRACT) {
+      cm = ast::ClassModifier::Abstract;
+      isClassMod = true;
+    } else if (tt == tokens::TokenType::PACKED) {
+      cm = ast::ClassModifier::Packed;
+      isClassMod = true;
+    } else if (tt == tokens::TokenType::PINNED) {
       if (stream.peekNext().getType() == tokens::TokenType::CLASS) {
-        classModifier = ast::ClassModifier::Pinned;
-        stream.advance();
+        cm = ast::ClassModifier::Pinned;
+        isClassMod = true;
       }
-      break;
+    } else if (tt == tokens::TokenType::FINAL) {
+      cm = ast::ClassModifier::Final;
+      isClassMod = true;
+    }
+    if (!isClassMod) break;
+    stream.advance();
+    seenAnyClassMod = true;
+    classModifiers.push_back(cm);
+  }
+  if (seenAnyClassMod && !classModifiers.empty()) {
+    classModifier = classModifiers.back();  // keep last as legacy single
   }
 
   switch (stream.peek().getType()) {
@@ -97,7 +111,7 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
       return buildVariable(stream, storageQualifier);
     case tokens::TokenType::CLASS: {
       // Support class declarations with optional prior class modifiers
-      return buildClass(stream, classModifier);
+      return buildClass(stream, classModifier, classModifiers);
     }
     case tokens::TokenType::INTERFACE:
       return buildInterface(stream);
@@ -334,7 +348,8 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
 }
 
 Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
-    tokens::TokenStream& stream, ast::ClassModifier modifier) {
+    tokens::TokenStream& stream, ast::ClassModifier modifier,
+    const std::vector<ast::ClassModifier>& modifiers) {
   // grammar rules for class declaration
   //       ## Classes and Interfaces
   // ```
@@ -413,6 +428,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
     }
   }
   classDecl->modifier = modifier;
+  classDecl->modifiers = modifiers;
   classDecl->name = className;
   classDecl->location = classLoc;
   classDecl->body = std::make_shared<ast::BlockStmt>();
@@ -453,13 +469,18 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
 
     // Collect optional attribute-style modifiers before a member
     // - Storage qualifiers for fields: #static/#heap/#stack
+    // - Field modifiers: #readonly/#volatile
     // - Function modifiers for methods: #constexpr/#simd/#atomic/... (ignored
-    // if not a method)
+    //   if not a method)
+    // - Method attributes: #inline/#virtual/#override (attach to methods)
     // - Generic attributes we don't recognize: skip safely
     ast::StorageQualifier memberStorage = ast::StorageQualifier::None;
     ast::FunctionModifier memberFuncMod = ast::FunctionModifier::None;
+    std::vector<ast::FieldModifier> collectedFieldMods;
+    std::vector<ast::MethodAttribute> collectedMethodAttrs;
     while (true) {
       auto t = stream.peek().getType();
+      // Storage qualifiers (fields only)
       if (t == tokens::TokenType::STACK) {
         memberStorage = ast::StorageQualifier::Stack;
         stream.advance();
@@ -470,22 +491,58 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         stream.advance();
         continue;
       }
+      // Handle 'static' carefully:
+      // - 'static' followed by '{' is a static initialization block
+      // - '#static' before a method should be treated as
+      // MethodAttribute::Static
+      // - '#static' before a field acts as StorageQualifier::Static
       if (t == tokens::TokenType::STATIC) {
-        // Could be a storage qualifier for a field, or a static initialization
-        // block Defer handling of static block below; for now, record storage
-        // and keep token consumed
-        memberStorage = ast::StorageQualifier::Static;
-        stream.advance();
-        // If immediately followed by a block, treat as a static initialization
-        // block
-        if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
+        // Lookahead to decide usage without consuming other tokens eagerly
+        auto nextT = stream.peekNext().getType();
+        if (nextT == tokens::TokenType::LEFT_BRACE) {
+          // static { ... }
+          stream.advance();  // consume 'static'
           auto staticBody = StatementBuilder::buildBlock(stream);
           if (staticBody) {
             classDecl->body->statements.push_back(staticBody);
-            // Static block is a standalone member; continue to next member
+            // Static block consumed fully; move to next member
             continue;  // continue outer while-loop
+          } else {
+            // recovery
+            continue;
           }
         }
+        if (nextT == tokens::TokenType::FUNCTION) {
+          // #static before a method: record as method attribute
+          collectedMethodAttrs.push_back(ast::MethodAttribute::Static);
+          stream.advance();  // consume 'static'
+          continue;
+        }
+        // Otherwise treat as storage qualifier for fields
+        memberStorage = ast::StorageQualifier::Static;
+        stream.advance();
+        continue;
+      }
+      // Field modifiers
+      if (tokens::isFieldModifier(t)) {
+        if (t == tokens::TokenType::READONLY)
+          collectedFieldMods.push_back(ast::FieldModifier::Readonly);
+        else if (t == tokens::TokenType::VOLATILE)
+          collectedFieldMods.push_back(ast::FieldModifier::Volatile);
+        stream.advance();
+        continue;
+      }
+      // Treat #atomic and #constexpr before a field as field modifiers too
+      if ((t == tokens::TokenType::ATOMIC ||
+           t == tokens::TokenType::CONSTEXPR) &&
+          (stream.peekNext().getType() == tokens::TokenType::LET ||
+           stream.peekNext().getType() == tokens::TokenType::CONST ||
+           stream.peekNext().getType() == tokens::TokenType::IDENTIFIER)) {
+        if (t == tokens::TokenType::ATOMIC)
+          collectedFieldMods.push_back(ast::FieldModifier::Atomic);
+        else
+          collectedFieldMods.push_back(ast::FieldModifier::Constexpr);
+        stream.advance();
         continue;
       }
       // Function modifiers before methods
@@ -518,6 +575,27 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         stream.advance();
         continue;
       }
+      // Method attributes
+      if (tokens::isMethodAttribute(t) || t == tokens::TokenType::ABSTRACT) {
+        switch (t) {
+          case tokens::TokenType::INLINE:
+            collectedMethodAttrs.push_back(ast::MethodAttribute::Inline);
+            break;
+          case tokens::TokenType::VIRTUAL:
+            collectedMethodAttrs.push_back(ast::MethodAttribute::Virtual);
+            break;
+          case tokens::TokenType::OVERRIDE:
+            collectedMethodAttrs.push_back(ast::MethodAttribute::Override);
+            break;
+          case tokens::TokenType::ABSTRACT:
+            collectedMethodAttrs.push_back(ast::MethodAttribute::Abstract);
+            break;
+          default:
+            break;
+        }
+        stream.advance();
+        continue;
+      }
       // Unrecognized attribute tokens: skip them so syntax like #inline doesn't
       // block parsing
       if (t == tokens::TokenType::ATTRIBUTE) {
@@ -533,6 +611,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       auto method = buildFunction(stream, memberFuncMod);
       if (method) {
         method->access = access;
+        method->methodAttributes = std::move(collectedMethodAttrs);
         classDecl->methods.push_back(method);
         continue;
       } else {
@@ -607,6 +686,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       if (fieldStmt) {
         if (auto var = std::dynamic_pointer_cast<ast::VarDecl>(fieldStmt)) {
           var->access = access;
+          var->fieldModifiers = std::move(collectedFieldMods);
           classDecl->fields.push_back(var);
         }
         classDecl->body->statements.push_back(fieldStmt);
@@ -648,6 +728,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       varDecl->qualifier = ast::StorageQualifier::None;
       varDecl->isConst = false;
       varDecl->access = access;
+      varDecl->fieldModifiers = std::move(collectedFieldMods);
       varDecl->location = fieldLoc;
 
       classDecl->fields.push_back(varDecl);

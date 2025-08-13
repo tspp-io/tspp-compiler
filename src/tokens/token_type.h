@@ -119,6 +119,23 @@ enum class TokenType {
   FUNC_MOD_END = PINNED,
 
   /*****************************************************************************
+   * Method attribute tokens (kept separate from FUNC_MOD range)
+   *****************************************************************************/
+  METHOD_ATTR_BEGIN,
+  INLINE = METHOD_ATTR_BEGIN,  // '#inline' method attribute
+  VIRTUAL,                     // '#virtual' method attribute
+  OVERRIDE,                    // '#override' method attribute
+  METHOD_ATTR_END = OVERRIDE,
+
+  /*****************************************************************************
+   * Field modifiers (attributes applied to fields)
+   *****************************************************************************/
+  FIELD_MOD_BEGIN,
+  READONLY = FIELD_MOD_BEGIN,  // '#readonly' field modifier
+  VOLATILE,                    // '#volatile' field modifier
+  FIELD_MOD_END = VOLATILE,
+
+  /*****************************************************************************
    * Attribute/Meta Tokens
    *****************************************************************************/
   ATTRIBUTE,  // '#' (generic attribute marker)
@@ -129,6 +146,7 @@ enum class TokenType {
   CLASS_MOD_BEGIN,
   PACKED = CLASS_MOD_BEGIN,  // '#packed' memory layout
   ABSTRACT,                  // '#abstract' class modifier
+  FINAL,                     // '#final' class modifier
   EXTENDS,                   // 'extends' inheritance
   IMPLEMENTS,                // 'implements' interface implementation
   CLASS_MOD_END = IMPLEMENTS,
@@ -422,6 +440,15 @@ inline bool isAccessModifier(TokenType type) {
 
 inline bool isFunctionModifier(TokenType type) {
   return type >= TokenType::FUNC_MOD_BEGIN && type <= TokenType::FUNC_MOD_END;
+}
+
+inline bool isMethodAttribute(TokenType type) {
+  return type >= TokenType::METHOD_ATTR_BEGIN &&
+         type <= TokenType::METHOD_ATTR_END;
+}
+
+inline bool isFieldModifier(TokenType type) {
+  return type >= TokenType::FIELD_MOD_BEGIN && type <= TokenType::FIELD_MOD_END;
 }
 
 inline bool isClassModifier(TokenType type) {

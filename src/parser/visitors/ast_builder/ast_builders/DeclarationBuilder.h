@@ -60,7 +60,8 @@ class DeclarationBuilder {
    */
   static Shared(ast::ClassDecl)
       buildClass(tokens::TokenStream& stream,
-                 ast::ClassModifier modifier = ast::ClassModifier::None);
+                 ast::ClassModifier modifier = ast::ClassModifier::None,
+                 const std::vector<ast::ClassModifier>& modifiers = {});
 
   /**
    * @brief Build interface declaration

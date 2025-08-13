@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "ConstantExpressionEvaluator.h"
 #include "parser/nodes/ast_visitor.h"
@@ -84,6 +85,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
     std::unordered_map<std::string, llvm::Type*>
         fieldTypes;  // field name -> LLVM type
     bool hasConstructor = false;
+    // Track static methods by simple name
+    std::unordered_set<std::string> staticMethods;
   };
   std::unordered_map<std::string, ClassInfo> classes;  // class name -> info
   std::vector<std::string>

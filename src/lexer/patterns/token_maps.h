@@ -56,10 +56,18 @@ class TokenMapUtils {
     return modifiers.count(type) > 0;
   }
 
+  static bool isMethodAttribute(tokens::TokenType type) {
+    static const std::unordered_set<tokens::TokenType> attrs = {
+        tokens::TokenType::INLINE, tokens::TokenType::VIRTUAL,
+        tokens::TokenType::OVERRIDE};
+    return attrs.count(type) > 0;
+  }
+
   static bool isClassModifier(tokens::TokenType type) {
     static const std::unordered_set<tokens::TokenType> modifiers = {
         tokens::TokenType::ALIGNED, tokens::TokenType::PACKED,
-        tokens::TokenType::ABSTRACT, tokens::TokenType::ZEROCAST};
+        tokens::TokenType::ABSTRACT, tokens::TokenType::ZEROCAST,
+        tokens::TokenType::FINAL};
     return modifiers.count(type) > 0;
   }
 
@@ -138,6 +146,8 @@ class TokenMapUtils {
       return "TypeModifier";
     } else if (isFunctionModifier(type)) {
       return "FunctionModifier";
+    } else if (isMethodAttribute(type)) {
+      return "MethodAttribute";
     } else if (isClassModifier(type)) {
       return "ClassModifier";
     } else if (isLiteral(type)) {

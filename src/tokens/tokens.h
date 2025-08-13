@@ -77,6 +77,12 @@ class Token {
   bool isOperator() const {
     return tokens::isOperator(type_);
   }
+  bool isMethodAttribute() const {
+    return tokens::isMethodAttribute(type_);
+  }
+  bool isFieldModifier() const {
+    return tokens::isFieldModifier(type_);
+  }
   bool isLiteral() const {
     return tokens::isLiteral(type_);
   }
