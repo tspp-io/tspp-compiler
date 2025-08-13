@@ -83,7 +83,8 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
       genNode->name = startTok;
       genNode->location = startTok.getLocation();
       // Parse one or more type arguments until '>'
-      while (!stream.isAtEnd() && stream.peek().getType() != tokens::TokenType::GREATER) {
+      while (!stream.isAtEnd() &&
+             stream.peek().getType() != tokens::TokenType::GREATER) {
         auto argTy = build(stream);
         if (argTy) genNode->typeArgs.push_back(argTy);
         if (stream.peek().getType() == tokens::TokenType::COMMA) {
@@ -107,8 +108,8 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
       resultType = ptrNode;
     }
 
-  // Check for union types: Type '|' Type { '|' Type }
-  if (stream.peek().getType() == tokens::TokenType::PIPE) {
+    // Check for union types: Type '|' Type { '|' Type }
+    if (stream.peek().getType() == tokens::TokenType::PIPE) {
       auto unionNode = std::make_shared<ast::UnionTypeNode>();
       unionNode->types.push_back(resultType);
       unionNode->location = resultType->location;

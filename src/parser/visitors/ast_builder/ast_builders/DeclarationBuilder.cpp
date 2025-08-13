@@ -418,8 +418,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       }
       break;
     }
-    if (stream.peek().getType() == tokens::TokenType::GREATER)
-      stream.advance();
+    if (stream.peek().getType() == tokens::TokenType::GREATER) stream.advance();
   }
   if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
     stream.advance();  // consume 'extends'
