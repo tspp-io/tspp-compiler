@@ -83,6 +83,27 @@ class ASTPrinterStmt : public ASTVisitor {
     }
   }
 
+  void visit(StaticBlockStmt& node) override {
+    printIndent();
+    std::cout << "{\n";
+    ++indentLevel;
+    printIndent();
+    printKey("type");
+    printType("StaticBlockStmt");
+    std::cout << ",\n";
+    printIndent();
+    printKey("body");
+    if (node.body) {
+      node.body->accept(*this);
+      std::cout << "\n";
+    } else {
+      std::cout << "null\n";
+    }
+    --indentLevel;
+    printIndent();
+    std::cout << "}";
+  }
+
   // Helper for decl printer to print block inline
   void visitInline(BlockStmt& node) {
     bool prev = inlineBlock;

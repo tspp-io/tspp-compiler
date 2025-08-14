@@ -41,12 +41,14 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
       continue;
     }
 
-    // Handle declarations (functions, classes, etc.)
+    // Handle declarations (functions, classes, imports via main switch, etc.)
     if (isDeclarationStart()) {
       auto node = DeclarationBuilder::build(stream_);
       if (node) {
         node->location = stream_.peek().getLocation();
-        if (auto asDecl = std::dynamic_pointer_cast<ast::Decl>(node)) {
+        if (auto asImport = std::dynamic_pointer_cast<ast::ImportDecl>(node)) {
+          program.imports.push_back(asImport);
+        } else if (auto asDecl = std::dynamic_pointer_cast<ast::Decl>(node)) {
           program.declarations.push_back(asDecl);
         } else if (auto asStmt = std::dynamic_pointer_cast<ast::Stmt>(node)) {
           program.statements.push_back(asStmt);
@@ -100,6 +102,7 @@ bool ASTBuilderVisitor::isDeclarationStart() const {
     case tokens::TokenType::CLASS:
     case tokens::TokenType::INTERFACE:
     case tokens::TokenType::TYPEDEF:
+    case tokens::TokenType::IMPORT:
     case tokens::TokenType::ENUM:
     case tokens::TokenType::NAMESPACE:
     case tokens::TokenType::STACK:

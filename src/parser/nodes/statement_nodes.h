@@ -17,6 +17,13 @@ class BlockStmt : public Stmt {
   AST_ACCEPT_IMPL(BlockStmt);
 };
 
+// Represents a 'static { ... }' block inside a class body
+class StaticBlockStmt : public Stmt {
+ public:
+  Shared(BlockStmt) body;  // actual block of statements executed statically
+  AST_ACCEPT_IMPL(StaticBlockStmt);
+};
+
 class ExprStmt : public Stmt {
  public:
   Shared(Expr) expression;

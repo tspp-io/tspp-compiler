@@ -103,6 +103,9 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
   }
 
   switch (stream.peek().getType()) {
+    case tokens::TokenType::IMPORT: {
+      return buildImport(stream);
+    }
     case tokens::TokenType::FUNCTION: {
       return buildFunction(stream, functionModifier);
     }
@@ -541,7 +544,12 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
           stream.advance();  // consume 'static'
           auto staticBody = StatementBuilder::buildBlock(stream);
           if (staticBody) {
-            classDecl->body->statements.push_back(staticBody);
+            // Wrap into StaticBlockStmt node and attach to class
+            auto staticNode = std::make_shared<ast::StaticBlockStmt>();
+            staticNode->body = staticBody;
+            classDecl->staticBlocks.push_back(staticNode);
+            // Also keep in legacy body for backward compatibility
+            classDecl->body->statements.push_back(staticNode);
             // Static block consumed fully; move to next member
             continue;  // continue outer while-loop
           } else {

@@ -112,6 +112,8 @@ class ClassDecl : public Decl {
   std::vector<Shared(VarDecl)> fields;
   std::vector<Shared(FunctionDecl)> methods;
   Shared(ConstructorDecl) constructor;  // optional
+  // Optional list of explicit static blocks: 'static { ... }'
+  std::vector<Shared(StaticBlockStmt)> staticBlocks;
   AST_ACCEPT_IMPL(ClassDecl);
 };
 

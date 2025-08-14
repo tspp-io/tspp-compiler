@@ -17,6 +17,7 @@ class AssignmentExpr;
 class CallExpr;
 class MemberAccessExpr;
 class BlockStmt;
+class StaticBlockStmt;
 class ExprStmt;
 class IfStmt;
 class WhileStmt;
@@ -62,6 +63,7 @@ class ASTVisitor {
   virtual void visit(CallExpr&) {}
   virtual void visit(MemberAccessExpr&) {}
   virtual void visit(BlockStmt&) {}
+  virtual void visit(StaticBlockStmt&) {}
   virtual void visit(ExprStmt&) {}
   virtual void visit(IfStmt&) {}
   virtual void visit(WhileStmt&) {}

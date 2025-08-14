@@ -20,23 +20,8 @@ Shared(ProgramNode) buildAST(const std::vector<Token>& tokens) {
   auto program = std::make_shared<ProgramNode>();
   ASTBuilderVisitor visitor(stream);
   visitor.visit(*program);
-  // const auto& errors = visitor.getErrors();
-  // if (!errors.empty()) {
-  //   for (const auto& error : errors) {
-  //     std::cerr << "AST build error: " << error << std::endl;
-  //   }
-  //   return nullptr;  // Return null if there are build errors
-  // }
-  SemanticAnalyzerVisitor semanticVisitor;
-  program->accept(semanticVisitor);
-  const auto& errors = semanticVisitor.getErrors();
-  if (!errors.empty()) {
-    for (const auto& error : errors) {
-      std::cerr << "Semantic error: " << error << std::endl;
-    }
-    return nullptr;  // Return null if there are semantic errors
-  }
-  // If no semantic errors, return the built AST
+  // Note: semantic analysis is handled by the compiler driver (main.cpp).
+  // Always return the raw AST here so callers can decide when/how to analyze.
   return program;
 }
 
