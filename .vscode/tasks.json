@@ -106,6 +106,38 @@
 			"type": "shell",
 			"command": "./build.sh",
 			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
+		},
+		{
+			"label": "Run for-var-decl test",
+			"type": "shell",
+			"command": "./test.sh",
+			"args": [
+				"tests/loops/for_var_decl.tspp"
+			]
 		}
 	]
 }
