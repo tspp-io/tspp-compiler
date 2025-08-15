@@ -96,6 +96,11 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
 }
 
 bool ASTBuilderVisitor::isDeclarationStart() const {
+  // Special-case: support 'type' keyword spelled as identifier
+  if (stream_.peek().getType() == tokens::TokenType::IDENTIFIER &&
+      stream_.peek().getLexeme() == std::string("type")) {
+    return true;
+  }
   switch (stream_.peek().getType()) {
     case tokens::TokenType::CONST_FUNCTION:
     case tokens::TokenType::FUNCTION:

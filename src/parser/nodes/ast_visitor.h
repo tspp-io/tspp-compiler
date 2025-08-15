@@ -16,6 +16,7 @@ class IdentifierExpr;
 class AssignmentExpr;
 class CallExpr;
 class MemberAccessExpr;
+class ObjectLiteralExpr;
 class BlockStmt;
 class StaticBlockStmt;
 class ExprStmt;
@@ -35,6 +36,8 @@ class BasicTypeNode;
 class PointerTypeNode;
 class SmartPointerTypeNode;
 class UnionTypeNode;
+class IntersectionTypeNode;
+class ObjectTypeNode;
 class TypeConstraintNode;
 class GenericTypeNode;
 class TypeParam;
@@ -62,6 +65,7 @@ class ASTVisitor {
   virtual void visit(AssignmentExpr&) {}
   virtual void visit(CallExpr&) {}
   virtual void visit(MemberAccessExpr&) {}
+  virtual void visit(ObjectLiteralExpr&) {}
   virtual void visit(BlockStmt&) {}
   virtual void visit(StaticBlockStmt&) {}
   virtual void visit(ExprStmt&) {}
@@ -81,6 +85,8 @@ class ASTVisitor {
   virtual void visit(PointerTypeNode&) {}
   virtual void visit(SmartPointerTypeNode&) {}
   virtual void visit(UnionTypeNode&) {}
+  virtual void visit(IntersectionTypeNode&) {}
+  virtual void visit(ObjectTypeNode&) {}
   virtual void visit(TypeConstraintNode&) {}
   virtual void visit(GenericTypeNode&) {}
   virtual void visit(TypeParam&) {}

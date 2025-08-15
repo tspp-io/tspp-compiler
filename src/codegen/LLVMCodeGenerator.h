@@ -37,8 +37,10 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::BlockStmt&) override;
   void visit(ast::CallExpr&) override;
   void visit(ast::MemberAccessExpr&) override;
+  void visit(ast::ObjectLiteralExpr&) override;
   void visit(ast::ThisExpr&) override;
   void visit(ast::NewExpr&) override;
+  void visit(ast::NullExpr&) override;
   void visit(ast::IfStmt&) override;
   void visit(ast::WhileStmt&) override;
   void visit(ast::ForStmt&) override;
@@ -52,6 +54,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::PointerTypeNode&) override;
   void visit(ast::SmartPointerTypeNode&) override;
   void visit(ast::UnionTypeNode&) override;
+  void visit(ast::IntersectionTypeNode&) override;
+  void visit(ast::ObjectTypeNode&) override;
   void visit(ast::TypeConstraintNode&) override;
   void visit(ast::GenericTypeNode&) override;
   void visit(ast::TypeParam&) override;

@@ -260,6 +260,18 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     // Use semantic analyzer to resolve the type
     resolvedTypeName = semanticAnalyzer->resolveType(node.type.get());
     llvmType = getLLVMType(resolvedTypeName);
+    // If declared type is a union (semantic resolves to first branch), but we
+    // have an initializer with a different primitive kind, prefer the
+    // initializer's type to avoid lossy casts (e.g., int|float = 5.5)
+    if (initValEarly && llvmType &&
+        (initValEarly->getType()->isFloatingPointTy() !=
+         llvmType->isFloatingPointTy())) {
+      if (initValEarly->getType()->isFloatingPointTy()) {
+        llvmType = initValEarly->getType();
+        resolvedTypeName = llvmType->isDoubleTy() ? std::string("double")
+                                                  : std::string("float");
+      }
+    }
     // If the initializer was a pointer but semantic said non-pointer, trust the
     // initializer and treat as pointer to avoid bad allocas/stores.
     if (initValEarly && initValEarly->getType()->isPointerTy() &&
@@ -398,6 +410,18 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
         (node.qualifier == ast::StorageQualifier::Static)
             ? llvm::GlobalValue::InternalLinkage
             : llvm::GlobalValue::ExternalLinkage;
+    // If we managed to evaluate a constant but its type doesn't match the
+    // global type (e.g., float const for an int global), coerce it.
+    if (init) {
+      if (auto* cfp = llvm::dyn_cast<llvm::ConstantFP>(init)) {
+        if (llvmType->isIntegerTy()) {
+          // Truncate toward zero by casting through double->i32 conservatively
+          double d = cfp->getValueAPF().convertToDouble();
+          long long iv = static_cast<long long>(d);
+          init = llvm::ConstantInt::get(llvmType, iv);
+        }
+      }
+    }
     auto* gvar = new llvm::GlobalVariable(*module, llvmType, false, linkage,
                                           init, node.name.getLexeme());
     symbolTable[node.name.getLexeme()] =
@@ -462,6 +486,21 @@ void LLVMCodeGenerator::visit(LiteralExpr& node) {
     int intVal = std::stoi(val);
     lastValue = llvm::ConstantInt::get(context, llvm::APInt(32, intVal));
   }
+}
+
+// Visit NullExpr: produce a null pointer (i8*) that can stand in for 'null'
+void LLVMCodeGenerator::visit(ast::NullExpr& node) {
+  (void)node;
+  lastValue =
+      llvm::ConstantPointerNull::get(llvm::PointerType::get(context, 0));
+}
+
+// Visit ObjectLiteralExpr: placeholder lowering to null until runtime exists
+void LLVMCodeGenerator::visit(ast::ObjectLiteralExpr& node) {
+  (void)node;
+  // TODO: implement runtime object allocation/map; for now return null
+  lastValue =
+      llvm::ConstantPointerNull::get(llvm::PointerType::get(context, 0));
 }
 
 // Visit IdentifierExpr: load variable
@@ -1305,29 +1344,7 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
           needsFree = true;
         }
       }
-      // If semantic type is string (or literal) and we haven't already wrapped
-      // quotes, add them
-      if (!args.empty()) {
-        // Determine if original arg was a string literal or semantic string
-      }
-      if (!semanticTypeName.empty() && semanticTypeName == "string") {
-        // Prepend and append quotes by concatenating
-        auto makeLiteral = [&](const std::string& s) -> llvm::Value* {
-          return builder->CreateGlobalStringPtr(s, "", 0, module.get());
-        };
-        auto concatTy =
-            llvm::FunctionType::get(llvm::PointerType::get(context, 0),
-                                    {llvm::PointerType::get(context, 0),
-                                     llvm::PointerType::get(context, 0)},
-                                    false);
-        auto concatFn =
-            module->getOrInsertFunction("tspp_string_concat", concatTy);
-        llvm::Value* quote = makeLiteral("\"");
-        llvm::Value* tmp = builder->CreateCall(concatFn, {quote, v});
-        v = builder->CreateCall(concatFn, {tmp, quote});
-        // Result allocated via GC; original v may need free if we converted it
-        // earlier We only free original if we flagged it
-      }
+      // For console logging, print string arguments as-is without extra quotes
     }
     args.push_back(v);
     argWithFree.push_back({v, needsFree});
@@ -1409,7 +1426,26 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
         args.push_back(emptyStr);
       }
     }
-    builder->CreateCall(logFunc, args);
+    // Concatenate all arguments into a single string
+    llvm::Value* finalMsg = nullptr;
+    if (args.size() == 1) {
+      finalMsg = args[0];
+    } else {
+      auto concatTy =
+          llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                                  {llvm::PointerType::get(context, 0),
+                                   llvm::PointerType::get(context, 0)},
+                                  false);
+      auto concatFn =
+          module->getOrInsertFunction("tspp_string_concat", concatTy);
+      // Start from first arg, then append each subsequent arg
+      finalMsg = args[0];
+      for (size_t i = 1; i < args.size(); ++i) {
+        finalMsg = builder->CreateCall(concatFn, {finalMsg, args[i]});
+      }
+    }
+    // Ensure we always pass exactly one argument to the runtime logger
+    builder->CreateCall(logFunc, {finalMsg});
     // Now free any heap-allocated strings
     auto freeType =
         llvm::FunctionType::get(llvm::Type::getVoidTy(context),
@@ -1863,6 +1899,16 @@ void LLVMCodeGenerator::visit(ast::GenericTypeNode& node) {
 
 void LLVMCodeGenerator::visit(ast::TypeParam& node) {
   // Type parameters have no runtime representation in current codegen
+}
+
+void LLVMCodeGenerator::visit(ast::IntersectionTypeNode& node) {
+  // For now, no runtime representation distinct from first member type
+  if (!node.types.empty()) node.types[0]->accept(*this);
+}
+
+void LLVMCodeGenerator::visit(ast::ObjectTypeNode& node) {
+  // Object type literals have no runtime type; treat as string-friendly
+  (void)node;
 }
 
 void LLVMCodeGenerator::visit(ast::ConstructorDecl& node) {

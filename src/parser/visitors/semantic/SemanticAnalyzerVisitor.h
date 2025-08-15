@@ -22,6 +22,7 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void visit(BinaryExpr&) override;
   void visit(UnaryExpr&) override;
   void visit(LiteralExpr&) override;
+  void visit(ObjectLiteralExpr&) override;
   void visit(IdentifierExpr&) override;
   void visit(AssignmentExpr&) override;
   void visit(CallExpr&) override;
@@ -44,6 +45,8 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void visit(PointerTypeNode&) override;
   void visit(SmartPointerTypeNode&) override;
   void visit(UnionTypeNode&) override;
+  void visit(IntersectionTypeNode&) override;
+  void visit(ObjectTypeNode&) override;
   void visit(TypeConstraintNode&) override;
   void visit(ProgramNode&) override;
   void visit(ModifierNode&) override;

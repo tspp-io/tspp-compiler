@@ -44,7 +44,18 @@ void ConstantExpressionEvaluator::visit(LiteralExpr& node) {
       result = std::make_unique<ConstantValue>(false);
       evaluationSucceeded = true;
     } else if (type == TokenType::STRING_LITERAL) {
-      result = std::make_unique<ConstantValue>(lexeme);
+      // Strip surrounding quotes and handle simple escapes to match codegen
+      std::string val = lexeme;
+      if (val.size() >= 2 && (val.front() == '"' && val.back() == '"')) {
+        val = val.substr(1, val.size() - 2);
+      }
+      // Basic unescape for \" -> "
+      size_t pos = 0;
+      while ((pos = val.find("\\\"", pos)) != std::string::npos) {
+        val.replace(pos, 2, "\"");
+        pos += 1;
+      }
+      result = std::make_unique<ConstantValue>(val);
       evaluationSucceeded = true;
     } else if (type == TokenType::NULL_VALUE) {
       result = std::make_unique<ConstantValue>(ConstantValue::nullPtr());

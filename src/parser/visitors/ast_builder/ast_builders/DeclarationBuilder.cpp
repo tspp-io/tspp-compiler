@@ -102,9 +102,61 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
     classModifier = classModifiers.back();  // keep last as legacy single
   }
 
+  // Support 'type' keyword spelled as identifier for type aliases
+  if (stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
+      stream.peek().getLexeme() == std::string("type")) {
+    // consume 'type'
+    stream.advance();
+    // Expect alias name
+    if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
+      stream.advance();
+      return nullptr;
+    }
+    tokens::Token typeName = stream.peek();
+    auto typeLoc = typeName.getLocation();
+    stream.advance();
+    // Optional generic params: < T [, U ...] [extends Type] > (skip structure)
+    if (stream.peek().getType() == tokens::TokenType::LESS) {
+      int depth = 0;
+      do {
+        if (stream.peek().getType() == tokens::TokenType::LESS) depth++;
+        if (stream.peek().getType() == tokens::TokenType::GREATER) depth--;
+        stream.advance();
+      } while (!stream.isAtEnd() && depth > 0);
+    }
+    // Expect '='
+    if (stream.peek().getType() != tokens::TokenType::EQUALS) {
+      stream.advance();
+      return nullptr;
+    }
+    stream.advance();
+    auto aliased = TypeBuilder::build(stream);
+    if (!aliased) {
+      stream.advance();
+      return nullptr;
+    }
+    // Optional ';'
+    if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+      stream.advance();
+    }
+    auto typeDefDecl = std::make_shared<ast::TypeAliasDecl>();
+    typeDefDecl->name = typeName;
+    typeDefDecl->aliasedType = aliased;
+    typeDefDecl->location = typeLoc;
+    return typeDefDecl;
+  }
+
   switch (stream.peek().getType()) {
     case tokens::TokenType::IMPORT: {
       return buildImport(stream);
+    }
+    // Support 'type' aliases written with the 'type' keyword (tokenized as
+    // IDENTIFIER)
+    case tokens::TokenType::IDENTIFIER: {
+      if (stream.peek().getLexeme() == std::string("type")) {
+        return buildTypeDef(stream);
+      }
+      break;  // fall through to default handling below
     }
     case tokens::TokenType::FUNCTION: {
       return buildFunction(stream, functionModifier);
@@ -127,10 +179,14 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
 
 Shared(ast::TypeAliasDecl)
     DeclarationBuilder::buildTypeDef(tokens::TokenStream& stream) {
-  if (stream.peek().getType() != tokens::TokenType::TYPEDEF) {
+  // Accept either 'typedef' token or identifier 'type' as the alias keyword
+  if (stream.peek().getType() == tokens::TokenType::TYPEDEF ||
+      (stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
+       stream.peek().getLexeme() == std::string("type"))) {
+    stream.advance();  // consume keyword
+  } else {
     return nullptr;
   }
-  stream.advance();  // consume 'typedef'
 
   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
     stream.advance();  // Skip faulty token
@@ -139,6 +195,16 @@ Shared(ast::TypeAliasDecl)
   tokens::Token typeName = stream.peek();
   auto typeLoc = stream.peek().getLocation();
   stream.advance();  // consume identifier
+
+  // Optional generic params after alias name, skip them: <...>
+  if (stream.peek().getType() == tokens::TokenType::LESS) {
+    int depth = 0;
+    do {
+      if (stream.peek().getType() == tokens::TokenType::LESS) depth++;
+      if (stream.peek().getType() == tokens::TokenType::GREATER) depth--;
+      stream.advance();
+    } while (!stream.isAtEnd() && depth > 0);
+  }
 
   if (stream.peek().getType() != tokens::TokenType::EQUALS) {
     stream.advance();  // Skip faulty token

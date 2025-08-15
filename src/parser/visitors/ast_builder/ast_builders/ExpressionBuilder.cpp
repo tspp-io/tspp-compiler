@@ -20,6 +20,68 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
   auto type = stream.peek().getType();
 
   switch (type) {
+    // Handle object literals: { key: value, ... }
+    case tokens::TokenType::LEFT_BRACE: {
+      auto startTok = stream.peek();
+      stream.advance();  // consume '{'
+      auto obj = std::make_shared<ast::ObjectLiteralExpr>();
+      obj->location = startTok.getLocation();
+
+      // Empty object literal
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
+        stream.advance();  // '}'
+        return obj;
+      }
+
+      // Parse fields
+      while (!stream.isAtEnd() &&
+             stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
+        // Key can be identifier, string literal, or number
+        auto keyTok = stream.peek();
+        auto kt = keyTok.getType();
+        if (kt != tokens::TokenType::IDENTIFIER &&
+            kt != tokens::TokenType::STRING_LITERAL &&
+            kt != tokens::TokenType::NUMBER) {
+          // Malformed; bail out gracefully by skipping until '}'
+          while (!stream.isAtEnd() &&
+                 stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
+            stream.advance();
+          }
+          if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE)
+            stream.advance();
+          return obj;
+        }
+        stream.advance();  // consume key
+        // Expect ':'
+        if (stream.peek().getType() == tokens::TokenType::COLON) {
+          stream.advance();
+        }
+        // Parse value expression
+        auto val = build(stream);
+        ast::ObjectLiteralExpr::Field f{keyTok, val};
+        obj->fields.push_back(f);
+        // Comma between fields
+        if (stream.peek().getType() == tokens::TokenType::COMMA) {
+          stream.advance();
+          continue;
+        } else {
+          break;
+        }
+      }
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
+        stream.advance();
+      }
+      return obj;
+    }
+    // Handle null literal
+    case tokens::TokenType::NULL_VALUE: {
+      auto tok = stream.peek();
+      stream.advance();
+      auto n = std::make_shared<ast::NullExpr>();
+      n->nullToken = tok;
+      n->location = tok.getLocation();
+      return n;
+    }
     // Handle 'new' operator: new ClassName(args)
     case tokens::TokenType::NEW: {
       auto newTok = stream.peek();
@@ -191,6 +253,24 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
       expr->right = right;
       expr->location = op.getLocation();
       left = expr;
+    }
+  }
+  // Postfix type assertion: '<expr> as any' -> ignore and return left
+  if (!stream.isAtEnd() &&
+      stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
+      stream.peek().getLexeme() == std::string("as")) {
+    // Lookahead for 'any'
+    // consume 'as'
+    stream.advance();
+    if (!stream.isAtEnd() &&
+        stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
+        stream.peek().getLexeme() == std::string("any")) {
+      stream.advance();
+      // no-op cast to any
+      return left;
+    } else {
+      // Not 'any' - we don't support full type assertions yet; ignore
+      return left;
     }
   }
   return left;

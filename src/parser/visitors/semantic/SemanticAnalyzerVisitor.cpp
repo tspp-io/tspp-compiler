@@ -71,8 +71,27 @@ std::string SemanticAnalyzerVisitor::resolveType(TypeNode* type) {
   // Handle UnionTypeNode (for now, just return first type)
   if (auto* union_type = dynamic_cast<UnionTypeNode*>(type)) {
     if (!union_type->types.empty()) {
-      return resolveType(union_type->types[0].get());
+      // Prefer first non-empty type; if includes string, treat as string
+      for (auto& ty : union_type->types) {
+        auto n = resolveType(ty.get());
+        if (n == "string") return n;
+        if (!n.empty()) return n;
+      }
     }
+  }
+
+  // Handle IntersectionTypeNode: return the first constituent type
+  if (auto* inter = dynamic_cast<IntersectionTypeNode*>(type)) {
+    if (!inter->types.empty()) {
+      return resolveType(inter->types[0].get());
+    }
+  }
+
+  // Handle ObjectTypeNode: treat as string for logging and generic pointer at
+  // runtime
+  if (auto* obj = dynamic_cast<ObjectTypeNode*>(type)) {
+    (void)obj;
+    return "string";  // printable representation
   }
 
   // Fallback for other types
@@ -101,6 +120,13 @@ void SemanticAnalyzerVisitor::visit(UnaryExpr& node) {
 
 void SemanticAnalyzerVisitor::visit(LiteralExpr&) {
   // Literals are always valid
+}
+
+void SemanticAnalyzerVisitor::visit(ObjectLiteralExpr& node) {
+  // Validate values but don't treat keys as identifiers
+  for (auto& f : node.fields) {
+    if (f.value) f.value->accept(*this);
+  }
 }
 
 void SemanticAnalyzerVisitor::visit(MemberAccessExpr& node) {
@@ -222,6 +248,8 @@ void SemanticAnalyzerVisitor::visit(BasicTypeNode&) {}
 void SemanticAnalyzerVisitor::visit(PointerTypeNode&) {}
 void SemanticAnalyzerVisitor::visit(SmartPointerTypeNode&) {}
 void SemanticAnalyzerVisitor::visit(UnionTypeNode&) {}
+void SemanticAnalyzerVisitor::visit(IntersectionTypeNode&) {}
+void SemanticAnalyzerVisitor::visit(ObjectTypeNode&) {}
 void SemanticAnalyzerVisitor::visit(TypeConstraintNode&) {}
 
 void SemanticAnalyzerVisitor::visit(ModifierNode&) {}

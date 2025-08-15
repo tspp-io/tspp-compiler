@@ -39,6 +39,24 @@ class UnionTypeNode : public TypeNode {
   AST_ACCEPT_IMPL(UnionTypeNode);
 };
 
+// Intersection type: A & B & C
+class IntersectionTypeNode : public TypeNode {
+ public:
+  std::vector<Shared(TypeNode)> types;
+  AST_ACCEPT_IMPL(IntersectionTypeNode);
+};
+
+// Object type literal: { key: Type; ... }
+class ObjectTypeNode : public TypeNode {
+ public:
+  struct Field {
+    tokens::Token key;           // identifier key
+    Shared(TypeNode) fieldType;  // type annotation
+  };
+  std::vector<Field> fields;
+  AST_ACCEPT_IMPL(ObjectTypeNode);
+};
+
 class TypeConstraintNode : public TypeNode {
  public:
   Shared(TypeNode) base;

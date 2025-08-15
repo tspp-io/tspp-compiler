@@ -61,6 +61,17 @@ class MemberAccessExpr : public Expr {
   AST_ACCEPT_IMPL(MemberAccessExpr);
 };
 
+// Object literal expression: { key: value, ... }
+class ObjectLiteralExpr : public Expr {
+ public:
+  struct Field {
+    tokens::Token key;   // identifier, string, or number token
+    Shared(Expr) value;  // expression for the value
+  };
+  std::vector<Field> fields;
+  AST_ACCEPT_IMPL(ObjectLiteralExpr);
+};
+
 #undef AST_ACCEPT_IMPL
 
 }  // namespace ast

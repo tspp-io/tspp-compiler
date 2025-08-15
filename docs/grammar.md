@@ -68,7 +68,7 @@ FieldSignature     ::= Identifier ':' Type ';'
 
 /* ---------- Type Aliases ---------- */
 /* Prefer TS-style keyword */
-TypeAliasDecl      ::= 'type' Identifier '=' Type ';'
+TypeAliasDecl      ::= 'typedef' Identifier '=' Type ';'
 
 /* ---------- Statements ---------- */
 Statement          ::= Block | ExpressionStatement | IfStatement | WhileStatement | ForStatement | ReturnStatement
