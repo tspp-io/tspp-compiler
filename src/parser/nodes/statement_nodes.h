@@ -47,7 +47,9 @@ class WhileStmt : public Stmt {
 
 class ForStmt : public Stmt {
  public:
-  Shared(Expr) init;
+  // Initializer can be either a declaration (VarDecl) or an expression
+  // wrapped in an ExprStmt. Use Stmt to cover both cases.
+  Shared(Stmt) init;
   Shared(Expr) condition;
   Shared(Expr) increment;
   Shared(Stmt) body;

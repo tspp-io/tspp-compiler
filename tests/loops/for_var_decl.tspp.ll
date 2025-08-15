@@ -13,15 +13,22 @@ entry:
 
 define i32 @main() {
 entry:
+  %i = alloca i32, align 4
+  store i32 0, ptr %i, align 4
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
-  br label %for.end
+  %0 = load i32, ptr %i, align 4
+  %icmpolt = icmp slt i32 %0, 3
+  br i1 %icmpolt, label %for.body, label %for.end
 
-for.body:                                         ; No predecessors!
+for.body:                                         ; preds = %for.cond
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
+  %1 = load i32, ptr %i, align 4
+  %addtmp = add i32 %1, 1
+  store i32 %addtmp, ptr %i, align 4
   br label %for.cond
 
 for.end:                                          ; preds = %for.cond

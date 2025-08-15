@@ -46,13 +46,30 @@ source_filename = "tspp_module"
 @21 = private unnamed_addr constant [4 x i8] c"r: \00", align 1
 @22 = private unnamed_addr constant [4 x i8] c"s: \00", align 1
 @23 = private unnamed_addr constant [4 x i8] c"t: \00", align 1
+@24 = private unnamed_addr constant [3 x i8] c"{ \00", align 1
+@25 = private unnamed_addr constant [2 x i8] c"x\00", align 1
+@26 = private unnamed_addr constant [3 x i8] c": \00", align 1
+@27 = private unnamed_addr constant [3 x i8] c", \00", align 1
+@28 = private unnamed_addr constant [2 x i8] c"y\00", align 1
+@29 = private unnamed_addr constant [3 x i8] c": \00", align 1
+@30 = private unnamed_addr constant [3 x i8] c" }\00", align 1
 
 declare void @GC_init()
 
 define internal void @__tspp_gc_ctor() {
 entry:
   call void @GC_init()
-  store ptr null, ptr @r, align 8
+  %0 = call ptr @tspp_string_concat(ptr @24, ptr @25)
+  %1 = call ptr @tspp_string_concat(ptr %0, ptr @26)
+  %2 = call ptr @tspp_float_to_string(float 0x3FF19999A0000000)
+  %3 = call ptr @tspp_string_concat(ptr %1, ptr %2)
+  %4 = call ptr @tspp_string_concat(ptr %3, ptr @27)
+  %5 = call ptr @tspp_string_concat(ptr %4, ptr @28)
+  %6 = call ptr @tspp_string_concat(ptr %5, ptr @29)
+  %7 = call ptr @tspp_float_to_string(float 0x40019999A0000000)
+  %8 = call ptr @tspp_string_concat(ptr %6, ptr %7)
+  %9 = call ptr @tspp_string_concat(ptr %8, ptr @30)
+  store ptr %9, ptr @r, align 8
   ret void
 }
 

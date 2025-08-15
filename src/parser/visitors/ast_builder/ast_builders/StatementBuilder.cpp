@@ -143,8 +143,39 @@ Shared(ast::ForStmt) StatementBuilder::buildFor(tokens::TokenStream& stream) {
   if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN)
     stream.advance();
   // Parse initializer
-  if (stream.peek().getType() != tokens::TokenType::SEMICOLON)
-    forStmt->init = ExpressionBuilder::build(stream);
+  if (stream.peek().getType() != tokens::TokenType::SEMICOLON) {
+    // Support declarations in init position
+    auto t = stream.peek().getType();
+    if (t == tokens::TokenType::LET || t == tokens::TokenType::CONST) {
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::None);
+      if (varDecl) forStmt->init = std::static_pointer_cast<ast::Stmt>(varDecl);
+    } else if (t == tokens::TokenType::STACK) {
+      stream.advance();
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::Stack);
+      if (varDecl) forStmt->init = std::static_pointer_cast<ast::Stmt>(varDecl);
+    } else if (t == tokens::TokenType::HEAP) {
+      stream.advance();
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::Heap);
+      if (varDecl) forStmt->init = std::static_pointer_cast<ast::Stmt>(varDecl);
+    } else if (t == tokens::TokenType::STATIC) {
+      stream.advance();
+      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
+          stream, ast::StorageQualifier::Static);
+      if (varDecl) forStmt->init = std::static_pointer_cast<ast::Stmt>(varDecl);
+    } else {
+      // Fallback: parse as expression statement
+      auto expr = ExpressionBuilder::build(stream);
+      if (expr) {
+        auto exprStmt = std::make_shared<ast::ExprStmt>();
+        exprStmt->expression = expr;
+        exprStmt->location = expr->location;
+        forStmt->init = exprStmt;
+      }
+    }
+  }
   if (stream.peek().getType() == tokens::TokenType::SEMICOLON) stream.advance();
   // Parse condition
   if (stream.peek().getType() != tokens::TokenType::SEMICOLON)

@@ -167,10 +167,27 @@ void SemanticAnalyzerVisitor::visit(WhileStmt& node) {
 }
 
 void SemanticAnalyzerVisitor::visit(ForStmt& node) {
-  if (node.init) node.init->accept(*this);
+  // for-loop introduces its own scope for initializer declarations
+  enterScope();
+  if (node.init) {
+    // Init can be a VarDecl or an ExprStmt
+    if (auto varDecl = dynamic_cast<VarDecl*>(node.init.get())) {
+      // Insert symbol before analyzing condition/increment
+      std::string name = varDecl->name.getLexeme();
+      currentScope->insert(
+          name, Symbol{name, resolveType(varDecl->type.get()), varDecl->isConst,
+                       false, false, nullptr});
+      varDecl->accept(*this);
+    } else if (auto exprStmt = dynamic_cast<ExprStmt*>(node.init.get())) {
+      exprStmt->accept(*this);
+    } else {
+      node.init->accept(*this);
+    }
+  }
   if (node.condition) node.condition->accept(*this);
   if (node.increment) node.increment->accept(*this);
   if (node.body) node.body->accept(*this);
+  exitScope();
 }
 
 void SemanticAnalyzerVisitor::visit(Parameter& node) {

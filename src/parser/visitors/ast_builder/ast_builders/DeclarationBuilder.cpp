@@ -175,6 +175,9 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
     default:
       return nullptr;
   }
+
+  // Fallback to satisfy all control paths; should not be reached.
+  return nullptr;
 }
 
 Shared(ast::TypeAliasDecl)
@@ -548,6 +551,9 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
   stream.advance();  // consume '{'
   while (!stream.isAtEnd() &&
          stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
+    // Track if we consumed a complete member (e.g., static block) so we can
+    // skip the rest of this iteration and continue with the next member.
+    bool consumedStaticBlock = false;
     // Skip stray semicolons
     if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
       stream.advance();
@@ -616,11 +622,13 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
             classDecl->staticBlocks.push_back(staticNode);
             // Also keep in legacy body for backward compatibility
             classDecl->body->statements.push_back(staticNode);
-            // Static block consumed fully; move to next member
-            continue;  // continue outer while-loop
+            // Static block consumed fully; mark and break attribute scanning
+            consumedStaticBlock = true;
+            break;  // break inner attribute loop; outer loop will continue
           } else {
             // recovery
-            continue;
+            consumedStaticBlock = true;
+            break;
           }
         }
         if (nextT == tokens::TokenType::FUNCTION) {
@@ -716,6 +724,12 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       break;
     }
 
+    // If we consumed a complete static block member, skip the rest of this
+    // iteration and proceed to the next class member.
+    if (consumedStaticBlock) {
+      continue;  // continue outer while-loop
+    }
+
     // Methods: 'function' Identifier ... (allow identifier-like keywords
     // GET/SET)
     if (stream.peek().getType() == tokens::TokenType::FUNCTION) {
@@ -803,6 +817,28 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         classDecl->body->statements.push_back(fieldStmt);
         continue;
       } else {
+        stream.advance();
+        continue;
+      }
+    }
+
+    // Fallback handling for static initialization blocks: 'static' '{' ... '}'
+    // If not consumed during the attribute scan above (due to lookahead
+    // quirks), recognize and parse it here so class body closure isn't
+    // disrupted.
+    if (stream.peek().getType() == tokens::TokenType::STATIC &&
+        stream.peekNext().getType() == tokens::TokenType::LEFT_BRACE) {
+      // consume 'static' and parse the following block
+      stream.advance();
+      auto staticBody = StatementBuilder::buildBlock(stream);
+      if (staticBody) {
+        auto staticNode = std::make_shared<ast::StaticBlockStmt>();
+        staticNode->body = staticBody;
+        classDecl->staticBlocks.push_back(staticNode);
+        classDecl->body->statements.push_back(staticNode);
+        continue;  // proceed to next member
+      } else {
+        // recovery: skip token to avoid infinite loop
         stream.advance();
         continue;
       }

@@ -291,6 +291,13 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
         node.initializer->accept(*this);
       }
       if (lastValue) {
+        // If initializer is an object literal, treat as string (stringified
+        // object)
+        if (dynamic_cast<ast::ObjectLiteralExpr*>(node.initializer.get())) {
+          llvmType = llvm::PointerType::get(context, 0);
+          resolvedTypeName = "string";
+          isString = true;
+        }
         // Pointers: preserve pointer-ness instead of falling back to int
         if (lastValue->getType()->isPointerTy()) {
           // If the initializer is a string literal, treat as string
@@ -304,6 +311,9 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
               llvmType = lastValue->getType();
               resolvedTypeName = "ptr";  // unknown base; treated as pointer
             }
+          } else if (dynamic_cast<ast::ObjectLiteralExpr*>(
+                         node.initializer.get())) {
+            // already handled above
           } else {
             llvmType = lastValue->getType();
             resolvedTypeName = "ptr";
@@ -495,12 +505,161 @@ void LLVMCodeGenerator::visit(ast::NullExpr& node) {
       llvm::ConstantPointerNull::get(llvm::PointerType::get(context, 0));
 }
 
-// Visit ObjectLiteralExpr: placeholder lowering to null until runtime exists
+// Visit ObjectLiteralExpr: build a string like "{ key: val, ... }"
 void LLVMCodeGenerator::visit(ast::ObjectLiteralExpr& node) {
-  (void)node;
-  // TODO: implement runtime object allocation/map; for now return null
-  lastValue =
-      llvm::ConstantPointerNull::get(llvm::PointerType::get(context, 0));
+  // If we do not have a current function, this is a global initializer.
+  // Emit best-effort: return null (non-constant), and let deferred init handle
+  // it if used.
+  if (!currentFunction) {
+    lastValue =
+        llvm::ConstantPointerNull::get(llvm::PointerType::get(context, 0));
+    return;
+  }
+
+  auto concatFnTy = llvm::FunctionType::get(
+      llvm::PointerType::get(context, 0),
+      {llvm::PointerType::get(context, 0), llvm::PointerType::get(context, 0)},
+      false);
+  auto concatFn = module->getOrInsertFunction("tspp_string_concat", concatFnTy);
+
+  auto intToStrTy =
+      llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                              {llvm::Type::getInt32Ty(context)}, false);
+  auto intToStr = module->getOrInsertFunction("tspp_int_to_string", intToStrTy);
+
+  auto floatToStrTy =
+      llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                              {llvm::Type::getFloatTy(context)}, false);
+  auto floatToStr =
+      module->getOrInsertFunction("tspp_float_to_string", floatToStrTy);
+
+  auto boolToStrTy =
+      llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                              {llvm::Type::getInt1Ty(context)}, false);
+  auto boolToStr =
+      module->getOrInsertFunction("tspp_bool_to_string", boolToStrTy);
+
+  auto ptrToStrTy =
+      llvm::FunctionType::get(llvm::PointerType::get(context, 0),
+                              {llvm::PointerType::get(context, 0)}, false);
+  auto ptrToStr = module->getOrInsertFunction("tspp_ptr_to_string", ptrToStrTy);
+
+  // Helper to convert an expr+value to an i8* string
+  auto toCString = [&](ast::Expr* expr, llvm::Value* v) -> llvm::Value* {
+    if (!v) return builder->CreateGlobalString("", "");
+    // Strings: leave as-is if we can identify them
+    bool isString = false;
+    if (auto lit = dynamic_cast<ast::LiteralExpr*>(expr)) {
+      using tokens::TokenType;
+      isString = (lit->value.getType() == TokenType::STRING_LITERAL);
+    } else if (auto id = dynamic_cast<ast::IdentifierExpr*>(expr)) {
+      auto it = symbolTable.find(id->name.getLexeme());
+      if (it != symbolTable.end())
+        isString = (it->second.typeName == std::string("string"));
+    } else if (auto call = dynamic_cast<ast::CallExpr*>(expr)) {
+      std::string innerName;
+      if (auto innerIdent =
+              dynamic_cast<ast::IdentifierExpr*>(call->callee.get())) {
+        innerName = innerIdent->name.getLexeme();
+      } else if (auto innerMember =
+                     dynamic_cast<ast::MemberAccessExpr*>(call->callee.get())) {
+        if (auto objIdent =
+                dynamic_cast<ast::IdentifierExpr*>(innerMember->object.get())) {
+          innerName = objIdent->name.getLexeme() + "." +
+                      innerMember->member.getLexeme();
+        }
+      }
+      auto itFn = functionReturnTypes.find(innerName);
+      if (itFn != functionReturnTypes.end())
+        isString = (itFn->second == std::string("string"));
+    }
+    if (v->getType()->isPointerTy()) {
+      if (isString) return v;
+      // Treat generic pointer as address string
+      return builder->CreateCall(ptrToStr, {v});
+    }
+    if (v->getType()->isIntegerTy()) {
+      if (v->getType()->isIntegerTy(1)) {
+        return builder->CreateCall(boolToStr, {v});
+      }
+      llvm::Value* i32 = v;
+      if (!v->getType()->isIntegerTy(32)) {
+        i32 = builder->CreateIntCast(v, llvm::Type::getInt32Ty(context), true);
+      }
+      return builder->CreateCall(intToStr, {i32});
+    }
+    if (v->getType()->isFloatingPointTy()) {
+      llvm::Value* f = v;
+      if (v->getType()->isDoubleTy()) {
+        f = builder->CreateFPTrunc(v, llvm::Type::getFloatTy(context));
+      } else if (!v->getType()->isFloatTy()) {
+        f = builder->CreateSIToFP(v, llvm::Type::getFloatTy(context));
+      }
+      return builder->CreateCall(floatToStr, {f});
+    }
+    // Fallback: make empty
+    return builder->CreateGlobalString("", "");
+  };
+
+  // Begin with "{ "
+  llvm::Value* result = builder->CreateGlobalString("{ ", "");
+
+  for (size_t i = 0; i < node.fields.size(); ++i) {
+    const auto& f = node.fields[i];
+    // Append key (as-is, without quotes)
+    std::string keyLex = f.key.getLexeme();
+    // If key was quoted string literal, strip quotes
+    if (!keyLex.empty() && keyLex.front() == '"' && keyLex.back() == '"') {
+      keyLex = keyLex.substr(1, keyLex.size() - 2);
+    }
+    llvm::Value* keyStr = builder->CreateGlobalString(keyLex, "");
+    result = builder->CreateCall(concatFn, {result, keyStr});
+    // Append ': '
+    result = builder->CreateCall(
+        concatFn, {result, builder->CreateGlobalString(": ", "")});
+
+    // Evaluate value and convert to string
+    lastValue = nullptr;
+    if (f.value) f.value->accept(*this);
+    llvm::Value* v = lastValue;
+    llvm::Value* valStr = toCString(f.value.get(), v);
+
+    // For string values, wrap in quotes
+    bool valueIsStringLiteral = false;
+    if (auto lit = dynamic_cast<ast::LiteralExpr*>(f.value.get())) {
+      using tokens::TokenType;
+      valueIsStringLiteral =
+          (lit->value.getType() == TokenType::STRING_LITERAL);
+    } else if (auto id = dynamic_cast<ast::IdentifierExpr*>(f.value.get())) {
+      auto it = symbolTable.find(id->name.getLexeme());
+      if (it != symbolTable.end())
+        valueIsStringLiteral = (it->second.typeName == std::string("string"));
+    }
+
+    if (valueIsStringLiteral) {
+      auto quote = builder->CreateGlobalString("\"", "");
+      result = builder->CreateCall(concatFn, {result, quote});
+      result = builder->CreateCall(concatFn, {result, valStr});
+      result = builder->CreateCall(concatFn, {result, quote});
+    } else {
+      result = builder->CreateCall(concatFn, {result, valStr});
+    }
+
+    // Append ", " if not last
+    if (i + 1 < node.fields.size()) {
+      result = builder->CreateCall(
+          concatFn, {result, builder->CreateGlobalString(", ", "")});
+    }
+  }
+
+  // Close with " }" (add space only if any fields)
+  if (!node.fields.empty()) {
+    result = builder->CreateCall(
+        concatFn, {result, builder->CreateGlobalString(" }", "")});
+  } else {
+    result = builder->CreateGlobalString("{}", "");
+  }
+  lastValue = result;
 }
 
 // Visit IdentifierExpr: load variable
@@ -1607,7 +1766,7 @@ void LLVMCodeGenerator::visit(ForStmt& node) {
   llvm::BasicBlock* mergeBB =
       llvm::BasicBlock::Create(context, "for.end", currentFunction);
 
-  // Emit initialization if present
+  // Emit initialization if present (can be a VarDecl or an ExprStmt)
   if (node.init) {
     node.init->accept(*this);
   }
