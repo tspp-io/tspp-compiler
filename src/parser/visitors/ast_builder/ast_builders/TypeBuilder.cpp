@@ -21,7 +21,56 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
     // Empty object type
     if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
       stream.advance();
-      return objTy;
+      // Allow union/intersection continuations after object type: {..} ('|' T |
+      // '&' T)*
+      Shared(ast::TypeNode) resultType = objTy;
+      std::vector<std::pair<char, Shared(ast::TypeNode)>> seq;
+      while (true) {
+        if (stream.peek().getType() == tokens::TokenType::PIPE ||
+            stream.peek().getType() == tokens::TokenType::AMPERSAND) {
+          char op =
+              (stream.peek().getType() == tokens::TokenType::PIPE) ? '|' : '&';
+          stream.advance();
+          auto nextType = build(stream);
+          if (!nextType) break;
+          seq.emplace_back(op, nextType);
+        } else {
+          break;
+        }
+      }
+      if (!seq.empty()) {
+        std::vector<Shared(ast::TypeNode)> unionParts;
+        std::vector<Shared(ast::TypeNode)> interParts{resultType};
+        auto flushIntersection = [&]() {
+          if (interParts.size() == 1) {
+            unionParts.push_back(interParts[0]);
+          } else {
+            auto interNode = std::make_shared<ast::IntersectionTypeNode>();
+            interNode->types = interParts;
+            interNode->location = interParts[0]->location;
+            unionParts.push_back(interNode);
+          }
+          interParts.clear();
+        };
+        for (auto& [op, ty] : seq) {
+          if (op == '&')
+            interParts.push_back(ty);
+          else {
+            flushIntersection();
+            interParts.push_back(ty);
+          }
+        }
+        flushIntersection();
+        if (unionParts.size() == 1)
+          resultType = unionParts[0];
+        else {
+          auto unionNode = std::make_shared<ast::UnionTypeNode>();
+          unionNode->types = unionParts;
+          unionNode->location = unionParts[0]->location;
+          resultType = unionNode;
+        }
+      }
+      return resultType;
     }
     while (!stream.isAtEnd() &&
            stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
@@ -53,7 +102,56 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
     if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
       stream.advance();
     }
-    return objTy;
+    // Allow union/intersection continuations after non-empty object type:
+    // {..} ('|' T | '&' T)*
+    Shared(ast::TypeNode) resultType = objTy;
+    std::vector<std::pair<char, Shared(ast::TypeNode)>> seq;
+    while (true) {
+      if (stream.peek().getType() == tokens::TokenType::PIPE ||
+          stream.peek().getType() == tokens::TokenType::AMPERSAND) {
+        char op =
+            (stream.peek().getType() == tokens::TokenType::PIPE) ? '|' : '&';
+        stream.advance();
+        auto nextType = build(stream);
+        if (!nextType) break;
+        seq.emplace_back(op, nextType);
+      } else {
+        break;
+      }
+    }
+    if (!seq.empty()) {
+      std::vector<Shared(ast::TypeNode)> unionParts;
+      std::vector<Shared(ast::TypeNode)> interParts{resultType};
+      auto flushIntersection = [&]() {
+        if (interParts.size() == 1) {
+          unionParts.push_back(interParts[0]);
+        } else {
+          auto interNode = std::make_shared<ast::IntersectionTypeNode>();
+          interNode->types = interParts;
+          interNode->location = interParts[0]->location;
+          unionParts.push_back(interNode);
+        }
+        interParts.clear();
+      };
+      for (auto& [op, ty] : seq) {
+        if (op == '&')
+          interParts.push_back(ty);
+        else {
+          flushIntersection();
+          interParts.push_back(ty);
+        }
+      }
+      flushIntersection();
+      if (unionParts.size() == 1) {
+        resultType = unionParts[0];
+      } else {
+        auto unionNode = std::make_shared<ast::UnionTypeNode>();
+        unionNode->types = unionParts;
+        unionNode->location = unionParts[0]->location;
+        resultType = unionNode;
+      }
+    }
+    return resultType;
   }
 
   // Handle grouped types: '(' Type ')'

@@ -1,6 +1,8 @@
 #pragma once
 #include <cassert>
+#include <iostream>
 #include <memory>
+#include <sstream>
 
 /**
  * Debug assertion macros
@@ -105,4 +107,19 @@
 #ifndef SHARED_PTR_ALIAS
 #define SHARED_PTR_ALIAS
 #define Shared(T) std::shared_ptr<T>
+#endif
+
+// Lightweight logging helpers (no external dependency)
+#ifndef LOG_DEBUG
+#define LOG_DEBUG(msg)                           \
+  do {                                           \
+    std::cerr << "[DEBUG] " << msg << std::endl; \
+  } while (0)
+#endif
+
+#ifndef LOG_TRACE
+#define LOG_TRACE(msg)                           \
+  do {                                           \
+    std::cerr << "[TRACE] " << msg << std::endl; \
+  } while (0)
 #endif

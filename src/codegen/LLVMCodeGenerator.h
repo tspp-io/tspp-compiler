@@ -121,6 +121,9 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void emitPendingGlobalInits();
 
   // ...other helpers for function/variable management...
+
+  // Guard against re-entrant codegen of the same CallExpr node
+  std::unordered_set<const ast::CallExpr*> activeCallExprs;
 };
 
 }  // namespace codegen

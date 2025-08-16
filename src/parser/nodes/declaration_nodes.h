@@ -56,6 +56,10 @@ class Parameter : public BaseNode {
  public:
   Shared(TypeNode) type;
   tokens::Token name;
+  // Optional default value expression (evaluated in callee scope)
+  Shared(Expr) defaultExpr;
+  // Set once when defaultExpr has been semantically resolved
+  bool defaultResolved_ = false;
   AST_ACCEPT_IMPL(Parameter);
 };
 

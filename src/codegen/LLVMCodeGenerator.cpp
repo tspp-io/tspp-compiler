@@ -593,7 +593,12 @@ void LLVMCodeGenerator::visit(ast::ObjectLiteralExpr& node) {
       if (v->getType()->isDoubleTy()) {
         f = builder->CreateFPTrunc(v, llvm::Type::getFloatTy(context));
       } else if (!v->getType()->isFloatTy()) {
-        f = builder->CreateSIToFP(v, llvm::Type::getFloatTy(context));
+        // Only cast integers to float. For other types, return empty string.
+        if (v->getType()->isIntegerTy()) {
+          f = builder->CreateSIToFP(v, llvm::Type::getFloatTy(context));
+        } else {
+          return builder->CreateGlobalString("", "");
+        }
       }
       return builder->CreateCall(floatToStr, {f});
     }
@@ -850,33 +855,9 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     return;
   }
 
-  // Determine if we should use floating-point math by inspecting operand types
+  // Defer numeric promotion until we know we're not doing string concat for '+'
   auto lhsTy = lhs->getType();
   auto rhsTy = rhs->getType();
-  bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
-
-  // Simple promotion: if either side is double, convert the other to double;
-  // else if either is float, convert the other to float
-  if (isFP) {
-    if (lhsTy->isDoubleTy() || rhsTy->isDoubleTy()) {
-      if (!lhsTy->isDoubleTy())
-        lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(context),
-                                    "sitofp");
-      if (!rhsTy->isDoubleTy())
-        rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(context),
-                                    "sitofp");
-      lhsTy = rhsTy = llvm::Type::getDoubleTy(context);
-    } else {
-      // Use float
-      if (!lhsTy->isFloatTy())
-        lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(context),
-                                    "sitofp");
-      if (!rhsTy->isFloatTy())
-        rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(context),
-                                    "sitofp");
-      lhsTy = rhsTy = llvm::Type::getFloatTy(context);
-    }
-  }
 
   if (op == "+") {
     // Special-case string concatenation only if either operand is a string
@@ -998,8 +979,15 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
         if (v->getType()->isDoubleTy()) {
           f = builder->CreateFPTrunc(v, llvm::Type::getFloatTy(context));
         } else if (!v->getType()->isFloatTy()) {
-          // Fallback cast
-          f = builder->CreateSIToFP(v, llvm::Type::getFloatTy(context));
+          // Only cast integers to float; if pointer, stringify via ptrToStr
+          // later
+          if (v->getType()->isIntegerTy()) {
+            f = builder->CreateSIToFP(v, llvm::Type::getFloatTy(context));
+          } else {
+            // Not a number; return empty string to be safe
+            auto empty = builder->CreateGlobalString("", "");
+            return empty;
+          }
         }
         auto floatToStrType =
             llvm::FunctionType::get(llvm::PointerType::get(context, 0),
@@ -1078,36 +1066,191 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       lastValue = builder->CreateCall(concatFn, {lstr, rstr});
       return;
     }
+    // Not concatenation: perform numeric promotion now and emit add
+    bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
+    if (isFP) {
+      if (lhsTy->isDoubleTy() || rhsTy->isDoubleTy()) {
+        if (!lhsTy->isDoubleTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isDoubleTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getDoubleTy(context);
+      } else {
+        // Use float
+        if (!lhsTy->isFloatTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isFloatTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getFloatTy(context);
+      }
+    }
     lastValue = isFP ? builder->CreateFAdd(lhs, rhs, "faddtmp")
                      : builder->CreateAdd(lhs, rhs, "addtmp");
   } else if (op == "-") {
+    // Numeric operators: do promotion prior to op
+    bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
+    if (isFP) {
+      if (lhsTy->isDoubleTy() || rhsTy->isDoubleTy()) {
+        if (!lhsTy->isDoubleTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isDoubleTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getDoubleTy(context);
+      } else {
+        if (!lhsTy->isFloatTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isFloatTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getFloatTy(context);
+      }
+    }
     lastValue = isFP ? builder->CreateFSub(lhs, rhs, "fsubtmp")
                      : builder->CreateSub(lhs, rhs, "subtmp");
   } else if (op == "*") {
+    bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
+    if (isFP) {
+      if (lhsTy->isDoubleTy() || rhsTy->isDoubleTy()) {
+        if (!lhsTy->isDoubleTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isDoubleTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getDoubleTy(context);
+      } else {
+        if (!lhsTy->isFloatTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isFloatTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getFloatTy(context);
+      }
+    }
     lastValue = isFP ? builder->CreateFMul(lhs, rhs, "fmultmp")
                      : builder->CreateMul(lhs, rhs, "multmp");
   } else if (op == "/") {
+    bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
+    if (isFP) {
+      if (lhsTy->isDoubleTy() || rhsTy->isDoubleTy()) {
+        if (!lhsTy->isDoubleTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isDoubleTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getDoubleTy(context);
+      } else {
+        if (!lhsTy->isFloatTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isFloatTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getFloatTy(context);
+      }
+    }
     lastValue = isFP ? builder->CreateFDiv(lhs, rhs, "fdivtmp")
                      : builder->CreateSDiv(lhs, rhs, "divtmp");
   } else if (op == "%") {
+    bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
+    if (isFP) {
+      if (lhsTy->isDoubleTy() || rhsTy->isDoubleTy()) {
+        if (!lhsTy->isDoubleTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isDoubleTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getDoubleTy(context);
+      } else {
+        if (!lhsTy->isFloatTy()) {
+          if (lhs->getType()->isIntegerTy())
+            lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        if (!rhsTy->isFloatTy()) {
+          if (rhs->getType()->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(context),
+                                        "sitofp");
+        }
+        lhsTy = rhsTy = llvm::Type::getFloatTy(context);
+      }
+    }
     lastValue = isFP ? builder->CreateFRem(lhs, rhs, "fmodtmp")
                      : builder->CreateSRem(lhs, rhs, "modtmp");
   } else if (op == "<") {
+    bool isFP = lhs->getType()->isFloatingPointTy() ||
+                rhs->getType()->isFloatingPointTy();
     lastValue = isFP ? builder->CreateFCmpOLT(lhs, rhs, "fcmpolt")
                      : builder->CreateICmpSLT(lhs, rhs, "icmpolt");
   } else if (op == ">") {
+    bool isFP = lhs->getType()->isFloatingPointTy() ||
+                rhs->getType()->isFloatingPointTy();
     lastValue = isFP ? builder->CreateFCmpOGT(lhs, rhs, "fcmpogt")
                      : builder->CreateICmpSGT(lhs, rhs, "icmpogt");
   } else if (op == "<=") {
+    bool isFP = lhs->getType()->isFloatingPointTy() ||
+                rhs->getType()->isFloatingPointTy();
     lastValue = isFP ? builder->CreateFCmpOLE(lhs, rhs, "fcmpole")
                      : builder->CreateICmpSLE(lhs, rhs, "icmpole");
   } else if (op == ">=") {
+    bool isFP = lhs->getType()->isFloatingPointTy() ||
+                rhs->getType()->isFloatingPointTy();
     lastValue = isFP ? builder->CreateFCmpOGE(lhs, rhs, "fcmpoge")
                      : builder->CreateICmpSGE(lhs, rhs, "icmpoge");
   } else if (op == "==") {
+    bool isFP = lhs->getType()->isFloatingPointTy() ||
+                rhs->getType()->isFloatingPointTy();
     lastValue = isFP ? builder->CreateFCmpOEQ(lhs, rhs, "fcmpeq")
                      : builder->CreateICmpEQ(lhs, rhs, "icmpeq");
   } else if (op == "!=") {
+    bool isFP = lhs->getType()->isFloatingPointTy() ||
+                rhs->getType()->isFloatingPointTy();
     lastValue = isFP ? builder->CreateFCmpONE(lhs, rhs, "fcmpne")
                      : builder->CreateICmpNE(lhs, rhs, "icmpne");
   } else {
@@ -1177,6 +1320,20 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
   builder->SetInsertPoint(entry);
 
   auto* prevFunction = currentFunction;
+  // Save current symbol table and start a fresh scope for this function.
+  // Preserve only globals so we keep their semantic type names (e.g., string)
+  // for formatting and interop, while avoiding leakage of locals/allocas from
+  // other functions.
+  auto savedSymbolTable = symbolTable;  // full snapshot to restore later
+  std::unordered_map<std::string, SymbolInfo> globalsOnly;
+  for (const auto& kv : symbolTable) {
+    const auto& name = kv.first;
+    const auto& sym = kv.second;
+    if (llvm::isa<llvm::GlobalVariable>(sym.value)) {
+      globalsOnly.emplace(name, sym);
+    }
+  }
+  symbolTable = std::move(globalsOnly);
   currentFunction = func;
 
   // Bind parameters to local allocas and add to symbol table
@@ -1222,6 +1379,8 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
   }
 
   currentFunction = prevFunction;
+  // Restore outer scope symbols after finishing the function.
+  symbolTable = std::move(savedSymbolTable);
 }
 // Visit ReturnStmt: emit return
 void LLVMCodeGenerator::visit(ReturnStmt& node) {
@@ -1271,7 +1430,12 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
           if (retVal->getType()->isDoubleTy()) {
             f = builder->CreateFPTrunc(retVal, llvm::Type::getFloatTy(context));
           } else if (!retVal->getType()->isFloatTy()) {
-            f = builder->CreateSIToFP(retVal, llvm::Type::getFloatTy(context));
+            if (retVal->getType()->isIntegerTy()) {
+              f = builder->CreateSIToFP(retVal,
+                                        llvm::Type::getFloatTy(context));
+            } else {
+              f = builder->CreateGlobalString("", "");
+            }
           }
           auto floatToStrType =
               llvm::FunctionType::get(llvm::PointerType::get(context, 0),
@@ -1326,6 +1490,14 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
     lastValue = nullptr;
     return;
   }
+  // Re-entrancy guard: prevent accidental recursion on same AST node
+  if (activeCallExprs.find(&node) != activeCallExprs.end()) {
+    llvm::errs() << "[ERROR] Re-entrant codegen for CallExpr detected. "
+                    "Aborting call emission.\n";
+    lastValue = nullptr;
+    return;
+  }
+  activeCallExprs.insert(&node);
   std::string funcName;
   // Attempt to determine callee's return type to help with argument conversions
   std::string calleeRetType;
@@ -1403,6 +1575,7 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
       }
     }
   }
+  // Arguments must already have defaults applied by semantics; do not mutate
   for (auto& arg : node.arguments) {
     // Reset lastValue defensively before evaluating each arg
     lastValue = nullptr;
@@ -1553,8 +1726,12 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
                 f = builder->CreateFPTrunc(loaded,
                                            llvm::Type::getFloatTy(context));
               } else if (!loaded->getType()->isFloatTy()) {
-                f = builder->CreateSIToFP(loaded,
-                                          llvm::Type::getFloatTy(context));
+                if (loaded->getType()->isIntegerTy()) {
+                  f = builder->CreateSIToFP(loaded,
+                                            llvm::Type::getFloatTy(context));
+                } else {
+                  f = builder->CreateGlobalString("", "");
+                }
               }
               auto floatToStrType = llvm::FunctionType::get(
                   llvm::PointerType::get(context, 0),
@@ -1633,11 +1810,18 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   } else {
     // Try to call a user-defined function or a lowered method
     if (auto func = module->getFunction(funcName)) {
+// Debug logging in DEBUG builds: callee and arg types
+#ifndef NDEBUG
+      llvm::errs() << "[DEBUG] Emitting CallExpr to '" << funcName << "' with "
+                   << (long)args.size() << " args" << "\n";
+#endif
       lastValue = builder->CreateCall(func, args);
     } else {
       lastValue = nullptr;
     }
   }
+  // Done: pop re-entrancy guard
+  activeCallExprs.erase(&node);
 }
 
 // Visit IfStmt: emit conditional branching

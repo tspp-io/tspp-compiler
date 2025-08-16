@@ -290,9 +290,13 @@ Shared(ast::Stmt) DeclarationBuilder::buildVariable(
   Shared(ast::TypeNode) varType = nullptr;
   if (stream.peek().getType() == tokens::TokenType::COLON) {
     stream.advance();  // consume ':'
-    // Allow both built-in types and custom type identifiers (typedefs)
-    if (stream.peek().isType() ||
-        stream.peek().getType() == tokens::TokenType::IDENTIFIER) {
+    // Allow built-in types, identifiers (typedefs),
+    // object/grouped/smart/pointer types
+    auto tt = stream.peek().getType();
+    if (stream.peek().isType() || tt == tokens::TokenType::IDENTIFIER ||
+        tt == tokens::TokenType::LEFT_BRACE ||
+        tt == tokens::TokenType::LEFT_PAREN || tt == tokens::TokenType::AT ||
+        tt == tokens::TokenType::ATTRIBUTE) {
       varType = TypeBuilder::build(stream);
       if (!varType) {
         stream.advance();  // Skip faulty token
@@ -407,8 +411,19 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
         stream.advance();  // Skip faulty token
         return nullptr;
       }
+      // Optional default value: '=' Expression
+      Shared(ast::Expr) defaultExpr = nullptr;
+      if (stream.peek().getType() == tokens::TokenType::EQUALS) {
+        stream.advance();  // consume '='
+        defaultExpr = ExpressionBuilder::build(stream);
+        if (!defaultExpr) {
+          stream.advance();  // Skip faulty token
+          return nullptr;
+        }
+      }
       param->name = paramName;
       param->type = paramType;
+      param->defaultExpr = defaultExpr;
       param->location = paramLoc;
       funcDecl->params.push_back(param);
     }

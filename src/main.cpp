@@ -27,6 +27,7 @@ int main(int argc, char* argv[]) {
   lexer::Lexer lexer(source);
   auto tokens = lexer.tokenize();
   (void)tokens;  // suppress unused warning if not inspected further
+
   // Parse into AST
   auto ast = parser::buildAST(tokens);
   if (ast) {

@@ -1,12 +1,37 @@
+Got it ✅
+Here’s your grammar converted into a **well-structured markdown file** with headings, code blocks, and comments preserved for clarity:
+
+---
+
+# TSPP++ Formal Grammar (EBNF)
+
+## Program Structure
+
+```ebnf
 Program            ::= { Import | Declaration | Statement }
+```
 
-/* ---------- Imports ---------- */
+---
+
+## Imports
+
+```ebnf
 Import             ::= 'import' Identifier [ 'from' StringLiteral ] ';'
+```
 
-/* ---------- Declarations ---------- */
+---
+
+## Declarations
+
+```ebnf
 Declaration        ::= VariableDecl | FunctionDecl | ClassDecl | InterfaceDecl | TypeAliasDecl
+```
 
-/* ---------- Types & Memory ---------- */
+---
+
+## Types & Memory
+
+```ebnf
 VariableDecl       ::= { VarModifier } ('let' | 'const') Identifier ':' Type [ '=' Expression ] ';'
 VarModifier        ::= '#' ('stack' | 'heap' | 'static')
 
@@ -26,19 +51,31 @@ SmartPointerType   ::= '#' ('shared' | 'unique' | 'weak') '<' Type '>'
 TypeArguments      ::= '<' Type { ',' Type } '>'
 TypeParameters     ::= '<' TypeParam { ',' TypeParam } '>'
 TypeParam          ::= Identifier [ 'extends' Type ]
+```
 
-/* ---------- Functions ---------- */
+---
+
+## Functions
+
+```ebnf
 FunctionDecl       ::= { FunctionModifier } 'function' Identifier '(' [ ParameterList ] ')'
                         [ ':' Type ] Block
 FunctionModifier   ::= '#' ('const' | 'constexpr' | 'zerocast' | 'simd' | 'prefetch' | 'atomic' | 'pinned')
 
 ParameterList      ::= Parameter { ',' Parameter }
-Parameter          ::= Identifier [ ':' Type ] [ '=' Expression ]   /* TS-like (name: type = default) */
+Parameter          ::= Identifier [ ':' Type ] [ '=' Expression ]
+                       /* TS-like (name: type = default) */
+```
 
-/* ---------- Classes & Interfaces ---------- */
+---
+
+## Classes & Interfaces
+
+```ebnf
 ClassDecl          ::= { ClassModifier } 'class' Identifier [ TypeParameters ]
                         [ 'extends' Identifier [ TypeArguments ] ]
-                        [ 'implements' Identifier [ TypeArguments ] { ',' Identifier [ TypeArguments ] } ]
+                        [ 'implements' Identifier [ TypeArguments ]
+                          { ',' Identifier [ TypeArguments ] } ]
                         ClassBody
 
 ClassModifier      ::= '#' ('abstract' | 'packed' | 'pinned' | 'final')
@@ -58,19 +95,34 @@ MethodModifier     ::= '#' ('static' | 'abstract' | 'virtual' | 'override' | 'co
 
 ConstructorDecl    ::= { AccessModifier } 'constructor' '(' [ ParameterList ] ')' Block
 StaticBlock        ::= 'static' Block
+```
 
-/* ---------- Interfaces ---------- */
+---
+
+## Interfaces
+
+```ebnf
 InterfaceDecl      ::= 'interface' Identifier [ TypeParameters ] InterfaceBody
 InterfaceBody      ::= '{' { InterfaceMember } '}'
 InterfaceMember    ::= MethodSignature | FieldSignature
 MethodSignature    ::= Identifier '(' [ ParameterList ] ')' [ ':' Type ] ';'
 FieldSignature     ::= Identifier ':' Type ';'
+```
 
-/* ---------- Type Aliases ---------- */
+---
+
+## Type Aliases
+
+```ebnf
 /* Prefer TS-style keyword */
 TypeAliasDecl      ::= 'typedef' Identifier '=' Type ';'
+```
 
-/* ---------- Statements ---------- */
+---
+
+## Statements
+
+```ebnf
 Statement          ::= Block | ExpressionStatement | IfStatement | WhileStatement | ForStatement | ReturnStatement
 
 Block              ::= '{' { Statement } '}'
@@ -85,8 +137,13 @@ ForInit            ::= /* empty */
                     | Expression
 
 ReturnStatement    ::= 'return' [ Expression ] ';'
+```
 
-/* ---------- Expressions (with precedence) ---------- */
+---
+
+## Expressions (with precedence)
+
+```ebnf
 /* Right-associative assignment and clear precedence tiers */
 
 Expression         ::= Assignment
@@ -139,10 +196,20 @@ Literal            ::= Number | StringLiteral | Boolean | Null
 Boolean            ::= 'true' | 'false'
 Null               ::= 'null'
 This               ::= 'this'
+```
 
-/* ---------- Operators (token set; semantics by tiers above) ---------- */
+---
+
+## Operators (token set)
+
+```ebnf
 OperatorTokenSet   ::= '+' | '-' | '*' | '/' | '%'
                     | '==' | '!=' | '<' | '>' | '<=' | '>='
                     | '&&' | '||' | '!'
                     | '&' | '|' | '^' | '<<' | '>>'
                     | '~' | '='
+```
+
+---
+
+Would you like me to also **add inline examples** for each section (like small snippets of code for `let`, `class`, `function`, etc.), or keep this file strictly formal grammar only?

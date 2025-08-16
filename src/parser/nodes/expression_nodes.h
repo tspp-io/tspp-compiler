@@ -51,6 +51,8 @@ class CallExpr : public Expr {
  public:
   Shared(Expr) callee;
   std::vector<Shared(Expr)> arguments;
+  // Guard to ensure we only synthesize default args once
+  bool defaultsFilledOnce_ = false;
   AST_ACCEPT_IMPL(CallExpr);
 };
 

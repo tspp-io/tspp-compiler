@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "parser/nodes/ast_visitor.h"
@@ -69,10 +70,25 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   std::vector<std::string> errors;
   // Track nested class contexts for resolving 'this' and method lookups
   std::vector<std::string> classStack;
+  // Track object-literal property keys to avoid false undeclared id errors
+  std::unordered_set<std::string> objectLiteralKeys_;
 
   void enterScope();
   void exitScope();
   void reportError(const std::string& message);
+
+  // Recursion guard: true when evaluating a default parameter expression
+  bool inDefaultParamEval_ = false;
+
+  struct DefaultParamEvalGuard {
+    SemanticAnalyzerVisitor& self;
+    explicit DefaultParamEvalGuard(SemanticAnalyzerVisitor& s) : self(s) {
+      self.inDefaultParamEval_ = true;
+    }
+    ~DefaultParamEvalGuard() {
+      self.inDefaultParamEval_ = false;
+    }
+  };
 };
 
 }  // namespace ast

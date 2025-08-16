@@ -1,8 +1,11 @@
 #include "SemanticAnalyzerVisitor.h"
 
+#include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <unordered_set>
 
+#include "core/common/macros.h"
 #include "parser/nodes/meta_nodes.h"
 #include "parser/nodes/misc_nodes.h"
 #include "parser/nodes/statement_sequence_node.h"  // Ensure StatementSequenceNode is a complete type
@@ -80,10 +83,18 @@ std::string SemanticAnalyzerVisitor::resolveType(TypeNode* type) {
     }
   }
 
-  // Handle IntersectionTypeNode: return the first constituent type
+  // Handle IntersectionTypeNode: if any constituent resolves to 'string'
+  // (e.g., object type literals), prefer 'string'. Otherwise, return the
+  // first non-empty resolved type.
   if (auto* inter = dynamic_cast<IntersectionTypeNode*>(type)) {
     if (!inter->types.empty()) {
-      return resolveType(inter->types[0].get());
+      std::string firstNonEmpty;
+      for (auto& ty : inter->types) {
+        auto n = resolveType(ty.get());
+        if (n == "string") return n;
+        if (firstNonEmpty.empty() && !n.empty()) firstNonEmpty = n;
+      }
+      return firstNonEmpty;
     }
   }
 
@@ -123,10 +134,19 @@ void SemanticAnalyzerVisitor::visit(LiteralExpr&) {
 }
 
 void SemanticAnalyzerVisitor::visit(ObjectLiteralExpr& node) {
+  // Record keys to avoid misinterpreting them as undeclared identifiers
+  std::vector<std::string> keysAdded;
+  keysAdded.reserve(node.fields.size());
+  for (auto& f : node.fields) {
+    auto k = f.key.getLexeme();
+    if (objectLiteralKeys_.insert(k).second) keysAdded.push_back(k);
+  }
   // Validate values but don't treat keys as identifiers
   for (auto& f : node.fields) {
     if (f.value) f.value->accept(*this);
   }
+  // Remove keys added for this literal to restore previous state
+  for (auto& k : keysAdded) objectLiteralKeys_.erase(k);
 }
 
 void SemanticAnalyzerVisitor::visit(MemberAccessExpr& node) {
@@ -303,7 +323,7 @@ void SemanticAnalyzerVisitor::visit(ProgramNode& node) {
     if (auto fn = dynamic_cast<FunctionDecl*>(decl.get())) {
       std::string name = fn->name.getLexeme();
       currentScope->insert(
-          name, Symbol{name, /*typeName*/ "", false, true, false, nullptr});
+          name, Symbol{name, /*typeName*/ "", false, true, false, decl});
     } else if (auto var = dynamic_cast<VarDecl*>(decl.get())) {
       std::string name = var->name.getLexeme();
       currentScope->insert(name, Symbol{name, resolveType(var->type.get()),
@@ -440,6 +460,11 @@ void SemanticAnalyzerVisitor::visit(ConstructorDecl& node) {
 
 void SemanticAnalyzerVisitor::visit(IdentifierExpr& node) {
   std::string idName = node.name.getLexeme();
+  // If this identifier matches an object-literal property key we've seen,
+  // suppress false-positive undeclared errors. Keys are not variables.
+  if (objectLiteralKeys_.find(idName) != objectLiteralKeys_.end()) {
+    return;
+  }
   auto sym = currentScope->lookup(idName);
   if (!sym) {
     reportError("Use of undeclared identifier '" + idName + "'");
@@ -512,7 +537,63 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
       reportError("Call to undeclared function '" + funcName + "'");
       return;
     }
-    // TODO: Check argument count and types
+    // Attempt to fetch the FunctionDecl node to inspect parameters
+    auto fnDecl = std::dynamic_pointer_cast<FunctionDecl>(sym->declNode);
+    if (fnDecl) {
+      size_t arg_before = node.arguments.size();
+      size_t param_count = fnDecl->params.size();
+      LOG_DEBUG("CallExpr callee=" << funcName
+                                   << ", arg_count_before=" << arg_before
+                                   << ", param_count=" << param_count);
+      // Fill default parameters exactly once
+      if (!node.defaultsFilledOnce_ && !inDefaultParamEval_) {
+        // Prevent re-entry filling
+        node.defaultsFilledOnce_ = true;
+        // Only append missing arguments up to param_count
+        for (size_t i = arg_before; i < param_count; ++i) {
+          auto& p = fnDecl->params[i];
+          if (p && p->defaultExpr) {
+            // Resolve default expression in callee scope: we simulate by
+            // visiting once and marking cached
+            if (!p->defaultResolved_) {
+              LOG_TRACE("Resolving default for param index " << i);
+              // Evaluate in a nested scope to emulate callee lexical env
+              enterScope();
+              DefaultParamEvalGuard guard(*this);
+              // Insert prior parameters into scope (names only)
+              for (size_t j = 0; j < fnDecl->params.size(); ++j) {
+                auto& pj = fnDecl->params[j];
+                if (pj) {
+                  std::string pname = pj->name.getLexeme();
+                  currentScope->insert(
+                      pname, Symbol{pname, "", false, false, false, nullptr});
+                }
+              }
+              p->defaultExpr->accept(*this);
+              exitScope();
+              p->defaultResolved_ = true;
+            }
+            node.arguments.push_back(p->defaultExpr);  // synthesize
+          } else {
+            reportError(
+                "Missing argument for parameter without default in call to '" +
+                funcName + "'");
+            // Insert null literal placeholder to avoid vector underflow later
+            node.arguments.push_back(nullptr);
+          }
+        }
+      }
+      size_t arg_after = node.arguments.size();
+      LOG_DEBUG("CallExpr callee="
+                << funcName << ", arg_count_after_default_fill=" << arg_after);
+      ASSERT(arg_after == std::max(arg_before, param_count));
+      // Basic type-check placeholder: ensure not fewer than params
+      if (arg_after < param_count) {
+        reportError("Not enough arguments supplied to function '" + funcName +
+                    "'");
+        return;
+      }
+    }
   }
   for (auto& arg : node.arguments) {
     if (arg) arg->accept(*this);
