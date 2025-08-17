@@ -320,6 +320,19 @@ Shared(ast::TypeNode) TypeBuilder::build(tokens::TokenStream& stream) {
       resultType = ptrNode;
     }
 
+    // Array suffix: Type '[]' (zero or more) — treat each [] as pointer to base
+    // Example: int[] -> pointer to int (runtime as i8* in codegen)
+    while (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET &&
+           stream.peekNext().getType() == tokens::TokenType::RIGHT_BRACKET) {
+      // consume '[]'
+      stream.advance();  // '['
+      stream.advance();  // ']'
+      auto ptrNode = std::make_shared<ast::PointerTypeNode>();
+      ptrNode->baseType = resultType;
+      ptrNode->location = resultType->location;
+      resultType = ptrNode;
+    }
+
     // Check for union/intersection chains: Type ('|' Type | '&' Type)*
     // First gather a list with operator separators
     std::vector<std::pair<char, Shared(ast::TypeNode)>> seq;

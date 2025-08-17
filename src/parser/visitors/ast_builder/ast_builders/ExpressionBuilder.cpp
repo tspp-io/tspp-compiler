@@ -20,6 +20,32 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
   auto type = stream.peek().getType();
 
   switch (type) {
+    // Handle array literals: [ e1, e2, ... ]
+    case tokens::TokenType::LEFT_BRACKET: {
+      auto startTok = stream.peek();
+      stream.advance();  // consume '['
+      auto arr = std::make_shared<ast::ArrayLiteralExpr>();
+      arr->location = startTok.getLocation();
+      // Empty array
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
+        stream.advance();
+        return arr;
+      }
+      while (!stream.isAtEnd() &&
+             stream.peek().getType() != tokens::TokenType::RIGHT_BRACKET) {
+        auto elem = build(stream);
+        if (elem) arr->elements.push_back(elem);
+        if (stream.peek().getType() == tokens::TokenType::COMMA) {
+          stream.advance();
+        } else {
+          break;
+        }
+      }
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
+        stream.advance();
+      }
+      return arr;
+    }
     // Handle object literals: { key: value, ... }
     case tokens::TokenType::LEFT_BRACE: {
       auto startTok = stream.peek();
@@ -165,24 +191,40 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       expr->name = stream.peek();
       expr->location = stream.peek().getLocation();
       stream.advance();
-      // Parse chained member accesses: foo.bar.baz
+      // Parse chained member accesses and index accesses
       Shared(ast::Expr) object = expr;
-      while (stream.peek().getType() == tokens::TokenType::DOT) {
-        auto dotToken = stream.peek();
-        stream.advance();  // consume '.'
-        auto t = stream.peek().getType();
-        if (t == tokens::TokenType::IDENTIFIER || t == tokens::TokenType::GET ||
-            t == tokens::TokenType::SET) {
-          auto memberToken = stream.peek();
+      while (true) {
+        if (stream.peek().getType() == tokens::TokenType::DOT) {
+          stream.advance();  // consume '.'
+          auto t = stream.peek().getType();
+          if (t == tokens::TokenType::IDENTIFIER ||
+              t == tokens::TokenType::GET || t == tokens::TokenType::SET) {
+            auto memberToken = stream.peek();
+            stream.advance();
+            auto memberExpr = std::make_shared<ast::MemberAccessExpr>();
+            memberExpr->object = object;
+            memberExpr->member = memberToken;
+            memberExpr->location = object->location;
+            object = memberExpr;
+            continue;
+          } else {
+            break;
+          }
+        } else if (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET) {
+          // Index access: obj[expr]
+          auto lb = stream.peek();
           stream.advance();
-          auto memberExpr = std::make_shared<ast::MemberAccessExpr>();
-          memberExpr->object = object;
-          memberExpr->member = memberToken;
-          memberExpr->location =
-              object->location;  // or memberToken.getLocation();
-          object = memberExpr;
+          auto indexExpr = build(stream);
+          if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
+            stream.advance();
+          }
+          auto idx = std::make_shared<ast::IndexAccessExpr>();
+          idx->object = object;
+          idx->index = indexExpr;
+          idx->location = lb.getLocation();
+          object = idx;
+          continue;
         } else {
-          // Malformed member access, skip
           break;
         }
       }
@@ -202,10 +244,11 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       }
       return expr;
     }
-    // Handle unary operators: -expr, !expr, @expr (address-of), *expr
-    // (dereference)
+      // Handle unary operators: -expr, !expr, @expr (address-of), *expr
+      // (dereference)
     case tokens::TokenType::MINUS:
     case tokens::TokenType::EXCLAIM:
+    case tokens::TokenType::TILDE:   // Bitwise NOT (~)
     case tokens::TokenType::AT:      // Address-of operator (@)
     case tokens::TokenType::STAR: {  // Dereference operator (*)
       auto op = stream.peek();
@@ -238,7 +281,9 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
 
     // Special handling for assignment operators
     if (type == tokens::TokenType::EQUALS) {
-      auto right = buildBinary(stream, prec + 1);
+      // Assignment is right-associative: parse RHS with the same precedence
+      // so that chains like x = y = 5 associate as x = (y = 5)
+      auto right = buildBinary(stream, prec);
       auto assignExpr = std::make_shared<ast::AssignmentExpr>();
       assignExpr->target = left;
       assignExpr->value = right;
@@ -255,23 +300,33 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
       left = expr;
     }
   }
-  // Postfix type assertion: '<expr> as any' -> ignore and return left
+  // Postfix type assertion: '<expr> as <Type>' -> consume and return left
+  // We treat all 'as' casts as no-ops in codegen for now, but we must consume
+  // the following type tokens to keep the parser in sync.
   if (!stream.isAtEnd() &&
       stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
       stream.peek().getLexeme() == std::string("as")) {
-    // Lookahead for 'any'
     // consume 'as'
     stream.advance();
-    if (!stream.isAtEnd() &&
-        stream.peek().getType() == tokens::TokenType::IDENTIFIER &&
-        stream.peek().getLexeme() == std::string("any")) {
+    // Best-effort consume a simple type: either a basic type token or identifier
+    auto tt = stream.peek().getType();
+    if (tt == tokens::TokenType::IDENTIFIER ||
+        tt == tokens::TokenType::INT || tt == tokens::TokenType::FLOAT ||
+        tt == tokens::TokenType::BOOLEAN || tt == tokens::TokenType::STRING ||
+        tt == tokens::TokenType::VOID) {
       stream.advance();
-      // no-op cast to any
-      return left;
-    } else {
-      // Not 'any' - we don't support full type assertions yet; ignore
-      return left;
+      // Optionally consume array suffixes: [] ...
+      while (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET &&
+             stream.peekNext().getType() == tokens::TokenType::RIGHT_BRACKET) {
+        stream.advance(); // '['
+        stream.advance(); // ']'
+      }
+      // Optionally consume pointer suffixes: '*'+
+      while (stream.peek().getType() == tokens::TokenType::STAR) {
+        stream.advance();
+      }
     }
+    return left;
   }
   return left;
 }
@@ -322,6 +377,15 @@ int ExpressionBuilder::getOperatorPrecedence(tokens::TokenType type) {
       return 3;  // Logical AND
     case tokens::TokenType::PIPE_PIPE:
       return 2;  // Logical OR
+    case tokens::TokenType::PIPE:
+      return 4;  // Bitwise OR (below comparison, above logical)
+    case tokens::TokenType::CARET:
+      return 4;  // Bitwise XOR
+    case tokens::TokenType::AMPERSAND:
+      return 4;  // Bitwise AND
+    case tokens::TokenType::LEFT_SHIFT:
+    case tokens::TokenType::RIGHT_SHIFT:
+      return 5;  // Shift (between additive and comparison per docs)
     case tokens::TokenType::EQUALS:
       return 1;  // Assignment
     default:
@@ -345,6 +409,11 @@ bool ExpressionBuilder::isBinaryOperator(tokens::TokenType type) {
     case tokens::TokenType::GREATER_EQUALS:
     case tokens::TokenType::AMPERSAND_AMPERSAND:
     case tokens::TokenType::PIPE_PIPE:
+    case tokens::TokenType::PIPE:
+    case tokens::TokenType::CARET:
+    case tokens::TokenType::AMPERSAND:
+    case tokens::TokenType::LEFT_SHIFT:
+    case tokens::TokenType::RIGHT_SHIFT:
     case tokens::TokenType::EQUALS:
       return true;
     default:

@@ -37,6 +37,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::BlockStmt&) override;
   void visit(ast::CallExpr&) override;
   void visit(ast::MemberAccessExpr&) override;
+  void visit(ast::IndexAccessExpr&) override;
+  void visit(ast::ArrayLiteralExpr&) override;
   void visit(ast::ObjectLiteralExpr&) override;
   void visit(ast::ThisExpr&) override;
   void visit(ast::NewExpr&) override;
@@ -93,6 +95,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
     bool hasConstructor = false;
     // Track static methods by simple name
     std::unordered_set<std::string> staticMethods;
+  // Track implemented interfaces (by name) for interface dispatch fallback
+  std::vector<std::string> implements;
   };
   std::unordered_map<std::string, ClassInfo> classes;  // class name -> info
   std::vector<std::string>

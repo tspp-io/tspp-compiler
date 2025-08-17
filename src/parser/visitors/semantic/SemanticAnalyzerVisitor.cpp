@@ -71,6 +71,19 @@ std::string SemanticAnalyzerVisitor::resolveType(TypeNode* type) {
     return smart->kind.getLexeme() + "<" + baseType + ">";
   }
 
+  // Handle GenericTypeNode: Name<Arg1, Arg2, ...>
+  if (auto* gen = dynamic_cast<GenericTypeNode*>(type)) {
+    std::string name = gen->name.getLexeme();
+    std::string out = name;
+    out += "<";
+    for (size_t i = 0; i < gen->typeArgs.size(); ++i) {
+      if (i > 0) out += ", ";
+      out += resolveType(gen->typeArgs[i].get());
+    }
+    out += ">";
+    return out;
+  }
+
   // Handle UnionTypeNode (for now, just return first type)
   if (auto* union_type = dynamic_cast<UnionTypeNode*>(type)) {
     if (!union_type->types.empty()) {
@@ -490,6 +503,9 @@ void SemanticAnalyzerVisitor::visit(AssignmentExpr& node) {
     // If it's 'this.something', 'this' validity will be checked when visiting
     // the target.
     (void)memberTarget;  // suppress unused warning in some builds
+  } else if (dynamic_cast<IndexAccessExpr*>(node.target.get())) {
+    // Support indexed assignment like a[i] = v
+    // Detailed bounds/type checks omitted for now
   } else {
     reportError("Unsupported assignment target");
   }

@@ -63,6 +63,21 @@ class MemberAccessExpr : public Expr {
   AST_ACCEPT_IMPL(MemberAccessExpr);
 };
 
+// Index access expression: object[index]
+class IndexAccessExpr : public Expr {
+ public:
+  Shared(Expr) object;
+  Shared(Expr) index;
+  AST_ACCEPT_IMPL(IndexAccessExpr);
+};
+
+// Array literal: [ e1, e2, ... ]
+class ArrayLiteralExpr : public Expr {
+ public:
+  std::vector<Shared(Expr)> elements;
+  AST_ACCEPT_IMPL(ArrayLiteralExpr);
+};
+
 // Object literal expression: { key: value, ... }
 class ObjectLiteralExpr : public Expr {
  public:

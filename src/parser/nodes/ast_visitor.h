@@ -16,6 +16,8 @@ class IdentifierExpr;
 class AssignmentExpr;
 class CallExpr;
 class MemberAccessExpr;
+class IndexAccessExpr;
+class ArrayLiteralExpr;
 class ObjectLiteralExpr;
 class BlockStmt;
 class StaticBlockStmt;
@@ -65,6 +67,8 @@ class ASTVisitor {
   virtual void visit(AssignmentExpr&) {}
   virtual void visit(CallExpr&) {}
   virtual void visit(MemberAccessExpr&) {}
+  virtual void visit(IndexAccessExpr&) {}
+  virtual void visit(ArrayLiteralExpr&) {}
   virtual void visit(ObjectLiteralExpr&) {}
   virtual void visit(BlockStmt&) {}
   virtual void visit(StaticBlockStmt&) {}
