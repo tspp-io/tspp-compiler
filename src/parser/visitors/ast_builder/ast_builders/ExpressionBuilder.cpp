@@ -108,12 +108,15 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       n->location = tok.getLocation();
       return n;
     }
-    // Handle 'new' operator: new ClassName(args)
+    // Handle 'new' operator: new ClassName(args) or new BasicType[expr]
     case tokens::TokenType::NEW: {
       auto newTok = stream.peek();
       stream.advance();
-      // Expect class identifier
-      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
+      // Expect class identifier or basic type (int, float, boolean, string)
+      auto t = stream.peek().getType();
+      if (!(t == tokens::TokenType::IDENTIFIER || t == tokens::TokenType::INT ||
+            t == tokens::TokenType::FLOAT || t == tokens::TokenType::BOOLEAN ||
+            t == tokens::TokenType::STRING)) {
         // Malformed; return null to avoid crash
         return nullptr;
       }
@@ -123,7 +126,9 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       newExpr->keyword = newTok;
       newExpr->className = classTok;
       newExpr->location = newTok.getLocation();
-      // Parse optional constructor args: '(' ... ')'
+      // Two forms:
+      // 1) Constructor args: '(' ... ')'
+      // 2) Array dimension: '[' expr ']'
       if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
         stream.advance();
         while (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN &&
@@ -138,6 +143,14 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
         }
         if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
           stream.advance();
+        }
+      } else if (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET) {
+        // Parse single dimension for now: new T[expr]
+        stream.advance();  // '['
+        auto sizeExpr = build(stream);
+        if (sizeExpr) newExpr->arguments.push_back(sizeExpr);
+        if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
+          stream.advance();  // ']'
         }
       }
       return newExpr;
@@ -161,22 +174,40 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       auto thisExpr = std::make_shared<ast::ThisExpr>();
       thisExpr->keyword = thisToken;
       thisExpr->location = thisToken.getLocation();
-      // Support chained member access: this.foo.bar
+      // Support chained member and index access: this.foo.bar[0]
       Shared(ast::Expr) object = thisExpr;
-      while (stream.peek().getType() == tokens::TokenType::DOT) {
-        stream.advance();  // consume '.'
-        auto t = stream.peek().getType();
-        if (t == tokens::TokenType::IDENTIFIER || t == tokens::TokenType::GET ||
-            t == tokens::TokenType::SET) {
-          auto memberToken = stream.peek();
+      while (true) {
+        if (stream.peek().getType() == tokens::TokenType::DOT) {
+          stream.advance();  // consume '.'
+          auto t = stream.peek().getType();
+          if (t == tokens::TokenType::IDENTIFIER ||
+              t == tokens::TokenType::GET || t == tokens::TokenType::SET) {
+            auto memberToken = stream.peek();
+            stream.advance();
+            auto memberExpr = std::make_shared<ast::MemberAccessExpr>();
+            memberExpr->object = object;
+            memberExpr->member = memberToken;
+            memberExpr->location = object->location;
+            object = memberExpr;
+            continue;
+          } else {
+            break;  // Malformed member access; exit gracefully
+          }
+        } else if (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET) {
+          auto lb = stream.peek();
           stream.advance();
-          auto memberExpr = std::make_shared<ast::MemberAccessExpr>();
-          memberExpr->object = object;
-          memberExpr->member = memberToken;
-          memberExpr->location = object->location;
-          object = memberExpr;
+          auto idxExpr = build(stream);
+          if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
+            stream.advance();
+          }
+          auto idx = std::make_shared<ast::IndexAccessExpr>();
+          idx->object = object;
+          idx->index = idxExpr;
+          idx->location = lb.getLocation();
+          object = idx;
+          continue;
         } else {
-          break;  // Malformed member access; exit gracefully
+          break;
         }
       }
       // If next token is '(', treat as a function call on the member chain
@@ -278,6 +309,15 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
     if (prec < minPrec) break;
     auto op = stream.peek();
     stream.advance();
+    // Optionally consume generic arguments: Identifier '<' ... '>'
+    if (stream.peek().getType() == tokens::TokenType::LESS) {
+      int depth = 0;
+      do {
+        if (stream.peek().getType() == tokens::TokenType::LESS) depth++;
+        if (stream.peek().getType() == tokens::TokenType::GREATER) depth--;
+        stream.advance();
+      } while (!stream.isAtEnd() && depth > 0);
+    }
 
     // Special handling for assignment operators
     if (type == tokens::TokenType::EQUALS) {
@@ -308,18 +348,18 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
       stream.peek().getLexeme() == std::string("as")) {
     // consume 'as'
     stream.advance();
-    // Best-effort consume a simple type: either a basic type token or identifier
+    // Best-effort consume a simple type: either a basic type token or
+    // identifier
     auto tt = stream.peek().getType();
-    if (tt == tokens::TokenType::IDENTIFIER ||
-        tt == tokens::TokenType::INT || tt == tokens::TokenType::FLOAT ||
-        tt == tokens::TokenType::BOOLEAN || tt == tokens::TokenType::STRING ||
-        tt == tokens::TokenType::VOID) {
+    if (tt == tokens::TokenType::IDENTIFIER || tt == tokens::TokenType::INT ||
+        tt == tokens::TokenType::FLOAT || tt == tokens::TokenType::BOOLEAN ||
+        tt == tokens::TokenType::STRING || tt == tokens::TokenType::VOID) {
       stream.advance();
       // Optionally consume array suffixes: [] ...
       while (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET &&
              stream.peekNext().getType() == tokens::TokenType::RIGHT_BRACKET) {
-        stream.advance(); // '['
-        stream.advance(); // ']'
+        stream.advance();  // '['
+        stream.advance();  // ']'
       }
       // Optionally consume pointer suffixes: '*'+
       while (stream.peek().getType() == tokens::TokenType::STAR) {

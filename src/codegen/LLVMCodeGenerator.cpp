@@ -100,7 +100,8 @@ llvm::Type* LLVMCodeGenerator::getLLVMType(const std::string& typeName) {
   // If the name looks like a class (starts uppercase) but not registered yet,
   // create a forward opaque struct to allow pointer typing. This helps when
   // encountering generic forms before ClassDecl visit.
-  if (!classLookup.empty() && std::isupper(static_cast<unsigned char>(classLookup[0]))) {
+  if (!classLookup.empty() &&
+      std::isupper(static_cast<unsigned char>(classLookup[0]))) {
     ClassInfo info;
     info.structTy = llvm::StructType::create(context, classLookup);
     classes[classLookup] = info;
@@ -218,7 +219,8 @@ void LLVMCodeGenerator::visit(ProgramNode& node) {
       v->accept(*this);
     }
   }
-  // Some parsers might place VarDecl at the top-level as statements; handle them too
+  // Some parsers might place VarDecl at the top-level as statements; handle
+  // them too
   for (auto& stmt : node.statements) {
     if (!stmt) continue;
     if (auto* v = dynamic_cast<ast::VarDecl*>(stmt.get())) {
@@ -226,12 +228,20 @@ void LLVMCodeGenerator::visit(ProgramNode& node) {
     }
   }
 
-  // Phase 2: non-variable declarations (functions, classes, interfaces, etc.)
+  // Phase 2a: emit all class declarations first so struct types are sized
   for (auto& decl : node.declarations) {
     if (!decl) continue;
-    if (!dynamic_cast<ast::VarDecl*>(decl.get())) {
+    if (dynamic_cast<ast::ClassDecl*>(decl.get())) {
       decl->accept(*this);
     }
+  }
+  // Phase 2b: emit remaining non-variable, non-class declarations (functions,
+  // interfaces, etc.)
+  for (auto& decl : node.declarations) {
+    if (!decl) continue;
+    if (dynamic_cast<ast::VarDecl*>(decl.get())) continue;
+    if (dynamic_cast<ast::ClassDecl*>(decl.get())) continue;
+    decl->accept(*this);
   }
 
   // Phase 3: remaining statements (e.g., expression statements)
@@ -918,7 +928,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
                        dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
           if (auto objIdent =
                   dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
-            // Prefer concrete Class.method if available, else fallback to interface scan
+            // Prefer concrete Class.method if available, else fallback to
+            // interface scan
             std::string objTy;
             auto itSym = symbolTable.find(objIdent->name.getLexeme());
             if (itSym != symbolTable.end()) objTy = itSym->second.typeName;
@@ -942,14 +953,16 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
                   }
                 }
                 if (!impl) continue;
-                std::string candidate = kv.first + "." + innerMember->member.getLexeme();
+                std::string candidate =
+                    kv.first + "." + innerMember->member.getLexeme();
                 if (functionReturnTypes.count(candidate)) {
                   innerName = candidate;
                   break;
                 }
               }
               if (innerName.empty()) {
-                innerName = objIdent->name.getLexeme() + "." + innerMember->member.getLexeme();
+                innerName = objIdent->name.getLexeme() + "." +
+                            innerMember->member.getLexeme();
               }
             }
           }
@@ -1004,13 +1017,23 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
                 for (auto& kv : classes) {
                   bool implements = false;
                   for (auto& in : kv.second.implements) {
-                    if (stripGeneric(in) == baseIface) { implements = true; break; }
+                    if (stripGeneric(in) == baseIface) {
+                      implements = true;
+                      break;
+                    }
                   }
                   if (!implements) continue;
-                  std::string candidate = kv.first + "." + innerMember->member.getLexeme();
-                  if (functionReturnTypes.count(candidate)) { chosen = candidate; break; }
+                  std::string candidate =
+                      kv.first + "." + innerMember->member.getLexeme();
+                  if (functionReturnTypes.count(candidate)) {
+                    chosen = candidate;
+                    break;
+                  }
                 }
-                if (!chosen.empty()) innerName = chosen; else innerName.clear();
+                if (!chosen.empty())
+                  innerName = chosen;
+                else
+                  innerName.clear();
               }
             }
           }
@@ -1152,10 +1175,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     }
     // Not concatenation: perform numeric promotion now and emit add
     // Ensure operands are materialized (for '+' we may have allowed nulls)
-    if (!lhs)
-      lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-    if (!rhs)
-      rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     auto lhsTy = lhs->getType();
     auto rhsTy = rhs->getType();
     bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
@@ -1451,8 +1472,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     lastValue = isFP ? builder->CreateFCmpONE(lhs, rhs, "fcmpne")
                      : builder->CreateICmpNE(lhs, rhs, "icmpne");
   } else if (op == "&") {
-  if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     // Bitwise AND on integers; cast bool to i32 if needed
     if (lhs->getType()->isIntegerTy(1))
       lhs = builder->CreateZExt(lhs, llvm::Type::getInt32Ty(context));
@@ -1464,8 +1485,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       rhs = builder->CreateIntCast(rhs, llvm::Type::getInt32Ty(context), true);
     lastValue = builder->CreateAnd(lhs, rhs, "andtmp");
   } else if (op == "|") {
-  if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     if (lhs->getType()->isIntegerTy(1))
       lhs = builder->CreateZExt(lhs, llvm::Type::getInt32Ty(context));
     if (rhs->getType()->isIntegerTy(1))
@@ -1476,8 +1497,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       rhs = builder->CreateIntCast(rhs, llvm::Type::getInt32Ty(context), true);
     lastValue = builder->CreateOr(lhs, rhs, "ortmp");
   } else if (op == "^") {
-  if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     if (lhs->getType()->isIntegerTy(1))
       lhs = builder->CreateZExt(lhs, llvm::Type::getInt32Ty(context));
     if (rhs->getType()->isIntegerTy(1))
@@ -1488,8 +1509,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       rhs = builder->CreateIntCast(rhs, llvm::Type::getInt32Ty(context), true);
     lastValue = builder->CreateXor(lhs, rhs, "xortmp");
   } else if (op == "<<") {
-  if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     // Shifts: ensure lhs i32 and rhs i32
     if (!lhs->getType()->isIntegerTy(32))
       lhs = builder->CreateIntCast(lhs, llvm::Type::getInt32Ty(context), true);
@@ -1497,8 +1518,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
       rhs = builder->CreateIntCast(rhs, llvm::Type::getInt32Ty(context), true);
     lastValue = builder->CreateShl(lhs, rhs, "shltmp");
   } else if (op == ">>") {
-  if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     if (!lhs->getType()->isIntegerTy(32))
       lhs = builder->CreateIntCast(lhs, llvm::Type::getInt32Ty(context), true);
     if (!rhs->getType()->isIntegerTy(32))
@@ -1522,16 +1543,21 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
     } else {
       resolvedRetType = semanticAnalyzer->resolveType(node.returnType.get());
       retType = getLLVMType(resolvedRetType);
-      // If unresolved or mapped to i32 but declared via basic/generic type and not primitive,
-      // treat as i8* and mark as string for downstream formatting.
+      // If unresolved or mapped to i32 but declared via basic/generic type and
+      // not primitive, treat as i8* and mark as string for downstream
+      // formatting.
       auto isPrimitiveName = [&](const std::string& t) {
         return (t == "int" || t == "float" || t == "double" || t == "bool" ||
                 t == "boolean" || t == "void" || t == "string");
       };
-      bool looksUnresolved = (resolvedRetType.empty() || retType == llvm::Type::getInt32Ty(context));
-      bool isBasic = dynamic_cast<ast::BasicTypeNode*>(node.returnType.get()) != nullptr;
-      bool isGeneric = dynamic_cast<ast::GenericTypeNode*>(node.returnType.get()) != nullptr;
-      if ((isBasic || isGeneric) && looksUnresolved && !isPrimitiveName(resolvedRetType)) {
+      bool looksUnresolved = (resolvedRetType.empty() ||
+                              retType == llvm::Type::getInt32Ty(context));
+      bool isBasic =
+          dynamic_cast<ast::BasicTypeNode*>(node.returnType.get()) != nullptr;
+      bool isGeneric =
+          dynamic_cast<ast::GenericTypeNode*>(node.returnType.get()) != nullptr;
+      if ((isBasic || isGeneric) && looksUnresolved &&
+          !isPrimitiveName(resolvedRetType)) {
         retType = getPointerTy();
         resolvedRetType = "string";
       }
@@ -1555,9 +1581,12 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
       };
       bool looksUnresolved = (paramTypeName.empty() ||
                               paramType == llvm::Type::getInt32Ty(context));
-      bool isBasic = dynamic_cast<ast::BasicTypeNode*>(param->type.get()) != nullptr;
-      bool isGeneric = dynamic_cast<ast::GenericTypeNode*>(param->type.get()) != nullptr;
-      if ((isBasic || isGeneric) && looksUnresolved && !isPrimitiveName(paramTypeName)) {
+      bool isBasic =
+          dynamic_cast<ast::BasicTypeNode*>(param->type.get()) != nullptr;
+      bool isGeneric =
+          dynamic_cast<ast::GenericTypeNode*>(param->type.get()) != nullptr;
+      if ((isBasic || isGeneric) && looksUnresolved &&
+          !isPrimitiveName(paramTypeName)) {
         // Heuristic: generic/interface/custom types become i8*
         paramType = getPointerTy();
       }
@@ -1632,7 +1661,8 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
       if (paramResolvedName.empty()) {
         if (auto* bt = dynamic_cast<ast::BasicTypeNode*>(param->type.get())) {
           paramResolvedName = bt->name.getLexeme();
-        } else if (auto* gt = dynamic_cast<ast::GenericTypeNode*>(param->type.get())) {
+        } else if (auto* gt =
+                       dynamic_cast<ast::GenericTypeNode*>(param->type.get())) {
           paramResolvedName = gt->name.getLexeme();
         }
       }
@@ -1788,12 +1818,73 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   // Attempt to determine callee's return type to help with argument conversions
   std::string calleeRetType;
   if (auto ident = dynamic_cast<IdentifierExpr*>(node.callee.get())) {
+    // Handle direct 'super(...)' constructor call inside a class
+    if (ident->name.getLexeme() == std::string("super")) {
+      // Resolve current and base class
+      if (classNameStack.empty()) {
+        lastValue = nullptr;
+        return;
+      }
+      std::string cur = classNameStack.back();
+      auto itCls = classes.find(cur);
+      if (itCls == classes.end() || itCls->second.baseClass.empty()) {
+        lastValue = nullptr;  // no base
+        return;
+      }
+      std::string base = itCls->second.baseClass;
+      // Build args: this (i8*) + forwarded args
+      std::vector<llvm::Value*> args;
+      // Load 'this'
+      auto itThis = symbolTable.find("this");
+      if (itThis != symbolTable.end()) {
+        llvm::Value* thisPtr = itThis->second.value;
+        if (auto* allocaInst = llvm::dyn_cast<llvm::AllocaInst>(thisPtr)) {
+          thisPtr =
+              builder->CreateLoad(allocaInst->getAllocatedType(), thisPtr);
+        } else {
+          thisPtr = builder->CreateLoad(getPointerTy(), thisPtr);
+        }
+        thisPtr = ensureBitcast(thisPtr, getPointerTy());
+        args.push_back(thisPtr);
+      }
+      for (auto& a : node.arguments) {
+        if (!a) continue;
+        a->accept(*this);
+        if (lastValue) args.push_back(lastValue);
+      }
+      // Emit call to __ctor_Base
+      auto fn = module->getFunction(std::string("__ctor_") + base);
+      if (fn) builder->CreateCall(fn, args);
+      lastValue = nullptr;
+      // done
+      activeCallExprs.erase(&node);
+      return;
+    }
     funcName = ident->name.getLexeme();
     auto itFn = functionReturnTypes.find(funcName);
     if (itFn != functionReturnTypes.end()) {
       calleeRetType = itFn->second;
     }
   } else if (auto member = dynamic_cast<MemberAccessExpr*>(node.callee.get())) {
+    // Handle super.method(...) -> Base.method(this, ...)
+    if (auto objIdent = dynamic_cast<IdentifierExpr*>(member->object.get())) {
+      if (objIdent->name.getLexeme() == std::string("super")) {
+        if (classNameStack.empty()) {
+          lastValue = nullptr;
+          activeCallExprs.erase(&node);
+          return;
+        }
+        std::string cur = classNameStack.back();
+        auto itCls = classes.find(cur);
+        if (itCls == classes.end() || itCls->second.baseClass.empty()) {
+          lastValue = nullptr;
+          activeCallExprs.erase(&node);
+          return;
+        }
+        std::string base = itCls->second.baseClass;
+        funcName = base + "." + member->member.getLexeme();
+      }
+    }
     // Handle console.* specially below; otherwise resolve class method
     // Determine class name
     std::string className;
@@ -1819,16 +1910,20 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
       if (!className.empty() && classes.count(className)) {
         funcName = className + "." + member->member.getLexeme();
       }
-      // If not a known class, treat as interface and scan classes for an implementation.
+      // If not a known class, treat as interface and scan classes for an
+      // implementation.
       if (funcName.empty()) {
         std::string ifaceName = className;
-        // If we didn't get a semantic name above, try to fetch from identifier again
+        // If we didn't get a semantic name above, try to fetch from identifier
+        // again
         if (ifaceName.empty()) {
-          if (auto objIdent = dynamic_cast<IdentifierExpr*>(member->object.get())) {
+          if (auto objIdent =
+                  dynamic_cast<IdentifierExpr*>(member->object.get())) {
             auto itSym = symbolTable.find(objIdent->name.getLexeme());
             if (itSym != symbolTable.end()) ifaceName = itSym->second.typeName;
           }
-          if (!ifaceName.empty() && ifaceName.back() == '*') ifaceName.pop_back();
+          if (!ifaceName.empty() && ifaceName.back() == '*')
+            ifaceName.pop_back();
         }
         if (!ifaceName.empty() && !classes.count(ifaceName)) {
           auto stripGeneric = [](const std::string& s) {
@@ -1843,11 +1938,17 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
             auto& ci = kv.second;
             bool implements = false;
             for (auto& in : ci.implements) {
-              if (stripGeneric(in) == baseIface) { implements = true; break; }
+              if (stripGeneric(in) == baseIface) {
+                implements = true;
+                break;
+              }
             }
             if (!implements) continue;
             std::string candidate = kv.first + "." + method;
-            if (module->getFunction(candidate)) { chosen = candidate; break; }
+            if (module->getFunction(candidate)) {
+              chosen = candidate;
+              break;
+            }
           }
           if (!chosen.empty()) funcName = chosen;
         }
@@ -1857,7 +1958,10 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
           std::string method = member->member.getLexeme();
           for (auto& kv : classes) {
             std::string candidate = kv.first + "." + method;
-            if (module->getFunction(candidate)) { funcName = candidate; break; }
+            if (module->getFunction(candidate)) {
+              funcName = candidate;
+              break;
+            }
           }
         }
       }
@@ -1891,7 +1995,8 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
           }
         }
       }
-      // If we resolved to a method via interface fallback, still pass 'this' as i8*
+      // If we resolved to a method via interface fallback, still pass 'this' as
+      // i8*
       if (passThis) {
         // Evaluate object expression to get pointer
         lastValue = nullptr;
@@ -1966,19 +2071,32 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
             for (auto& kv : classes) {
               bool implements = false;
               for (auto& in : kv.second.implements) {
-                if (stripGeneric(in) == baseIface) { implements = true; break; }
+                if (stripGeneric(in) == baseIface) {
+                  implements = true;
+                  break;
+                }
               }
               if (!implements) continue;
-              std::string candidate = kv.first + "." + innerMember->member.getLexeme();
-              if (functionReturnTypes.count(candidate)) { chosen = candidate; break; }
+              std::string candidate =
+                  kv.first + "." + innerMember->member.getLexeme();
+              if (functionReturnTypes.count(candidate)) {
+                chosen = candidate;
+                break;
+              }
             }
-            if (!chosen.empty()) innerName = chosen; else innerName.clear();
+            if (!chosen.empty())
+              innerName = chosen;
+            else
+              innerName.clear();
           } else {
             // No type info: try any class that defines the method
             std::string method = innerMember->member.getLexeme();
             for (auto& kv : classes) {
               std::string candidate = kv.first + "." + method;
-              if (functionReturnTypes.count(candidate)) { innerName = candidate; break; }
+              if (functionReturnTypes.count(candidate)) {
+                innerName = candidate;
+                break;
+              }
             }
           }
         }
@@ -2397,10 +2515,14 @@ void LLVMCodeGenerator::visit(AssignmentExpr& node) {
                  dynamic_cast<MemberAccessExpr*>(node.target.get())) {
     // Support 'obj.field = value' and 'this.field = value'
     // Evaluate RHS first
+    llvm::Value* rhs = nullptr;
     if (node.value) {
       node.value->accept(*this);
+      rhs = lastValue;
+    } else {
+      // No RHS; treat as no-op and avoid reusing stale lastValue
+      lastValue = nullptr;
     }
-    llvm::Value* rhs = lastValue;
     // Evaluate object
     if (!memberTarget->object) {
       lastValue = nullptr;
@@ -2446,8 +2568,12 @@ void LLVMCodeGenerator::visit(AssignmentExpr& node) {
             toStore = builder->CreateIntCast(rhs, elemTy, true);
           }
         }
-        builder->CreateStore(toStore, fieldPtr);
-        lastValue = toStore;
+        if (toStore && elemTy) {
+          builder->CreateStore(toStore, fieldPtr);
+          lastValue = toStore;
+        } else {
+          lastValue = nullptr;
+        }
         return;
       }
     }
@@ -2782,11 +2908,12 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     if (semanticAnalyzer && f->type)
       tname = semanticAnalyzer->resolveType(f->type.get());
     llvm::Type* fty = getLLVMType(tname);
-    // Heuristic: If this looks like a basic custom/unresolved type (e.g., a generic T)
-    // and resolved to i32 (default), treat it as a generic pointer so we can
-    // store references like strings/objects.
+    // Heuristic: If this looks like a basic custom/unresolved type (e.g., a
+    // generic T) and resolved to i32 (default), treat it as a generic pointer
+    // so we can store references like strings/objects.
     if ((tname.empty() || fty == llvm::Type::getInt32Ty(context))) {
-      if (f->type && dynamic_cast<ast::BasicTypeNode*>(f->type.get()) != nullptr) {
+      if (f->type &&
+          dynamic_cast<ast::BasicTypeNode*>(f->type.get()) != nullptr) {
         if (tname != "int" && tname != "float" && tname != "double" &&
             tname != "bool" && tname != "boolean" && tname != "string") {
           fty = getPointerTy();
@@ -2804,6 +2931,13 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     info.fieldTypes[f->name.getLexeme()] = fty;
     fieldTypesOrdered.push_back(fty);
   }
+  // Record base class if present (simple identifier token)
+  if (node.baseClass.getType() == tokens::TokenType::IDENTIFIER) {
+    info.baseClass = node.baseClass.getLexeme();
+  } else {
+    info.baseClass.clear();
+  }
+
   // Use packed layout if class declared with #packed (either legacy single or
   // in modifiers list)
   bool isPacked = (node.modifier == ast::ClassModifier::Packed);
@@ -2836,7 +2970,8 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     if (semanticAnalyzer && m->returnType) {
       retName = semanticAnalyzer->resolveType(m->returnType.get());
       retTy = getLLVMType(retName);
-      // Heuristic: unresolved/basic non-primitive generic returns become i8* (string-like)
+      // Heuristic: unresolved/basic non-primitive generic returns become i8*
+      // (string-like)
       if ((retName.empty() || retTy == llvm::Type::getInt32Ty(context)) &&
           dynamic_cast<ast::BasicTypeNode*>(m->returnType.get()) != nullptr) {
         if (retName != "int" && retName != "float" && retName != "double" &&
@@ -2882,7 +3017,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
       func = llvm::Function::Create(fnTy, llvm::Function::ExternalLinkage,
                                     fnName, module.get());
     // Record method return type for string-concat/console detection
-  functionReturnTypes[fnName] = retName;
+    functionReturnTypes[fnName] = retName;
     // Attach method attributes for reference
     for (auto a : m->methodAttributes) {
       switch (a) {
@@ -3167,6 +3302,52 @@ void LLVMCodeGenerator::visit(ast::NewExpr& node) {
     return;
   }
   std::string className = node.className.getLexeme();
+  // Primitive array form: new int[size] etc. Treat as GC_malloc of N * elemSz
+  auto isBasic = [&](const std::string& n) {
+    return n == "int" || n == "int32" || n == "float" || n == "double" ||
+           n == "bool" || n == "boolean" || n == "string";
+  };
+  if (node.arguments.size() == 1 && isBasic(className)) {
+    // Resolve element LLVM type and size
+    llvm::Type* elemTy = getLLVMType(className);
+    uint64_t elemSize = 4;  // default to 4 bytes
+    if (elemTy->isDoubleTy())
+      elemSize = 8;
+    else if (elemTy->isIntegerTy(1))
+      elemSize = 1;
+    else if (elemTy->isPointerTy())
+      elemSize = 8;  // pointers
+
+    node.arguments[0]->accept(*this);
+    llvm::Value* nVal = lastValue;
+    if (!nVal) {
+      lastValue = llvm::ConstantPointerNull::get(
+          llvm::cast<llvm::PointerType>(getPointerTy()));
+      return;
+    }
+    if (!nVal->getType()->isIntegerTy(32)) {
+      if (nVal->getType()->isIntegerTy())
+        nVal =
+            builder->CreateIntCast(nVal, llvm::Type::getInt32Ty(context), true);
+      else if (nVal->getType()->isFloatingPointTy())
+        nVal = builder->CreateFPToSI(nVal, llvm::Type::getInt32Ty(context));
+      else
+        nVal = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    }
+    llvm::Value* sz32 =
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), elemSize);
+    llvm::Value* bytes32 = builder->CreateMul(nVal, sz32);
+    llvm::Value* bytes64 =
+        builder->CreateSExt(bytes32, llvm::Type::getInt64Ty(context));
+    auto gcMallocTy = llvm::FunctionType::get(
+        getPointerTy(), {llvm::Type::getInt64Ty(context)}, false);
+    auto gcMalloc = module->getOrInsertFunction("GC_malloc", gcMallocTy);
+    llvm::Value* raw = builder->CreateCall(gcMalloc, {bytes64}, "arr");
+    // Return pointer casted to element pointer type
+    lastValue =
+        builder->CreatePointerCast(raw, llvm::PointerType::get(elemTy, 0));
+    return;
+  }
   auto it = classes.find(className);
   if (it == classes.end()) {
     lastValue = nullptr;

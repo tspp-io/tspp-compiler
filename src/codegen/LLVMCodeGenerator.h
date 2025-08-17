@@ -95,8 +95,10 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
     bool hasConstructor = false;
     // Track static methods by simple name
     std::unordered_set<std::string> staticMethods;
-  // Track implemented interfaces (by name) for interface dispatch fallback
-  std::vector<std::string> implements;
+    // Track implemented interfaces (by name) for interface dispatch fallback
+    std::vector<std::string> implements;
+    // Base class name (empty if none)
+    std::string baseClass;
   };
   std::unordered_map<std::string, ClassInfo> classes;  // class name -> info
   std::vector<std::string>

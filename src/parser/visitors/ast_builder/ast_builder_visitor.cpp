@@ -17,6 +17,13 @@ void ASTBuilderVisitor::visit(ast::ProgramNode& node) {
 
 void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
   while (!stream_.isAtEnd()) {
+    // Debug: trace top-level tokens to diagnose hangs
+    {
+      const auto& tok = stream_.peek();
+      std::cerr << "[PARSER] Top-level token: type="
+                << static_cast<int>(tok.getType()) << ", lexeme='"
+                << tok.getLexeme() << "'\n";
+    }
     // Skip any potential EOF or error tokens
     if (stream_.peek().getType() == tokens::TokenType::END_OF_FILE) {
       break;
@@ -101,6 +108,12 @@ bool ASTBuilderVisitor::isDeclarationStart() const {
       stream_.peek().getLexeme() == std::string("type")) {
     return true;
   }
+  // If a class modifier appears first (e.g., #final, #abstract, #packed),
+  // treat it as a declaration start so DeclarationBuilder can consume the
+  // modifiers and the following 'class' token.
+  if (tokens::isClassModifier(stream_.peek().getType())) {
+    return true;
+  }
   switch (stream_.peek().getType()) {
     case tokens::TokenType::CONST_FUNCTION:
     case tokens::TokenType::FUNCTION:
@@ -113,6 +126,7 @@ bool ASTBuilderVisitor::isDeclarationStart() const {
     case tokens::TokenType::STACK:
     case tokens::TokenType::HEAP:
     case tokens::TokenType::STATIC:
+    case tokens::TokenType::ATTRIBUTE:  // e.g., #final class X { ... }
       return true;
     default:
       return false;

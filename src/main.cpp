@@ -24,16 +24,22 @@ int main(int argc, char* argv[]) {
                      std::istreambuf_iterator<char>());
 
   // Tokenize
+  std::cerr << "[PHASE] Lexing..." << std::endl;
   lexer::Lexer lexer(source);
   auto tokens = lexer.tokenize();
   (void)tokens;  // suppress unused warning if not inspected further
+  std::cerr << "[PHASE] Lexing done." << std::endl;
 
   // Parse into AST
+  std::cerr << "[PHASE] Parsing..." << std::endl;
   auto ast = parser::buildAST(tokens);
+  std::cerr << "[PHASE] Parsing done." << std::endl;
   if (ast) {
     // === Semantic Analysis ===
+    std::cerr << "[PHASE] Semantic analysis..." << std::endl;
     ast::SemanticAnalyzerVisitor semanticAnalyzer;
     ast->accept(semanticAnalyzer);
+    std::cerr << "[PHASE] Semantic analysis done." << std::endl;
 
     const auto& errors = semanticAnalyzer.getErrors();
     if (!errors.empty()) {
@@ -46,10 +52,12 @@ int main(int argc, char* argv[]) {
 
     // === LLVM Code Generation ===
     {
+      std::cerr << "[PHASE] Codegen..." << std::endl;
       codegen::LLVMCodeGenerator codegen(&semanticAnalyzer);
       // Write IR to file: <input>.ll
       std::string outFile = std::string(argv[1]) + ".ll";
       codegen.generate(ast.get(), outFile);
+      std::cerr << "[PHASE] Codegen done." << std::endl;
     }  // codegen and its module destroyed here before shutdown
   } else {
     std::cerr << "Failed to build AST." << std::endl;

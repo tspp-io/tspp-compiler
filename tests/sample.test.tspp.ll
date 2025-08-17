@@ -1,5 +1,6 @@
 ; ModuleID = 'tspp_module'
 source_filename = "tspp_module"
+target triple = "x86_64-pc-linux-gnu"
 
 @llvm.global_ctors = appending constant [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__tspp_gc_ctor, ptr null }]
 @a = global i32 42
@@ -13,7 +14,7 @@ source_filename = "tspp_module"
 @g = internal global i1 false
 @2 = private constant [7 x i8] c"either\00"
 @3 = private constant [7 x i8] c"either\00"
-@h = global ptr @3
+@h = global i32 @3
 @i = global ptr null
 @j = global ptr null
 @k = global ptr null
@@ -24,7 +25,7 @@ source_filename = "tspp_module"
 @p = global i32 0
 @q = global i32 100
 @r = global ptr null
-@s = global float 5.500000e+00
+@s = global i32 5
 @t = global i1 false
 @4 = private unnamed_addr constant [8 x i8] c"Hello, \00", align 1
 @5 = private unnamed_addr constant [2 x i8] c"(\00", align 1
@@ -286,64 +287,68 @@ entry:
   %19 = call ptr @tspp_string_concat(ptr @26, ptr %18)
   call void @tspp_console_log(ptr %19)
   call void @tspp_free_string(ptr %18)
-  %20 = load ptr, ptr @h, align 8
-  %21 = call ptr @tspp_string_concat(ptr @27, ptr %20)
-  call void @tspp_console_log(ptr %21)
-  %22 = load ptr, ptr @i, align 8
-  %23 = call ptr @tspp_string_concat(ptr @28, ptr %22)
-  call void @tspp_console_log(ptr %23)
-  %24 = load ptr, ptr @j, align 8
-  %25 = call ptr @tspp_string_concat(ptr @29, ptr %24)
-  call void @tspp_console_log(ptr %25)
-  %26 = load ptr, ptr @k, align 8
-  %27 = call ptr @tspp_ptr_to_string(ptr %26)
-  %28 = call ptr @tspp_string_concat(ptr @30, ptr %27)
-  call void @tspp_console_log(ptr %28)
-  call void @tspp_free_string(ptr %27)
-  %29 = load ptr, ptr @l, align 8
-  %30 = call ptr @tspp_ptr_to_string(ptr %29)
-  %31 = call ptr @tspp_string_concat(ptr @31, ptr %30)
-  call void @tspp_console_log(ptr %31)
-  call void @tspp_free_string(ptr %30)
-  %32 = load ptr, ptr @m, align 8
-  %33 = call ptr @tspp_ptr_to_string(ptr %32)
-  %34 = call ptr @tspp_string_concat(ptr @32, ptr %33)
-  call void @tspp_console_log(ptr %34)
-  call void @tspp_free_string(ptr %33)
-  %35 = load i32, ptr @n, align 4
-  %36 = call ptr @tspp_int_to_string(i32 %35)
-  %37 = call ptr @tspp_string_concat(ptr @33, ptr %36)
-  call void @tspp_console_log(ptr %37)
-  call void @tspp_free_string(ptr %36)
-  %38 = load i32, ptr @o, align 4
-  %39 = call ptr @tspp_int_to_string(i32 %38)
-  %40 = call ptr @tspp_string_concat(ptr @34, ptr %39)
-  call void @tspp_console_log(ptr %40)
-  call void @tspp_free_string(ptr %39)
-  %41 = load i32, ptr @p, align 4
-  %42 = call ptr @tspp_int_to_string(i32 %41)
-  %43 = call ptr @tspp_string_concat(ptr @35, ptr %42)
-  call void @tspp_console_log(ptr %43)
-  call void @tspp_free_string(ptr %42)
-  %44 = load i32, ptr @q, align 4
-  %45 = call ptr @tspp_int_to_string(i32 %44)
-  %46 = call ptr @tspp_string_concat(ptr @36, ptr %45)
-  call void @tspp_console_log(ptr %46)
-  call void @tspp_free_string(ptr %45)
-  %47 = load ptr, ptr @r, align 8
-  %48 = call ptr @tspp_string_concat(ptr @37, ptr %47)
-  call void @tspp_console_log(ptr %48)
-  %49 = load float, ptr @s, align 4
-  %50 = call ptr @tspp_float_to_string(float %49)
-  %51 = call ptr @tspp_string_concat(ptr @38, ptr %50)
-  call void @tspp_console_log(ptr %51)
-  call void @tspp_free_string(ptr %50)
-  %52 = load i1, ptr @t, align 1
-  %53 = call ptr @tspp_bool_to_string(i1 %52)
-  %54 = call ptr @tspp_string_concat(ptr @39, ptr %53)
-  call void @tspp_console_log(ptr %54)
-  call void @tspp_free_string(ptr %53)
-  %55 = call i32 @testFunctions()
+  %20 = load i32, ptr @h, align 4
+  %21 = call ptr @tspp_int_to_string(i32 %20)
+  %22 = call ptr @tspp_string_concat(ptr @27, ptr %21)
+  call void @tspp_console_log(ptr %22)
+  call void @tspp_free_string(ptr %21)
+  %23 = load ptr, ptr @i, align 8
+  %24 = call ptr @tspp_string_concat(ptr @28, ptr %23)
+  call void @tspp_console_log(ptr %24)
+  %25 = load ptr, ptr @j, align 8
+  %26 = call ptr @tspp_string_concat(ptr @29, ptr %25)
+  call void @tspp_console_log(ptr %26)
+  %27 = load ptr, ptr @k, align 8
+  %28 = call ptr @tspp_ptr_to_string(ptr %27)
+  %29 = call ptr @tspp_string_concat(ptr @30, ptr %28)
+  call void @tspp_console_log(ptr %29)
+  call void @tspp_free_string(ptr %28)
+  %30 = load ptr, ptr @l, align 8
+  %31 = call ptr @tspp_ptr_to_string(ptr %30)
+  %32 = call ptr @tspp_string_concat(ptr @31, ptr %31)
+  call void @tspp_console_log(ptr %32)
+  call void @tspp_free_string(ptr %31)
+  %33 = load ptr, ptr @m, align 8
+  %34 = call ptr @tspp_ptr_to_string(ptr %33)
+  %35 = call ptr @tspp_string_concat(ptr @32, ptr %34)
+  call void @tspp_console_log(ptr %35)
+  call void @tspp_free_string(ptr %34)
+  %36 = load i32, ptr @n, align 4
+  %37 = call ptr @tspp_int_to_string(i32 %36)
+  %38 = call ptr @tspp_string_concat(ptr @33, ptr %37)
+  call void @tspp_console_log(ptr %38)
+  call void @tspp_free_string(ptr %37)
+  %39 = load i32, ptr @o, align 4
+  %40 = call ptr @tspp_int_to_string(i32 %39)
+  %41 = call ptr @tspp_string_concat(ptr @34, ptr %40)
+  call void @tspp_console_log(ptr %41)
+  call void @tspp_free_string(ptr %40)
+  %42 = load i32, ptr @p, align 4
+  %43 = call ptr @tspp_int_to_string(i32 %42)
+  %44 = call ptr @tspp_string_concat(ptr @35, ptr %43)
+  call void @tspp_console_log(ptr %44)
+  call void @tspp_free_string(ptr %43)
+  %45 = load i32, ptr @q, align 4
+  %46 = call ptr @tspp_int_to_string(i32 %45)
+  %47 = call ptr @tspp_string_concat(ptr @36, ptr %46)
+  call void @tspp_console_log(ptr %47)
+  call void @tspp_free_string(ptr %46)
+  %48 = load ptr, ptr @r, align 8
+  %49 = call ptr @tspp_ptr_to_string(ptr %48)
+  %50 = call ptr @tspp_string_concat(ptr @37, ptr %49)
+  call void @tspp_console_log(ptr %50)
+  call void @tspp_free_string(ptr %49)
+  %51 = load i32, ptr @s, align 4
+  %52 = call ptr @tspp_int_to_string(i32 %51)
+  %53 = call ptr @tspp_string_concat(ptr @38, ptr %52)
+  call void @tspp_console_log(ptr %53)
+  call void @tspp_free_string(ptr %52)
+  %54 = load i1, ptr @t, align 1
+  %55 = call ptr @tspp_bool_to_string(i1 %54)
+  %56 = call ptr @tspp_string_concat(ptr @39, ptr %55)
+  call void @tspp_console_log(ptr %56)
+  call void @tspp_free_string(ptr %55)
+  %57 = call i32 @testFunctions()
   ret i32 0
 }
 

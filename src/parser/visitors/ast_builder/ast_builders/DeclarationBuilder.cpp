@@ -78,23 +78,68 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
     auto tt = stream.peek().getType();
     ast::ClassModifier cm = ast::ClassModifier::None;
     bool isClassMod = false;
-    if (tt == tokens::TokenType::ABSTRACT) {
+    // Accept either keyword tokens (ABSTRACT/FINAL/PACKED/PINNED)
+    // or attribute form: '#' IDENTIFIER or '#' KEYWORD where identifier/keyword
+    // names one of the above modifiers. In the attribute form, the lexer may
+    // tokenize '#' as ATTRIBUTE and the following word as IDENTIFIER or a
+    // dedicated keyword token (e.g., FINAL).
+    if (tt == tokens::TokenType::ATTRIBUTE) {
+      // Lookahead for IDENTIFIER or direct keyword token after '#'
+      auto nextTok = stream.peekNext();
+      auto nt = nextTok.getType();
+      if (nt == tokens::TokenType::IDENTIFIER) {
+        std::string name = nextTok.getLexeme();
+        if (name == std::string("abstract")) {
+          cm = ast::ClassModifier::Abstract;
+          isClassMod = true;
+        } else if (name == std::string("packed")) {
+          cm = ast::ClassModifier::Packed;
+          isClassMod = true;
+        } else if (name == std::string("pinned")) {
+          cm = ast::ClassModifier::Pinned;
+          isClassMod = true;
+        } else if (name == std::string("final")) {
+          cm = ast::ClassModifier::Final;
+          isClassMod = true;
+        }
+      } else if (nt == tokens::TokenType::ABSTRACT) {
+        cm = ast::ClassModifier::Abstract;
+        isClassMod = true;
+      } else if (nt == tokens::TokenType::PACKED) {
+        cm = ast::ClassModifier::Packed;
+        isClassMod = true;
+      } else if (nt == tokens::TokenType::PINNED) {
+        cm = ast::ClassModifier::Pinned;
+        isClassMod = true;
+      } else if (nt == tokens::TokenType::FINAL) {
+        cm = ast::ClassModifier::Final;
+        isClassMod = true;
+      }
+      if (isClassMod) {
+        // consume both '#' and the following token (identifier or keyword)
+        stream.advance();
+        stream.advance();
+      }
+    } else if (tt == tokens::TokenType::ABSTRACT) {
       cm = ast::ClassModifier::Abstract;
       isClassMod = true;
+      stream.advance();  // consume 'abstract'
     } else if (tt == tokens::TokenType::PACKED) {
       cm = ast::ClassModifier::Packed;
       isClassMod = true;
+      stream.advance();  // consume 'packed'
     } else if (tt == tokens::TokenType::PINNED) {
       if (stream.peekNext().getType() == tokens::TokenType::CLASS) {
         cm = ast::ClassModifier::Pinned;
         isClassMod = true;
+        stream.advance();  // consume 'pinned'
       }
     } else if (tt == tokens::TokenType::FINAL) {
       cm = ast::ClassModifier::Final;
       isClassMod = true;
+      stream.advance();  // consume 'final'
     }
     if (!isClassMod) break;
-    stream.advance();
     seenAnyClassMod = true;
     classModifiers.push_back(cm);
   }
@@ -745,20 +790,141 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       continue;  // continue outer while-loop
     }
 
-    // Methods: 'function' Identifier ... (allow identifier-like keywords
-    // GET/SET)
+    // Methods: allow both full definitions with bodies and signature-only
+    // declarations that end with ';' (common in abstract classes).
     if (stream.peek().getType() == tokens::TokenType::FUNCTION) {
-      auto method = buildFunction(stream, memberFuncMod);
-      if (method) {
-        method->access = access;
-        method->methodAttributes = std::move(collectedMethodAttrs);
-        classDecl->methods.push_back(method);
-        continue;
-      } else {
-        // error recovery
+      // We implement a local, resilient parser for class methods to support
+      // optional bodies. If a body exists, we delegate to StatementBuilder for
+      // the block; otherwise, we accept a trailing ';'.
+      // Consume 'function'
+      stream.advance();
+      // Accept identifier-like names including GET/SET keywords
+      auto nameTokType = stream.peek().getType();
+      if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
+            nameTokType == tokens::TokenType::GET ||
+            nameTokType == tokens::TokenType::SET)) {
+        // recovery: skip token and continue class member parsing
         stream.advance();
         continue;
       }
+      tokens::Token funcName = stream.peek();
+      auto funcLoc = stream.peek().getLocation();
+      stream.advance();  // consume name
+
+      auto funcDecl = std::make_shared<ast::FunctionDecl>();
+      funcDecl->modifier = memberFuncMod;
+      funcDecl->name = funcName;
+      funcDecl->location = funcLoc;
+
+      // Optional generic type parameters for method: <T, U extends Base>
+      if (stream.peek().getType() == tokens::TokenType::LESS) {
+        stream.advance();
+        while (!stream.isAtEnd() &&
+               stream.peek().getType() != tokens::TokenType::GREATER) {
+          if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) break;
+          auto tp = std::make_shared<ast::TypeParam>();
+          tp->name = stream.peek();
+          tp->location = stream.peek().getLocation();
+          stream.advance();
+          if (stream.peek().getType() == tokens::TokenType::EXTENDS) {
+            stream.advance();
+            tp->constraint = TypeBuilder::build(stream);
+          }
+          funcDecl->typeParams.push_back(tp);
+          if (stream.peek().getType() == tokens::TokenType::COMMA) {
+            stream.advance();
+            continue;
+          }
+          break;
+        }
+        if (stream.peek().getType() == tokens::TokenType::GREATER)
+          stream.advance();
+      }
+
+      // Params: '(' [ ParameterList ] ')'
+      if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
+        // recovery
+        stream.advance();
+        continue;
+      }
+      stream.advance();  // consume '('
+      while (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN &&
+             !stream.isAtEnd()) {
+        if (stream.peek().getType() == tokens::TokenType::COMMA) {
+          stream.advance();
+          continue;  // skip empty parameters
+        }
+        auto param = std::make_shared<ast::Parameter>();
+        if (stream.peek().getType() == tokens::TokenType::IDENTIFIER) {
+          tokens::Token paramName = stream.peek();
+          auto paramLoc = stream.peek().getLocation();
+          stream.advance();  // consume identifier
+          if (stream.peek().getType() != tokens::TokenType::COLON) {
+            // recovery: skip unexpected token(s) until comma/paren
+            while (!stream.isAtEnd() &&
+                   stream.peek().getType() != tokens::TokenType::COMMA &&
+                   stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+              stream.advance();
+            }
+            continue;
+          }
+          stream.advance();  // consume ':'
+          Shared(ast::TypeNode) paramType = TypeBuilder::build(stream);
+          if (!paramType) {
+            // recovery similar to above
+            while (!stream.isAtEnd() &&
+                   stream.peek().getType() != tokens::TokenType::COMMA &&
+                   stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+              stream.advance();
+            }
+            continue;
+          }
+          // Optional default value: '=' Expression
+          Shared(ast::Expr) defaultExpr = nullptr;
+          if (stream.peek().getType() == tokens::TokenType::EQUALS) {
+            stream.advance();  // consume '='
+            defaultExpr = ExpressionBuilder::build(stream);
+          }
+          param->name = paramName;
+          param->type = paramType;
+          param->defaultExpr = defaultExpr;
+          param->location = paramLoc;
+          funcDecl->params.push_back(param);
+          continue;
+        }
+        // skip unexpected token inside params for resilience
+        stream.advance();
+      }
+      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+        stream.advance();  // consume ')'
+      }
+
+      // Optional return type
+      if (stream.peek().getType() == tokens::TokenType::COLON) {
+        stream.advance();  // consume ':'
+        funcDecl->returnType = TypeBuilder::build(stream);
+      }
+
+      // Body or signature terminator
+      if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
+        // Full method with body
+        auto blockStmt = StatementBuilder::buildBlock(stream);
+        funcDecl->body = blockStmt;
+      } else if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+        // Signature-only (e.g., abstract method); consume ';' and leave no body
+        stream.advance();
+        funcDecl->body = nullptr;
+      } else {
+        // recovery: skip unexpected token and continue
+        stream.advance();
+        continue;
+      }
+
+      // Attach access and attributes collected earlier
+      funcDecl->access = access;
+      funcDecl->methodAttributes = std::move(collectedMethodAttrs);
+      classDecl->methods.push_back(funcDecl);
+      continue;
     }
 
     // Constructor: 'constructor' '(' ... ')' Block

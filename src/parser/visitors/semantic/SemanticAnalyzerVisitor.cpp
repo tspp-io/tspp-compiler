@@ -235,6 +235,15 @@ void SemanticAnalyzerVisitor::visit(ClassDecl& node) {
     currentScope->insert(className, Symbol{className, /*typeName*/ className,
                                            false, false, true, nullptr});
   }
+  // Track base class name (simple identifier) for 'super' resolution.
+  if (node.baseClass.getType() == tokens::TokenType::IDENTIFIER) {
+    // Insert a synthetic symbol for base to ensure it's visible for resolution
+    std::string base = node.baseClass.getLexeme();
+    if (!currentScope->lookup(base)) {
+      currentScope->insert(base,
+                           Symbol{base, base, false, false, true, nullptr});
+    }
+  }
   // Hoist methods as free functions with ClassName.method signature
   for (auto& method : node.methods) {
     if (!method) continue;
@@ -371,9 +380,18 @@ void SemanticAnalyzerVisitor::visit(ProgramNode& node) {
                        false, false, nullptr});
     }
   }
-  // Pass 2: analyze declarations fully
+  // Pass 2: analyze classes first to populate method/ctor symbols and class
+  // context
   for (auto& decl : node.declarations) {
-    if (decl) decl->accept(*this);
+    if (auto cls = std::dynamic_pointer_cast<ClassDecl>(decl)) {
+      cls->accept(*this);
+    }
+  }
+  // Then analyze remaining declarations (functions, interfaces, typedefs, vars)
+  for (auto& decl : node.declarations) {
+    if (!decl) continue;
+    if (dynamic_cast<ClassDecl*>(decl.get())) continue;  // already handled
+    decl->accept(*this);
   }
   // Pass 3: analyze top-level statements
   for (auto& stmt : node.statements) {
@@ -473,6 +491,10 @@ void SemanticAnalyzerVisitor::visit(ConstructorDecl& node) {
 
 void SemanticAnalyzerVisitor::visit(IdentifierExpr& node) {
   std::string idName = node.name.getLexeme();
+  // 'super' is valid inside class/constructor bodies
+  if (idName == std::string("super")) {
+    if (!classStack.empty()) return;  // OK
+  }
   // If this identifier matches an object-literal property key we've seen,
   // suppress false-positive undeclared errors. Keys are not variables.
   if (objectLiteralKeys_.find(idName) != objectLiteralKeys_.end()) {
@@ -520,10 +542,29 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
   // Support identifier and member access callees
   if (auto id = dynamic_cast<IdentifierExpr*>(node.callee.get())) {
     funcName = id->name.getLexeme();
+    // Allow direct 'super(...)' constructor calls
+    if (funcName == std::string("super")) {
+      if (!classStack.empty()) {
+        // Consider this call semantically valid; arguments will be checked
+        // for general expression validity.
+        for (auto& a : node.arguments) {
+          if (a) a->accept(*this);
+        }
+        return;
+      }
+    }
   } else if (auto member = dynamic_cast<MemberAccessExpr*>(node.callee.get())) {
     // Compose name for console.* or ClassName.method
     if (auto objIdent = dynamic_cast<IdentifierExpr*>(member->object.get())) {
       std::string objName = objIdent->name.getLexeme();
+      // Treat super.method() as a valid call inside classes
+      if (objName == std::string("super") && !classStack.empty()) {
+        // Validate arguments only
+        for (auto& a : node.arguments) {
+          if (a) a->accept(*this);
+        }
+        return;
+      }
       if (objName == "console") {
         funcName = objName + "." + member->member.getLexeme();
       } else {
