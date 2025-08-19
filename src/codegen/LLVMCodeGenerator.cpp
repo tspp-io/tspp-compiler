@@ -5,7 +5,10 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
 
 #include <iostream>
@@ -44,7 +47,20 @@ LLVMCodeGenerator::LLVMCodeGenerator()
       builder(std::make_unique<llvm::IRBuilder<>>(context)),
       currentFunction(nullptr),
       semanticAnalyzer(nullptr) {
-  module->setTargetTriple(llvm::sys::getDefaultTargetTriple());
+  // Set target triple and data layout early to avoid override warnings
+  auto triple = llvm::sys::getDefaultTargetTriple();
+  module->setTargetTriple(triple);
+  std::string err;
+  const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, err);
+  if (target) {
+    llvm::TargetOptions opt;
+    auto rm = std::optional<llvm::Reloc::Model>();
+    std::unique_ptr<llvm::TargetMachine> tm(
+        target->createTargetMachine(triple, "generic", "", opt, rm));
+    if (tm) {
+      module->setDataLayout(tm->createDataLayout());
+    }
+  }
 }
 
 LLVMCodeGenerator::LLVMCodeGenerator(
@@ -53,7 +69,20 @@ LLVMCodeGenerator::LLVMCodeGenerator(
       builder(std::make_unique<llvm::IRBuilder<>>(context)),
       currentFunction(nullptr),
       semanticAnalyzer(semanticAnalyzer) {
-  module->setTargetTriple(llvm::sys::getDefaultTargetTriple());
+  // Set target triple and data layout early to avoid override warnings
+  auto triple = llvm::sys::getDefaultTargetTriple();
+  module->setTargetTriple(triple);
+  std::string err;
+  const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, err);
+  if (target) {
+    llvm::TargetOptions opt;
+    auto rm = std::optional<llvm::Reloc::Model>();
+    std::unique_ptr<llvm::TargetMachine> tm(
+        target->createTargetMachine(triple, "generic", "", opt, rm));
+    if (tm) {
+      module->setDataLayout(tm->createDataLayout());
+    }
+  }
 }
 
 // Helper method to convert semantic type to LLVM type
@@ -280,11 +309,13 @@ void LLVMCodeGenerator::visit(VarDecl& node) {
     // If this was a generic class like Foo<Bar>, record symbol type as Foo*
     // so member access and method calls can resolve correctly.
     if (llvmType && llvmType->isPointerTy()) {
-      std::string tn = resolvedTypeName;
-      auto p = tn.find('<');
-      if (p != std::string::npos) tn = tn.substr(0, p);
-      if (classes.count(tn)) {
-        resolvedTypeName = tn + "*";
+      // Preserve generic args when recording semantic type, but still mark as
+      // pointer by appending '*'. Use base name for existence check.
+      std::string baseOnly = resolvedTypeName;
+      auto p = baseOnly.find('<');
+      if (p != std::string::npos) baseOnly = baseOnly.substr(0, p);
+      if (classes.count(baseOnly)) {
+        resolvedTypeName = resolvedTypeName + "*";
       }
     }
   } else {
@@ -969,7 +1000,8 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
         }
         auto itFn = functionReturnTypes.find(innerName);
         if (itFn != functionReturnTypes.end()) {
-          return itFn->second == std::string("string");
+          const std::string& rt = itFn->second;
+          return rt == std::string("string");
         }
       }
       return false;
@@ -1005,13 +1037,14 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
               auto itSym = symbolTable.find(objIdent->name.getLexeme());
               if (itSym != symbolTable.end()) objTy = itSym->second.typeName;
               if (!objTy.empty() && objTy.back() == '*') objTy.pop_back();
-              if (!objTy.empty() && classes.count(objTy)) {
-                innerName = objTy + "." + innerMember->member.getLexeme();
+              auto stripGeneric = [](const std::string& s) {
+                auto pos = s.find('<');
+                return s.substr(0, pos);
+              };
+              std::string baseTy = stripGeneric(objTy);
+              if (!baseTy.empty() && classes.count(baseTy)) {
+                innerName = baseTy + "." + innerMember->member.getLexeme();
               } else if (!objTy.empty()) {
-                auto stripGeneric = [](const std::string& s) {
-                  auto pos = s.find('<');
-                  return s.substr(0, pos);
-                };
                 std::string baseIface = stripGeneric(objTy);
                 std::string chosen;
                 for (auto& kv : classes) {
@@ -1039,8 +1072,28 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
           }
           if (!innerName.empty()) {
             auto itFn = functionReturnTypes.find(innerName);
-            if (itFn != functionReturnTypes.end())
-              isStr = (itFn->second == "string");
+            if (itFn != functionReturnTypes.end()) {
+              const std::string& rt = itFn->second;
+              isStr = (rt == "string");
+            }
+            // Heuristic: Box<string>.get() or SBox<string>.get() returns string
+            if (!isStr) {
+              if (auto innerMember =
+                      dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
+                if (innerMember->member.getLexeme() == std::string("get")) {
+                  if (auto objIdent = dynamic_cast<IdentifierExpr*>(
+                          innerMember->object.get())) {
+                    auto itSym = symbolTable.find(objIdent->name.getLexeme());
+                    if (itSym != symbolTable.end()) {
+                      const std::string& tn = itSym->second.typeName;
+                      if (tn.find("<string") != std::string::npos) {
+                        isStr = true;
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         if (isStr || dynamic_cast<BinaryExpr*>(expr) != nullptr) {
@@ -1153,11 +1206,15 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
         return true;
       return false;
     };
-    bool forceConcat = (!leftIsString && !rightIsString) &&
-                       ((lhs->getType()->isPointerTy() &&
-                         looksConcatenable(rhs, node.right.get())) ||
-                        (rhs->getType()->isPointerTy() &&
-                         looksConcatenable(lhs, node.left.get())));
+    // Be careful: lhs/rhs may be null here (we allow '+' with missing side);
+    // treat null as non-pointer for the purpose of deciding concat.
+    auto isPtr = [&](llvm::Value* V) -> bool {
+      return V && V->getType()->isPointerTy();
+    };
+    bool forceConcat =
+        (!leftIsString && !rightIsString) &&
+        ((isPtr(lhs) && looksConcatenable(rhs, node.right.get())) ||
+         (isPtr(rhs) && looksConcatenable(lhs, node.left.get())));
     if (leftIsString || rightIsString || forceConcat) {
       // Convert both operands to C-strings before concatenating
       llvm::Value* lstr = toCString(node.left.get(), lhs);
@@ -1439,38 +1496,306 @@ void LLVMCodeGenerator::visit(BinaryExpr& node) {
     auto lhsTy = lhs->getType();
     auto rhsTy = rhs->getType();
     bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
-    lastValue = isFP ? builder->CreateFCmpOLT(lhs, rhs, "fcmpolt")
-                     : builder->CreateICmpSLT(lhs, rhs, "icmpolt");
+    if (isFP) {
+      // Choose double if either is double
+      llvm::Type* tgt = (lhsTy->isDoubleTy() || rhsTy->isDoubleTy())
+                            ? llvm::Type::getDoubleTy(context)
+                            : llvm::Type::getFloatTy(context);
+      auto toFP = [&](llvm::Value* v) {
+        if (v->getType()->isFloatingPointTy()) {
+          if (v->getType() != tgt) {
+            if (tgt->isDoubleTy()) return builder->CreateFPExt(v, tgt);
+            return builder->CreateFPTrunc(v, tgt);
+          }
+          return v;
+        }
+        if (v->getType()->isIntegerTy()) {
+          return builder->CreateSIToFP(v, tgt);
+        }
+        if (v->getType()->isPointerTy()) {
+          // ptr -> int -> fp (best-effort)
+          llvm::Value* i64 =
+              builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+          return builder->CreateSIToFP(i64, tgt);
+        }
+        return v;
+      };
+      lhs = toFP(lhs);
+      rhs = toFP(rhs);
+      lastValue = builder->CreateFCmpOLT(lhs, rhs, "fcmpolt");
+    } else {
+      // Integer/pointer: cast to common integer width
+      auto toICommon = [&](llvm::Value* v) {
+        if (v->getType()->isPointerTy()) {
+          return builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+        }
+        if (v->getType()->isIntegerTy() && !v->getType()->isIntegerTy(64)) {
+          return builder->CreateIntCast(v, llvm::Type::getInt64Ty(context),
+                                        true);
+        }
+        return v;
+      };
+      lhs = toICommon(lhs);
+      rhs = toICommon(rhs);
+      // Ensure both are i64
+      if (!lhs->getType()->isIntegerTy(64))
+        lhs =
+            builder->CreateIntCast(lhs, llvm::Type::getInt64Ty(context), true);
+      if (!rhs->getType()->isIntegerTy(64))
+        rhs =
+            builder->CreateIntCast(rhs, llvm::Type::getInt64Ty(context), true);
+      lastValue = builder->CreateICmpSLT(lhs, rhs, "icmpolt");
+    }
   } else if (op == ">") {
     auto lhsTy = lhs->getType();
     auto rhsTy = rhs->getType();
     bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
-    lastValue = isFP ? builder->CreateFCmpOGT(lhs, rhs, "fcmpogt")
-                     : builder->CreateICmpSGT(lhs, rhs, "icmpogt");
+    if (isFP) {
+      llvm::Type* tgt = (lhsTy->isDoubleTy() || rhsTy->isDoubleTy())
+                            ? llvm::Type::getDoubleTy(context)
+                            : llvm::Type::getFloatTy(context);
+      auto toFP = [&](llvm::Value* v) {
+        if (v->getType()->isFloatingPointTy()) {
+          if (v->getType() != tgt) {
+            if (tgt->isDoubleTy()) return builder->CreateFPExt(v, tgt);
+            return builder->CreateFPTrunc(v, tgt);
+          }
+          return v;
+        }
+        if (v->getType()->isIntegerTy()) {
+          return builder->CreateSIToFP(v, tgt);
+        }
+        if (v->getType()->isPointerTy()) {
+          llvm::Value* i64 =
+              builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+          return builder->CreateSIToFP(i64, tgt);
+        }
+        return v;
+      };
+      lhs = toFP(lhs);
+      rhs = toFP(rhs);
+      lastValue = builder->CreateFCmpOGT(lhs, rhs, "fcmpogt");
+    } else {
+      auto toICommon = [&](llvm::Value* v) {
+        if (v->getType()->isPointerTy()) {
+          return builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+        }
+        if (v->getType()->isIntegerTy() && !v->getType()->isIntegerTy(64)) {
+          return builder->CreateIntCast(v, llvm::Type::getInt64Ty(context),
+                                        true);
+        }
+        return v;
+      };
+      lhs = toICommon(lhs);
+      rhs = toICommon(rhs);
+      if (!lhs->getType()->isIntegerTy(64))
+        lhs =
+            builder->CreateIntCast(lhs, llvm::Type::getInt64Ty(context), true);
+      if (!rhs->getType()->isIntegerTy(64))
+        rhs =
+            builder->CreateIntCast(rhs, llvm::Type::getInt64Ty(context), true);
+      lastValue = builder->CreateICmpSGT(lhs, rhs, "icmpogt");
+    }
   } else if (op == "<=") {
     auto lhsTy = lhs->getType();
     auto rhsTy = rhs->getType();
     bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
-    lastValue = isFP ? builder->CreateFCmpOLE(lhs, rhs, "fcmpole")
-                     : builder->CreateICmpSLE(lhs, rhs, "icmpole");
+    if (isFP) {
+      llvm::Type* tgt = (lhsTy->isDoubleTy() || rhsTy->isDoubleTy())
+                            ? llvm::Type::getDoubleTy(context)
+                            : llvm::Type::getFloatTy(context);
+      auto toFP = [&](llvm::Value* v) {
+        if (v->getType()->isFloatingPointTy()) {
+          if (v->getType() != tgt) {
+            if (tgt->isDoubleTy()) return builder->CreateFPExt(v, tgt);
+            return builder->CreateFPTrunc(v, tgt);
+          }
+          return v;
+        }
+        if (v->getType()->isIntegerTy()) {
+          return builder->CreateSIToFP(v, tgt);
+        }
+        if (v->getType()->isPointerTy()) {
+          llvm::Value* i64 =
+              builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+          return builder->CreateSIToFP(i64, tgt);
+        }
+        return v;
+      };
+      lhs = toFP(lhs);
+      rhs = toFP(rhs);
+      lastValue = builder->CreateFCmpOLE(lhs, rhs, "fcmpole");
+    } else {
+      auto toICommon = [&](llvm::Value* v) {
+        if (v->getType()->isPointerTy()) {
+          return builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+        }
+        if (v->getType()->isIntegerTy() && !v->getType()->isIntegerTy(64)) {
+          return builder->CreateIntCast(v, llvm::Type::getInt64Ty(context),
+                                        true);
+        }
+        return v;
+      };
+      lhs = toICommon(lhs);
+      rhs = toICommon(rhs);
+      if (!lhs->getType()->isIntegerTy(64))
+        lhs =
+            builder->CreateIntCast(lhs, llvm::Type::getInt64Ty(context), true);
+      if (!rhs->getType()->isIntegerTy(64))
+        rhs =
+            builder->CreateIntCast(rhs, llvm::Type::getInt64Ty(context), true);
+      lastValue = builder->CreateICmpSLE(lhs, rhs, "icmpole");
+    }
   } else if (op == ">=") {
     auto lhsTy = lhs->getType();
     auto rhsTy = rhs->getType();
     bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
-    lastValue = isFP ? builder->CreateFCmpOGE(lhs, rhs, "fcmpoge")
-                     : builder->CreateICmpSGE(lhs, rhs, "icmpoge");
+    if (isFP) {
+      llvm::Type* tgt = (lhsTy->isDoubleTy() || rhsTy->isDoubleTy())
+                            ? llvm::Type::getDoubleTy(context)
+                            : llvm::Type::getFloatTy(context);
+      auto toFP = [&](llvm::Value* v) {
+        if (v->getType()->isFloatingPointTy()) {
+          if (v->getType() != tgt) {
+            if (tgt->isDoubleTy()) return builder->CreateFPExt(v, tgt);
+            return builder->CreateFPTrunc(v, tgt);
+          }
+          return v;
+        }
+        if (v->getType()->isIntegerTy()) {
+          return builder->CreateSIToFP(v, tgt);
+        }
+        if (v->getType()->isPointerTy()) {
+          llvm::Value* i64 =
+              builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+          return builder->CreateSIToFP(i64, tgt);
+        }
+        return v;
+      };
+      lhs = toFP(lhs);
+      rhs = toFP(rhs);
+      lastValue = builder->CreateFCmpOGE(lhs, rhs, "fcmpoge");
+    } else {
+      auto toICommon = [&](llvm::Value* v) {
+        if (v->getType()->isPointerTy()) {
+          return builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+        }
+        if (v->getType()->isIntegerTy() && !v->getType()->isIntegerTy(64)) {
+          return builder->CreateIntCast(v, llvm::Type::getInt64Ty(context),
+                                        true);
+        }
+        return v;
+      };
+      lhs = toICommon(lhs);
+      rhs = toICommon(rhs);
+      if (!lhs->getType()->isIntegerTy(64))
+        lhs =
+            builder->CreateIntCast(lhs, llvm::Type::getInt64Ty(context), true);
+      if (!rhs->getType()->isIntegerTy(64))
+        rhs =
+            builder->CreateIntCast(rhs, llvm::Type::getInt64Ty(context), true);
+      lastValue = builder->CreateICmpSGE(lhs, rhs, "icmpoge");
+    }
   } else if (op == "==") {
     auto lhsTy = lhs->getType();
     auto rhsTy = rhs->getType();
     bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
-    lastValue = isFP ? builder->CreateFCmpOEQ(lhs, rhs, "fcmpeq")
-                     : builder->CreateICmpEQ(lhs, rhs, "icmpeq");
+    if (isFP) {
+      llvm::Type* tgt = (lhsTy->isDoubleTy() || rhsTy->isDoubleTy())
+                            ? llvm::Type::getDoubleTy(context)
+                            : llvm::Type::getFloatTy(context);
+      auto toFP = [&](llvm::Value* v) {
+        if (v->getType()->isFloatingPointTy()) {
+          if (v->getType() != tgt) {
+            if (tgt->isDoubleTy()) return builder->CreateFPExt(v, tgt);
+            return builder->CreateFPTrunc(v, tgt);
+          }
+          return v;
+        }
+        if (v->getType()->isIntegerTy()) {
+          return builder->CreateSIToFP(v, tgt);
+        }
+        if (v->getType()->isPointerTy()) {
+          llvm::Value* i64 =
+              builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+          return builder->CreateSIToFP(i64, tgt);
+        }
+        return v;
+      };
+      lhs = toFP(lhs);
+      rhs = toFP(rhs);
+      lastValue = builder->CreateFCmpOEQ(lhs, rhs, "fcmpeq");
+    } else {
+      auto toICommon = [&](llvm::Value* v) {
+        if (v->getType()->isPointerTy()) {
+          return builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+        }
+        if (v->getType()->isIntegerTy() && !v->getType()->isIntegerTy(64)) {
+          return builder->CreateIntCast(v, llvm::Type::getInt64Ty(context),
+                                        true);
+        }
+        return v;
+      };
+      lhs = toICommon(lhs);
+      rhs = toICommon(rhs);
+      if (!lhs->getType()->isIntegerTy(64))
+        lhs =
+            builder->CreateIntCast(lhs, llvm::Type::getInt64Ty(context), true);
+      if (!rhs->getType()->isIntegerTy(64))
+        rhs =
+            builder->CreateIntCast(rhs, llvm::Type::getInt64Ty(context), true);
+      lastValue = builder->CreateICmpEQ(lhs, rhs, "icmpeq");
+    }
   } else if (op == "!=") {
     auto lhsTy = lhs->getType();
     auto rhsTy = rhs->getType();
     bool isFP = lhsTy->isFloatingPointTy() || rhsTy->isFloatingPointTy();
-    lastValue = isFP ? builder->CreateFCmpONE(lhs, rhs, "fcmpne")
-                     : builder->CreateICmpNE(lhs, rhs, "icmpne");
+    if (isFP) {
+      llvm::Type* tgt = (lhsTy->isDoubleTy() || rhsTy->isDoubleTy())
+                            ? llvm::Type::getDoubleTy(context)
+                            : llvm::Type::getFloatTy(context);
+      auto toFP = [&](llvm::Value* v) {
+        if (v->getType()->isFloatingPointTy()) {
+          if (v->getType() != tgt) {
+            if (tgt->isDoubleTy()) return builder->CreateFPExt(v, tgt);
+            return builder->CreateFPTrunc(v, tgt);
+          }
+          return v;
+        }
+        if (v->getType()->isIntegerTy()) {
+          return builder->CreateSIToFP(v, tgt);
+        }
+        if (v->getType()->isPointerTy()) {
+          llvm::Value* i64 =
+              builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+          return builder->CreateSIToFP(i64, tgt);
+        }
+        return v;
+      };
+      lhs = toFP(lhs);
+      rhs = toFP(rhs);
+      lastValue = builder->CreateFCmpONE(lhs, rhs, "fcmpne");
+    } else {
+      auto toICommon = [&](llvm::Value* v) {
+        if (v->getType()->isPointerTy()) {
+          return builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+        }
+        if (v->getType()->isIntegerTy() && !v->getType()->isIntegerTy(64)) {
+          return builder->CreateIntCast(v, llvm::Type::getInt64Ty(context),
+                                        true);
+        }
+        return v;
+      };
+      lhs = toICommon(lhs);
+      rhs = toICommon(rhs);
+      if (!lhs->getType()->isIntegerTy(64))
+        lhs =
+            builder->CreateIntCast(lhs, llvm::Type::getInt64Ty(context), true);
+      if (!rhs->getType()->isIntegerTy(64))
+        rhs =
+            builder->CreateIntCast(rhs, llvm::Type::getInt64Ty(context), true);
+      lastValue = builder->CreateICmpNE(lhs, rhs, "icmpne");
+    }
   } else if (op == "&") {
     if (!lhs) lhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
     if (!rhs) rhs = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
@@ -1558,8 +1883,11 @@ void LLVMCodeGenerator::visit(FunctionDecl& node) {
           dynamic_cast<ast::GenericTypeNode*>(node.returnType.get()) != nullptr;
       if ((isBasic || isGeneric) && looksUnresolved &&
           !isPrimitiveName(resolvedRetType)) {
+        // Treat unresolved/basic generic returns as opaque pointer at runtime,
+        // but do NOT label them as string (to avoid accidental raw char* use).
+        // Mark as "ptr" so downstream formatting stringifies via ptr_to_string.
         retType = getPointerTy();
-        resolvedRetType = "string";
+        resolvedRetType = "ptr";
       }
     }
   }
@@ -2058,14 +2386,15 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
           auto itSym = symbolTable.find(objIdent->name.getLexeme());
           if (itSym != symbolTable.end()) objTy = itSym->second.typeName;
           if (!objTy.empty() && objTy.back() == '*') objTy.pop_back();
-          if (!objTy.empty() && classes.count(objTy)) {
-            innerName = objTy + "." + innerMember->member.getLexeme();
+          auto stripGeneric = [](const std::string& s) {
+            auto pos = s.find('<');
+            return s.substr(0, pos);
+          };
+          std::string baseTy = stripGeneric(objTy);
+          if (!baseTy.empty() && classes.count(baseTy)) {
+            innerName = baseTy + "." + innerMember->member.getLexeme();
           } else if (!objTy.empty()) {
             // Interface-typed: scan classes for an implementation
-            auto stripGeneric = [](const std::string& s) {
-              auto pos = s.find('<');
-              return s.substr(0, pos);
-            };
             std::string baseIface = stripGeneric(objTy);
             std::string chosen;
             for (auto& kv : classes) {
@@ -2105,6 +2434,23 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
         auto itFn2 = functionReturnTypes.find(innerName);
         if (itFn2 != functionReturnTypes.end()) {
           semanticTypeName = itFn2->second;
+        }
+        if (semanticTypeName.empty()) {
+          if (auto innerMember =
+                  dynamic_cast<MemberAccessExpr*>(callArg->callee.get())) {
+            if (innerMember->member.getLexeme() == std::string("get")) {
+              if (auto objIdent = dynamic_cast<IdentifierExpr*>(
+                      innerMember->object.get())) {
+                auto itSym = symbolTable.find(objIdent->name.getLexeme());
+                if (itSym != symbolTable.end()) {
+                  const std::string& tn = itSym->second.typeName;
+                  if (tn.find("<string") != std::string::npos) {
+                    semanticTypeName = "string";
+                  }
+                }
+              }
+            }
+          }
         }
       }
     } else if (auto litArg = dynamic_cast<LiteralExpr*>(arg.get())) {
@@ -2293,11 +2639,42 @@ void LLVMCodeGenerator::visit(CallExpr& node) {
   } else {
     // Try to call a user-defined function or a lowered method
     if (auto func = module->getFunction(funcName)) {
-// Debug logging in DEBUG builds: callee and arg types
-#ifndef NDEBUG
-      llvm::errs() << "[DEBUG] Emitting CallExpr to '" << funcName << "' with "
-                   << (long)args.size() << " args" << "\n";
-#endif
+      // Before emitting the call, coerce each argument to match the callee
+      // parameter type when feasible (int<->int, float<->float, ptr<->ptr).
+      if (args.size() == func->arg_size()) {
+        for (size_t i = 0; i < args.size(); ++i) {
+          llvm::Value* v = args[i];
+          llvm::Type* pt = func->getArg(i)->getType();
+          if (!v || !pt) continue;
+          llvm::Type* vt = v->getType();
+          if (vt == pt) continue;
+          if (vt->isPointerTy() && pt->isPointerTy()) {
+            args[i] = ensureBitcast(v, pt);
+          } else if (vt->isIntegerTy() && pt->isIntegerTy()) {
+            args[i] = builder->CreateIntCast(v, pt, true);
+          } else if (vt->isFloatingPointTy() && pt->isFloatingPointTy()) {
+            if (vt->isDoubleTy() && pt->isFloatTy())
+              args[i] = builder->CreateFPTrunc(v, pt);
+            else if (vt->isFloatTy() && pt->isDoubleTy())
+              args[i] = builder->CreateFPExt(v, pt);
+          } else if (vt->isIntegerTy() && pt->isFloatingPointTy()) {
+            args[i] = builder->CreateSIToFP(v, pt);
+          } else if (vt->isFloatingPointTy() && pt->isIntegerTy()) {
+            args[i] = builder->CreateFPToSI(v, pt);
+          } else if (vt->isPointerTy() && pt->isIntegerTy()) {
+            // Pointer to integer (e.g., printing addresses)
+            llvm::Value* i64 =
+                builder->CreatePtrToInt(v, llvm::Type::getInt64Ty(context));
+            if (pt->isIntegerTy(64))
+              args[i] = i64;
+            else
+              args[i] = builder->CreateTruncOrBitCast(i64, pt);
+          } else if (vt->isIntegerTy() && pt->isPointerTy()) {
+            // Integer to pointer (best-effort; assume integer is an address)
+            args[i] = builder->CreateIntToPtr(v, pt);
+          }
+        }
+      }
       lastValue = builder->CreateCall(func, args);
     } else {
       lastValue = nullptr;
@@ -2976,8 +3353,10 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
           dynamic_cast<ast::BasicTypeNode*>(m->returnType.get()) != nullptr) {
         if (retName != "int" && retName != "float" && retName != "double" &&
             retName != "bool" && retName != "boolean" && retName != "void") {
+          // Unresolved/basic non-primitive generic return: use opaque pointer
+          // and mark as "ptr" (not "string") to avoid misclassification.
           retTy = getPointerTy();
-          retName = "string";  // treat as string for concatenation/console
+          retName = "ptr";
         }
       }
     }
@@ -3373,7 +3752,69 @@ void LLVMCodeGenerator::visit(ast::NewExpr& node) {
         args.push_back(lastValue);
     }
     auto fn = module->getFunction(std::string("__ctor_") + className);
-    if (fn) builder->CreateCall(fn, args);
+    if (fn) {
+      // Coerce argument types to match constructor params when possible
+      if (args.size() == fn->arg_size()) {
+        for (size_t i = 1; i < args.size(); ++i) {
+          llvm::Value* v = args[i];
+          llvm::Type* pt = fn->getArg(i)->getType();
+          if (!v || !pt) continue;
+          llvm::Type* vt = v->getType();
+          if (vt == pt) continue;
+          if (vt->isPointerTy() && pt->isPointerTy()) {
+            args[i] = ensureBitcast(v, pt);
+          } else if (vt->isIntegerTy() && pt->isIntegerTy()) {
+            args[i] = builder->CreateIntCast(v, pt, true);
+          } else if (vt->isFloatingPointTy() && pt->isFloatingPointTy()) {
+            if (vt->isDoubleTy() && pt->isFloatTy())
+              args[i] = builder->CreateFPTrunc(v, pt);
+            else if (vt->isFloatTy() && pt->isDoubleTy())
+              args[i] = builder->CreateFPExt(v, pt);
+          } else if (vt->isIntegerTy() && pt->isFloatingPointTy()) {
+            args[i] = builder->CreateSIToFP(v, pt);
+          } else if (vt->isFloatingPointTy() && pt->isIntegerTy()) {
+            args[i] = builder->CreateFPToSI(v, pt);
+          } else if (pt->isPointerTy() &&
+                     (vt->isIntegerTy() || vt->isFloatingPointTy())) {
+            // Convert scalars to strings to satisfy pointer params gracefully
+            if (vt->isIntegerTy(1)) {
+              auto boolToStrType = llvm::FunctionType::get(
+                  llvm::PointerType::get(context, 0),
+                  {llvm::Type::getInt1Ty(context)}, false);
+              auto boolToStr = module->getOrInsertFunction(
+                  "tspp_bool_to_string", boolToStrType);
+              v = builder->CreateCall(boolToStr, {v});
+            } else if (vt->isIntegerTy()) {
+              llvm::Value* i32 = v;
+              if (!vt->isIntegerTy(32))
+                i32 = builder->CreateIntCast(v, llvm::Type::getInt32Ty(context),
+                                             true);
+              auto intToStrType = llvm::FunctionType::get(
+                  llvm::PointerType::get(context, 0),
+                  {llvm::Type::getInt32Ty(context)}, false);
+              auto intToStr = module->getOrInsertFunction("tspp_int_to_string",
+                                                          intToStrType);
+              v = builder->CreateCall(intToStr, {i32});
+            } else if (vt->isFloatingPointTy()) {
+              llvm::Value* f = v;
+              if (vt->isDoubleTy())
+                f = builder->CreateFPTrunc(v, llvm::Type::getFloatTy(context));
+              auto floatToStrType = llvm::FunctionType::get(
+                  llvm::PointerType::get(context, 0),
+                  {llvm::Type::getFloatTy(context)}, false);
+              auto floatToStr = module->getOrInsertFunction(
+                  "tspp_float_to_string", floatToStrType);
+              v = builder->CreateCall(floatToStr, {f});
+            }
+            if (v->getType() != pt && v->getType()->isPointerTy()) {
+              v = ensureBitcast(v, pt);
+            }
+            args[i] = v;
+          }
+        }
+      }
+      builder->CreateCall(fn, args);
+    }
   }
   lastValue = raw;
 }

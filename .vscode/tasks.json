@@ -138,6 +138,12 @@
 			"args": [
 				"tests/loops/for_var_decl.tspp"
 			]
+		},
+		{
+			"label": "Build tspp",
+			"type": "shell",
+			"command": "./build.sh",
+			"group": "build"
 		}
 	]
 }

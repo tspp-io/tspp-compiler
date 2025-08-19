@@ -17,13 +17,7 @@ void ASTBuilderVisitor::visit(ast::ProgramNode& node) {
 
 void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
   while (!stream_.isAtEnd()) {
-    // Debug: trace top-level tokens to diagnose hangs
-    {
-      const auto& tok = stream_.peek();
-      std::cerr << "[PARSER] Top-level token: type="
-                << static_cast<int>(tok.getType()) << ", lexeme='"
-                << tok.getLexeme() << "'\n";
-    }
+    // (debug tracing removed)
     // Skip any potential EOF or error tokens
     if (stream_.peek().getType() == tokens::TokenType::END_OF_FILE) {
       break;

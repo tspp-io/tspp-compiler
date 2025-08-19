@@ -574,6 +574,11 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
           std::string typeName = sym->typeName;
           // strip pointer star if present
           if (!typeName.empty() && typeName.back() == '*') typeName.pop_back();
+          // normalize generic type: SBox<string> -> SBox
+          size_t lt = typeName.find('<');
+          if (lt != std::string::npos) {
+            typeName = typeName.substr(0, lt);
+          }
           funcName = typeName + "." + member->member.getLexeme();
         }
       }
@@ -589,13 +594,24 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
       funcName == "console.warn") {
     // OK: treat as built-in
   } else {
-    auto sym = currentScope->lookup(funcName);
-    if (!sym || !sym->isFunction) {
-      reportError("Call to undeclared function '" + funcName + "'");
-      return;
+    // Only validate and report if we have resolved a concrete function name.
+    if (!funcName.empty()) {
+      auto sym = currentScope->lookup(funcName);
+      if (!sym || !sym->isFunction) {
+        reportError("Call to undeclared function '" + funcName + "'");
+        return;
+      }
+    } else {
+      // No concrete name resolved (e.g., dynamic or unresolved member call).
+      // Skip undeclared-function diagnostic to avoid spurious "''" errors.
+      // Still validate arguments below.
     }
     // Attempt to fetch the FunctionDecl node to inspect parameters
-    auto fnDecl = std::dynamic_pointer_cast<FunctionDecl>(sym->declNode);
+    std::shared_ptr<FunctionDecl> fnDecl;
+    if (!funcName.empty()) {
+      auto sym = currentScope->lookup(funcName);
+      if (sym) fnDecl = std::dynamic_pointer_cast<FunctionDecl>(sym->declNode);
+    }
     if (fnDecl) {
       size_t arg_before = node.arguments.size();
       size_t param_count = fnDecl->params.size();

@@ -110,16 +110,15 @@
 #endif
 
 // Lightweight logging helpers (no external dependency)
+// Debug/trace logging disabled by default to keep runtime output clean
 #ifndef LOG_DEBUG
-#define LOG_DEBUG(msg)                           \
-  do {                                           \
-    std::cerr << "[DEBUG] " << msg << std::endl; \
+#define LOG_DEBUG(msg) \
+  do {                 \
   } while (0)
 #endif
 
 #ifndef LOG_TRACE
-#define LOG_TRACE(msg)                           \
-  do {                                           \
-    std::cerr << "[TRACE] " << msg << std::endl; \
+#define LOG_TRACE(msg) \
+  do {                 \
   } while (0)
 #endif

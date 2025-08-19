@@ -30,6 +30,7 @@ add_library(parser
     parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp
     parser/visitors/semantic/SemanticAnalyzerVisitor.cpp
     parser/visitors/semantic/SemanticScope.cpp
+    parser/module/ModuleResolver.cpp
 )
 
 

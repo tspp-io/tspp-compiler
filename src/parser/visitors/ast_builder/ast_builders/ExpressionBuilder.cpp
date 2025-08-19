@@ -126,6 +126,18 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       newExpr->keyword = newTok;
       newExpr->className = classTok;
       newExpr->location = newTok.getLocation();
+      // Optionally consume generic arguments after class name: Foo<Bar, Baz>
+      if (stream.peek().getType() == tokens::TokenType::LESS) {
+        int depth = 0;
+        // Consume tokens until the matching '>' is found
+        do {
+          auto ct = stream.peek().getType();
+          if (ct == tokens::TokenType::LESS) depth++;
+          if (ct == tokens::TokenType::GREATER) depth--;
+          stream.advance();
+          if (stream.isAtEnd()) break;
+        } while (depth > 0);
+      }
       // Two forms:
       // 1) Constructor args: '(' ... ')'
       // 2) Array dimension: '[' expr ']'

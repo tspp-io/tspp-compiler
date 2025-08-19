@@ -61,7 +61,8 @@ llvm-as "$LLVM_IR" -o temp.bc
 STD_LIB="./build/src/packages/tspp_std/libtspp_std.a"
 if [ -f "$STD_LIB" ]; then
   # Stdlib is built with AddressSanitizer; link with it to satisfy symbols.
-  clang "$LLVM_IR" "$STD_LIB" -o temp_exec -lstdc++ -lgc -fsanitize=address -no-pie
+  # Suppress harmless LLVM warning about overriding module target triple
+  clang "$LLVM_IR" "$STD_LIB" -o temp_exec -lstdc++ -lgc -fsanitize=address -no-pie -Wno-override-module
 else
   echo "❌ Standard library not found at $STD_LIB. Did you build the project?"
   exit 1
