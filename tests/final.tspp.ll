@@ -1,79 +1,79 @@
-; ModuleID = 'tspp_module'
-source_filename = "tspp_module"
+; ModuleID = 'tspp'
+source_filename = "tspp"
 
-%Point = type { float, float, i32, ptr, i32, i32 }
+%Point = type { float, float, ptr, i32, i32 }
 %ByteArray = type <{ ptr }>
 %ResourceHandle = type { i32 }
-%Animal = type { ptr, ptr }
-%Dog = type { ptr }
+%Animal = type { ptr }
+%Dog = type { ptr, ptr }
 %Circle = type { float }
 %SBox = type { ptr }
 %PAdapter = type { float, float }
 
-@llvm.global_ctors = appending constant [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__tspp_gc_ctor, ptr null }]
-@0 = private unnamed_addr constant [13 x i8] c"Point.count=\00", align 1
-@1 = private unnamed_addr constant [1 x i8] zeroinitializer, align 1
+@Point.createdCount = internal global i32 0
+@0 = private unnamed_addr constant [19 x i8] c"Point.static block\00", align 1
+@1 = private unnamed_addr constant [13 x i8] c"Point.count=\00", align 1
 @2 = private unnamed_addr constant [2 x i8] c"(\00", align 1
 @3 = private unnamed_addr constant [3 x i8] c", \00", align 1
 @4 = private unnamed_addr constant [2 x i8] c")\00", align 1
 @5 = private unnamed_addr constant [10 x i8] c"Resource#\00", align 1
+@Animal.kingdomName = internal global ptr null
 @6 = private unnamed_addr constant [15 x i8] c" makes a sound\00", align 1
 @7 = private unnamed_addr constant [9 x i8] c" barks (\00", align 1
-@8 = private unnamed_addr constant [1 x i8] zeroinitializer, align 1
-@9 = private unnamed_addr constant [2 x i8] c")\00", align 1
-@10 = private unnamed_addr constant [2 x i8] c"(\00", align 1
-@11 = private unnamed_addr constant [3 x i8] c", \00", align 1
-@12 = private unnamed_addr constant [2 x i8] c")\00", align 1
-@13 = private unnamed_addr constant [9 x i8] c"Adapter:\00", align 1
-@14 = private unnamed_addr constant [6 x i8] c"Point\00", align 1
-@15 = private unnamed_addr constant [1 x i8] zeroinitializer, align 1
-@16 = private unnamed_addr constant [2 x i8] c"!\00", align 1
-@17 = private unnamed_addr constant [6 x i8] c"Desc=\00", align 1
-@18 = private unnamed_addr constant [1 x i8] zeroinitializer, align 1
-@19 = private unnamed_addr constant [3 x i8] c"ok\00", align 1
-@20 = private unnamed_addr constant [7 x i8] c"dist: \00", align 1
-@21 = private unnamed_addr constant [8 x i8] c"ident: \00", align 1
-@22 = private unnamed_addr constant [11 x i8] c"flexible: \00", align 1
-@23 = private unnamed_addr constant [5 x i8] c"p1: \00", align 1
-@24 = private unnamed_addr constant [11 x i8] c"p1 moved: \00", align 1
-@25 = private unnamed_addr constant [21 x i8] c"stringifyPoint(p1): \00", align 1
-@26 = private unnamed_addr constant [3 x i8] c"hi\00", align 1
-@27 = private unnamed_addr constant [19 x i8] c"useBoxString(sb): \00", align 1
-@28 = private unnamed_addr constant [8 x i8] c"Generic\00", align 1
-@29 = private unnamed_addr constant [12 x i8] c"a.speak(): \00", align 1
-@30 = private unnamed_addr constant [19 x i8] c"Animal.kingdom(): \00", align 1
-@31 = private unnamed_addr constant [4 x i8] c"Rex\00", align 1
-@32 = private unnamed_addr constant [9 x i8] c"Labrador\00", align 1
-@33 = private unnamed_addr constant [12 x i8] c"d.speak(): \00", align 1
-@34 = private unnamed_addr constant [15 x i8] c"d.getBreed(): \00", align 1
-@35 = private unnamed_addr constant [11 x i8] c"c.area(): \00", align 1
-@36 = private unnamed_addr constant [12 x i8] c"ba.get(0): \00", align 1
-@37 = private unnamed_addr constant [22 x i8] c"firstOf<int>(10,20): \00", align 1
-@38 = private unnamed_addr constant [1 x i8] zeroinitializer, align 1
-@39 = private unnamed_addr constant [2 x i8] c"A\00", align 1
-@40 = private unnamed_addr constant [12 x i8] c"bxS.get(): \00", align 1
-@41 = private unnamed_addr constant [12 x i8] c"bxI.get(): \00", align 1
-@42 = private unnamed_addr constant [12 x i8] c"isEven(6): \00", align 1
-@43 = private unnamed_addr constant [11 x i8] c"sumTo(5): \00", align 1
-@44 = private unnamed_addr constant [16 x i8] c"forVariants(): \00", align 1
-@45 = private unnamed_addr constant [19 x i8] c"precedenceDemo(): \00", align 1
-@46 = private unnamed_addr constant [25 x i8] c"memberAndIndexAccess(): \00", align 1
-@47 = private unnamed_addr constant [4 x i8] c"x: \00", align 1
-@48 = private unnamed_addr constant [4 x i8] c"y: \00", align 1
-@49 = private unnamed_addr constant [10 x i8] c"logical: \00", align 1
-@50 = private unnamed_addr constant [7 x i8] c"1<<3: \00", align 1
-@51 = private unnamed_addr constant [7 x i8] c"8>>1: \00", align 1
-@52 = private unnamed_addr constant [5 x i8] c"~0: \00", align 1
-@53 = private unnamed_addr constant [16 x i8] c"pointerPlay(): \00", align 1
-@54 = private unnamed_addr constant [16 x i8] c"storagePlay(): \00", align 1
-
-declare void @GC_init()
+@8 = private unnamed_addr constant [2 x i8] c")\00", align 1
+@9 = private unnamed_addr constant [2 x i8] c"(\00", align 1
+@10 = private unnamed_addr constant [3 x i8] c", \00", align 1
+@11 = private unnamed_addr constant [2 x i8] c")\00", align 1
+@12 = private unnamed_addr constant [9 x i8] c"Adapter:\00", align 1
+@13 = private unnamed_addr constant [6 x i8] c"Point\00", align 1
+@14 = private unnamed_addr constant [2 x i8] c"!\00", align 1
+@15 = private unnamed_addr constant [6 x i8] c"Desc=\00", align 1
+@16 = private unnamed_addr constant [3 x i8] c"ok\00", align 1
+@17 = private unnamed_addr constant [7 x i8] c"dist: \00", align 1
+@18 = private unnamed_addr constant [8 x i8] c"ident: \00", align 1
+@19 = private unnamed_addr constant [11 x i8] c"flexible: \00", align 1
+@20 = private unnamed_addr constant [5 x i8] c"p1: \00", align 1
+@21 = private unnamed_addr constant [11 x i8] c"p1 moved: \00", align 1
+@22 = private unnamed_addr constant [21 x i8] c"stringifyPoint(p1): \00", align 1
+@23 = private unnamed_addr constant [3 x i8] c"hi\00", align 1
+@24 = private unnamed_addr constant [19 x i8] c"useBoxString(sb): \00", align 1
+@25 = private unnamed_addr constant [8 x i8] c"Generic\00", align 1
+@26 = private unnamed_addr constant [12 x i8] c"a.speak(): \00", align 1
+@27 = private unnamed_addr constant [19 x i8] c"Animal.kingdom(): \00", align 1
+@28 = private unnamed_addr constant [4 x i8] c"Rex\00", align 1
+@29 = private unnamed_addr constant [9 x i8] c"Labrador\00", align 1
+@30 = private unnamed_addr constant [12 x i8] c"d.speak(): \00", align 1
+@31 = private unnamed_addr constant [15 x i8] c"d.getBreed(): \00", align 1
+@32 = private unnamed_addr constant [11 x i8] c"c.area(): \00", align 1
+@33 = private unnamed_addr constant [12 x i8] c"ba.get(0): \00", align 1
+@34 = private unnamed_addr constant [22 x i8] c"firstOf<int>(10,20): \00", align 1
+@35 = private unnamed_addr constant [1 x i8] zeroinitializer, align 1
+@36 = private unnamed_addr constant [2 x i8] c"A\00", align 1
+@37 = private unnamed_addr constant [12 x i8] c"bxS.get(): \00", align 1
+@38 = private unnamed_addr constant [12 x i8] c"bxI.get(): \00", align 1
+@39 = private unnamed_addr constant [12 x i8] c"isEven(6): \00", align 1
+@40 = private unnamed_addr constant [11 x i8] c"sumTo(5): \00", align 1
+@41 = private unnamed_addr constant [16 x i8] c"forVariants(): \00", align 1
+@42 = private unnamed_addr constant [19 x i8] c"precedenceDemo(): \00", align 1
+@43 = private unnamed_addr constant [25 x i8] c"memberAndIndexAccess(): \00", align 1
+@44 = private unnamed_addr constant [4 x i8] c"x: \00", align 1
+@45 = private unnamed_addr constant [4 x i8] c"y: \00", align 1
+@46 = private unnamed_addr constant [10 x i8] c"logical: \00", align 1
+@47 = private unnamed_addr constant [7 x i8] c"1<<3: \00", align 1
+@48 = private unnamed_addr constant [7 x i8] c"8>>1: \00", align 1
+@49 = private unnamed_addr constant [5 x i8] c"~0: \00", align 1
+@50 = private unnamed_addr constant [16 x i8] c"pointerPlay(): \00", align 1
+@51 = private unnamed_addr constant [16 x i8] c"storagePlay(): \00", align 1
 
 define internal void @__tspp_gc_ctor() {
 entry:
-  call void @GC_init()
+  call void @tspp_console_log(ptr @0)
   ret void
 }
+
+declare void @tspp_console_log(ptr)
+
+declare void @tspp_free_string(ptr)
 
 define void @__ctor_Point(ptr %this, float %x, float %y) {
 entry:
@@ -91,14 +91,21 @@ entry:
   %3 = load ptr, ptr %this1, align 8
   %field.ptr4 = getelementptr %Point, ptr %3, i32 0, i32 1
   store float %2, ptr %field.ptr4, align 4
+  %4 = load i32, ptr @Point.createdCount, align 4
+  %addtmp = add i32 %4, 1
+  store i32 %addtmp, ptr @Point.createdCount, align 4
   ret void
 }
 
 define ptr @Point.stats() #0 {
 entry:
-  %0 = call ptr @tspp_string_concat(ptr @0, ptr @1)
-  ret ptr %0
+  %0 = load i32, ptr @Point.createdCount, align 4
+  %1 = call ptr @tspp_int_to_string(i32 %0)
+  %2 = call ptr @tspp_string_concat(ptr @1, ptr %1)
+  ret ptr %2
 }
+
+declare ptr @tspp_int_to_string(i32)
 
 declare ptr @tspp_string_concat(ptr, ptr)
 
@@ -223,19 +230,9 @@ entry:
   %1 = load i32, ptr %field.ptr, align 4
   %2 = call ptr @tspp_int_to_string(i32 %1)
   %3 = call ptr @tspp_string_concat(ptr @5, ptr %2)
-  %4 = call ptr @tspp_ptr_to_string(ptr %3)
-  call void @tspp_console_log(ptr %4)
-  call void @tspp_free_string(ptr %4)
+  call void @tspp_console_log(ptr %3)
   ret void
 }
-
-declare ptr @tspp_int_to_string(i32)
-
-declare ptr @tspp_ptr_to_string(ptr)
-
-declare void @tspp_console_log(ptr)
-
-declare void @tspp_free_string(ptr)
 
 define void @__ctor_Animal(ptr %this, ptr %name) {
 entry:
@@ -257,14 +254,14 @@ entry:
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Animal, ptr %0, i32 0, i32 0
   %1 = load ptr, ptr %field.ptr, align 8
-  %2 = call ptr @tspp_ptr_to_string(ptr %1)
-  %3 = call ptr @tspp_string_concat(ptr %2, ptr @6)
-  ret ptr %3
+  %2 = call ptr @tspp_string_concat(ptr %1, ptr @6)
+  ret ptr %2
 }
 
 define ptr @Animal.kingdom() #0 {
 entry:
-  ret ptr null
+  %0 = load ptr, ptr @Animal.kingdomName, align 8
+  ret ptr %0
 }
 
 define void @__ctor_Dog(ptr %this, ptr %name, ptr %breed) {
@@ -280,7 +277,7 @@ entry:
   call void @__ctor_Animal(ptr %0, ptr %1)
   %2 = load ptr, ptr %breed3, align 8
   %3 = load ptr, ptr %this1, align 8
-  %field.ptr = getelementptr %Dog, ptr %3, i32 0, i32 0
+  %field.ptr = getelementptr %Dog, ptr %3, i32 0, i32 1
   store ptr %2, ptr %field.ptr, align 8
   ret void
 }
@@ -290,13 +287,14 @@ entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
-  %1 = call ptr @tspp_string_concat(ptr @8, ptr @7)
-  %2 = load ptr, ptr %this1, align 8
-  %field.ptr = getelementptr %Dog, ptr %2, i32 0, i32 0
-  %3 = load ptr, ptr %field.ptr, align 8
-  %4 = call ptr @tspp_ptr_to_string(ptr %3)
-  %5 = call ptr @tspp_string_concat(ptr %1, ptr %4)
-  %6 = call ptr @tspp_string_concat(ptr %5, ptr @9)
+  %field.ptr = getelementptr %Dog, ptr %0, i32 0, i32 0
+  %1 = load ptr, ptr %field.ptr, align 8
+  %2 = call ptr @tspp_string_concat(ptr %1, ptr @7)
+  %3 = load ptr, ptr %this1, align 8
+  %field.ptr2 = getelementptr %Dog, ptr %3, i32 0, i32 1
+  %4 = load ptr, ptr %field.ptr2, align 8
+  %5 = call ptr @tspp_string_concat(ptr %2, ptr %4)
+  %6 = call ptr @tspp_string_concat(ptr %5, ptr @8)
   ret ptr %6
 }
 
@@ -305,7 +303,7 @@ entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
-  %field.ptr = getelementptr %Dog, ptr %0, i32 0, i32 0
+  %field.ptr = getelementptr %Dog, ptr %0, i32 0, i32 1
   %1 = load ptr, ptr %field.ptr, align 8
   ret ptr %1
 }
@@ -316,9 +314,7 @@ entry:
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %1 = call ptr @Dog.speak(ptr %0)
-  %2 = call ptr @tspp_ptr_to_string(ptr %1)
-  call void @tspp_console_log(ptr %2)
-  call void @tspp_free_string(ptr %2)
+  call void @tspp_console_log(ptr %1)
   ret void
 }
 
@@ -420,14 +416,14 @@ entry:
   %field.ptr = getelementptr %PAdapter, ptr %0, i32 0, i32 0
   %1 = load float, ptr %field.ptr, align 4
   %2 = call ptr @tspp_float_to_string(float %1)
-  %3 = call ptr @tspp_string_concat(ptr @10, ptr %2)
-  %4 = call ptr @tspp_string_concat(ptr %3, ptr @11)
+  %3 = call ptr @tspp_string_concat(ptr @9, ptr %2)
+  %4 = call ptr @tspp_string_concat(ptr %3, ptr @10)
   %5 = load ptr, ptr %this1, align 8
   %field.ptr2 = getelementptr %PAdapter, ptr %5, i32 0, i32 1
   %6 = load float, ptr %field.ptr2, align 4
   %7 = call ptr @tspp_float_to_string(float %6)
   %8 = call ptr @tspp_string_concat(ptr %4, ptr %7)
-  %9 = call ptr @tspp_string_concat(ptr %8, ptr @12)
+  %9 = call ptr @tspp_string_concat(ptr %8, ptr @11)
   ret ptr %9
 }
 
@@ -464,11 +460,8 @@ entry:
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %1 = call ptr @PAdapter.toString(ptr %0)
-  %2 = call ptr @tspp_ptr_to_string(ptr %1)
-  %3 = call ptr @tspp_string_concat(ptr @13, ptr %2)
-  %4 = call ptr @tspp_ptr_to_string(ptr %3)
-  call void @tspp_console_log(ptr %4)
-  call void @tspp_free_string(ptr %4)
+  %2 = call ptr @tspp_string_concat(ptr @12, ptr %1)
+  call void @tspp_console_log(ptr %2)
   ret void
 }
 
@@ -495,8 +488,9 @@ entry:
   %pt1 = alloca ptr, align 8
   store ptr %pt, ptr %pt1, align 8
   %0 = load ptr, ptr %pt1, align 8
-  %1 = call ptr @tspp_string_concat(ptr @14, ptr @15)
-  ret ptr %1
+  %1 = call ptr @PAdapter.toString(ptr %0)
+  %2 = call ptr @tspp_string_concat(ptr @13, ptr %1)
+  ret ptr %2
 }
 
 define ptr @useBoxString(ptr %bx) {
@@ -506,7 +500,7 @@ entry:
   %0 = load ptr, ptr %bx1, align 8
   %1 = load ptr, ptr %bx1, align 8
   %2 = call ptr @SBox.get(ptr %1)
-  %3 = call ptr @tspp_string_concat(ptr %2, ptr @16)
+  %3 = call ptr @tspp_string_concat(ptr %2, ptr @14)
   call void @SBox.set(ptr %0, ptr %3)
   %4 = load ptr, ptr %bx1, align 8
   %5 = call ptr @SBox.get(ptr %4)
@@ -840,9 +834,11 @@ entry:
   %p1 = alloca ptr, align 8
   store ptr %p, ptr %p1, align 8
   %0 = load ptr, ptr %p1, align 8
+  call void @PAdapter.print(ptr %0)
   %1 = load ptr, ptr %p1, align 8
-  %2 = call ptr @tspp_string_concat(ptr @17, ptr @18)
-  ret ptr %2
+  %2 = call ptr @PAdapter.toString(ptr %1)
+  %3 = call ptr @tspp_string_concat(ptr @15, ptr %2)
+  ret ptr %3
 }
 
 define i32 @storagePlay() {
@@ -878,66 +874,66 @@ entry:
   %dist = alloca float, align 4
   store float 3.500000e+00, ptr %dist, align 4
   store i32 42, ptr %ident, align 4
-  store ptr @19, ptr %flexible, align 8
+  store ptr @16, ptr %flexible, align 8
   %0 = load float, ptr %dist, align 4
   %1 = call ptr @tspp_float_to_string(float %0)
-  %2 = call ptr @tspp_string_concat(ptr @20, ptr %1)
+  %2 = call ptr @tspp_string_concat(ptr @17, ptr %1)
   call void @tspp_console_log(ptr %2)
   call void @tspp_free_string(ptr %1)
   %3 = load i32, ptr %ident, align 4
   %4 = call ptr @tspp_int_to_string(i32 %3)
-  %5 = call ptr @tspp_string_concat(ptr @21, ptr %4)
+  %5 = call ptr @tspp_string_concat(ptr @18, ptr %4)
   call void @tspp_console_log(ptr %5)
   call void @tspp_free_string(ptr %4)
   %6 = load ptr, ptr %flexible, align 8
-  %7 = call ptr @tspp_string_concat(ptr @22, ptr %6)
+  %7 = call ptr @tspp_string_concat(ptr @19, ptr %6)
   call void @tspp_console_log(ptr %7)
   %obj = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Point, ptr null, i32 1) to i64))
   call void @__ctor_Point(ptr %obj, float 1.500000e+00, float 2.500000e+00)
   store ptr %obj, ptr %p1, align 8
   %8 = load ptr, ptr %p1, align 8
   %9 = call ptr @Point.toString(ptr %8)
-  %10 = call ptr @tspp_string_concat(ptr @23, ptr %9)
+  %10 = call ptr @tspp_string_concat(ptr @20, ptr %9)
   call void @tspp_console_log(ptr %10)
   %11 = load ptr, ptr %p1, align 8
   call void @Point.move(ptr %11, float 5.000000e-01, float 5.000000e-01)
   %12 = load ptr, ptr %p1, align 8
   %13 = call ptr @Point.toString(ptr %12)
-  %14 = call ptr @tspp_string_concat(ptr @24, ptr %13)
+  %14 = call ptr @tspp_string_concat(ptr @21, ptr %13)
   call void @tspp_console_log(ptr %14)
   %15 = call ptr @Point.stats()
   call void @tspp_console_log(ptr %15)
   %16 = load ptr, ptr %p1, align 8
   %17 = call ptr @stringifyPoint(ptr %16)
-  %18 = call ptr @tspp_string_concat(ptr @25, ptr %17)
+  %18 = call ptr @tspp_string_concat(ptr @22, ptr %17)
   call void @tspp_console_log(ptr %18)
   %obj1 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
-  call void @__ctor_SBox(ptr %obj1, ptr @26)
+  call void @__ctor_SBox(ptr %obj1, ptr @23)
   store ptr %obj1, ptr %sb, align 8
   %19 = load ptr, ptr %sb, align 8
   %20 = call ptr @useBoxString(ptr %19)
-  %21 = call ptr @tspp_string_concat(ptr @27, ptr %20)
+  %21 = call ptr @tspp_string_concat(ptr @24, ptr %20)
   call void @tspp_console_log(ptr %21)
   %obj2 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Animal, ptr null, i32 1) to i64))
-  call void @__ctor_Animal(ptr %obj2, ptr @28)
+  call void @__ctor_Animal(ptr %obj2, ptr @25)
   store ptr %obj2, ptr %a, align 8
   %22 = load ptr, ptr %a, align 8
   %23 = call ptr @Animal.speak(ptr %22)
-  %24 = call ptr @tspp_string_concat(ptr @29, ptr %23)
+  %24 = call ptr @tspp_string_concat(ptr @26, ptr %23)
   call void @tspp_console_log(ptr %24)
   %25 = call ptr @Animal.kingdom()
-  %26 = call ptr @tspp_string_concat(ptr @30, ptr %25)
+  %26 = call ptr @tspp_string_concat(ptr @27, ptr %25)
   call void @tspp_console_log(ptr %26)
   %obj3 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Dog, ptr null, i32 1) to i64))
-  call void @__ctor_Dog(ptr %obj3, ptr @31, ptr @32)
+  call void @__ctor_Dog(ptr %obj3, ptr @28, ptr @29)
   store ptr %obj3, ptr %d, align 8
   %27 = load ptr, ptr %d, align 8
   %28 = call ptr @Dog.speak(ptr %27)
-  %29 = call ptr @tspp_string_concat(ptr @33, ptr %28)
+  %29 = call ptr @tspp_string_concat(ptr @30, ptr %28)
   call void @tspp_console_log(ptr %29)
   %30 = load ptr, ptr %d, align 8
   %31 = call ptr @Dog.getBreed(ptr %30)
-  %32 = call ptr @tspp_string_concat(ptr @34, ptr %31)
+  %32 = call ptr @tspp_string_concat(ptr @31, ptr %31)
   call void @tspp_console_log(ptr %32)
   %33 = load ptr, ptr %d, align 8
   call void @Dog.print(ptr %33)
@@ -947,7 +943,7 @@ entry:
   %34 = load ptr, ptr %c, align 8
   %35 = call float @Circle.area(ptr %34)
   %36 = call ptr @tspp_float_to_string(float %35)
-  %37 = call ptr @tspp_string_concat(ptr @35, ptr %36)
+  %37 = call ptr @tspp_string_concat(ptr @32, ptr %36)
   call void @tspp_console_log(ptr %37)
   call void @tspp_free_string(ptr %36)
   %obj5 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%ByteArray, ptr null, i32 1) to i64))
@@ -958,7 +954,7 @@ entry:
   %39 = load ptr, ptr %ba, align 8
   %40 = call i32 @ByteArray.get(ptr %39, i32 0)
   %41 = call ptr @tspp_int_to_string(i32 %40)
-  %42 = call ptr @tspp_string_concat(ptr @36, ptr %41)
+  %42 = call ptr @tspp_string_concat(ptr @33, ptr %41)
   call void @tspp_console_log(ptr %42)
   call void @tspp_free_string(ptr %41)
   %obj6 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%ResourceHandle, ptr null, i32 1) to i64))
@@ -966,15 +962,15 @@ entry:
   store ptr %obj6, ptr %rh, align 8
   %43 = load ptr, ptr %rh, align 8
   call void @ResourceHandle.print(ptr %43)
-  %44 = call ptr @tspp_ptr_to_string(ptr @38)
+  %44 = call ptr @tspp_ptr_to_string(ptr @35)
   %45 = call ptr @tspp_int_to_string(i32 20)
-  %46 = call ptr @tspp_string_concat(ptr @37, ptr %44)
+  %46 = call ptr @tspp_string_concat(ptr @34, ptr %44)
   %47 = call ptr @tspp_string_concat(ptr %46, ptr %45)
   call void @tspp_console_log(ptr %47)
   call void @tspp_free_string(ptr %44)
   call void @tspp_free_string(ptr %45)
   %obj7 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
-  call void @__ctor_SBox(ptr %obj7, ptr @39)
+  call void @__ctor_SBox(ptr %obj7, ptr @36)
   store ptr %obj7, ptr %bxS, align 8
   %obj8 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
   %48 = call ptr @tspp_int_to_string(i32 5)
@@ -982,11 +978,11 @@ entry:
   store ptr %obj8, ptr %bxI, align 8
   %49 = load ptr, ptr %bxS, align 8
   %50 = call ptr @SBox.get(ptr %49)
-  %51 = call ptr @tspp_string_concat(ptr @40, ptr %50)
+  %51 = call ptr @tspp_string_concat(ptr @37, ptr %50)
   call void @tspp_console_log(ptr %51)
   %52 = load ptr, ptr %bxI, align 8
   %53 = call ptr @SBox.get(ptr %52)
-  %54 = call ptr @tspp_string_concat(ptr @41, ptr %53)
+  %54 = call ptr @tspp_string_concat(ptr @38, ptr %53)
   call void @tspp_console_log(ptr %54)
   %obj9 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%PAdapter, ptr null, i32 1) to i64))
   call void @__ctor_PAdapter(ptr %obj9, float 2.000000e+00, float 3.000000e+00)
@@ -998,27 +994,27 @@ entry:
   %57 = load i32, ptr %n, align 4
   %58 = call i1 @isEven(i32 %57)
   %59 = call ptr @tspp_bool_to_string(i1 %58)
-  %60 = call ptr @tspp_string_concat(ptr @42, ptr %59)
+  %60 = call ptr @tspp_string_concat(ptr @39, ptr %59)
   call void @tspp_console_log(ptr %60)
   call void @tspp_free_string(ptr %59)
   %61 = call i32 @sumTo(i32 5)
   %62 = call ptr @tspp_int_to_string(i32 %61)
-  %63 = call ptr @tspp_string_concat(ptr @43, ptr %62)
+  %63 = call ptr @tspp_string_concat(ptr @40, ptr %62)
   call void @tspp_console_log(ptr %63)
   call void @tspp_free_string(ptr %62)
   %64 = call i32 @forVariants()
   %65 = call ptr @tspp_int_to_string(i32 %64)
-  %66 = call ptr @tspp_string_concat(ptr @44, ptr %65)
+  %66 = call ptr @tspp_string_concat(ptr @41, ptr %65)
   call void @tspp_console_log(ptr %66)
   call void @tspp_free_string(ptr %65)
   %67 = call i32 @precedenceDemo()
   %68 = call ptr @tspp_int_to_string(i32 %67)
-  %69 = call ptr @tspp_string_concat(ptr @45, ptr %68)
+  %69 = call ptr @tspp_string_concat(ptr @42, ptr %68)
   call void @tspp_console_log(ptr %69)
   call void @tspp_free_string(ptr %68)
   %70 = call i32 @memberAndIndexAccess()
   %71 = call ptr @tspp_int_to_string(i32 %70)
-  %72 = call ptr @tspp_string_concat(ptr @46, ptr %71)
+  %72 = call ptr @tspp_string_concat(ptr @43, ptr %71)
   call void @tspp_console_log(ptr %72)
   call void @tspp_free_string(ptr %71)
   store i32 0, ptr %x, align 4
@@ -1027,12 +1023,12 @@ entry:
   store i32 5, ptr %x, align 4
   %73 = load i32, ptr %x, align 4
   %74 = call ptr @tspp_int_to_string(i32 %73)
-  %75 = call ptr @tspp_string_concat(ptr @47, ptr %74)
+  %75 = call ptr @tspp_string_concat(ptr @44, ptr %74)
   call void @tspp_console_log(ptr %75)
   call void @tspp_free_string(ptr %74)
   %76 = load i32, ptr %y, align 4
   %77 = call ptr @tspp_int_to_string(i32 %76)
-  %78 = call ptr @tspp_string_concat(ptr @48, ptr %77)
+  %78 = call ptr @tspp_string_concat(ptr @45, ptr %77)
   call void @tspp_console_log(ptr %78)
   call void @tspp_free_string(ptr %77)
   br i1 false, label %land.rhs, label %land.end
@@ -1052,33 +1048,35 @@ lor.end:                                          ; preds = %lor.rhs, %land.end
   store i1 %lor, ptr %L, align 1
   %79 = load i1, ptr %L, align 1
   %80 = call ptr @tspp_bool_to_string(i1 %79)
-  %81 = call ptr @tspp_string_concat(ptr @49, ptr %80)
+  %81 = call ptr @tspp_string_concat(ptr @46, ptr %80)
   call void @tspp_console_log(ptr %81)
   call void @tspp_free_string(ptr %80)
   %82 = call ptr @tspp_int_to_string(i32 8)
-  %83 = call ptr @tspp_string_concat(ptr @50, ptr %82)
+  %83 = call ptr @tspp_string_concat(ptr @47, ptr %82)
   call void @tspp_console_log(ptr %83)
   call void @tspp_free_string(ptr %82)
   %84 = call ptr @tspp_int_to_string(i32 4)
-  %85 = call ptr @tspp_string_concat(ptr @51, ptr %84)
+  %85 = call ptr @tspp_string_concat(ptr @48, ptr %84)
   call void @tspp_console_log(ptr %85)
   call void @tspp_free_string(ptr %84)
   %86 = call ptr @tspp_int_to_string(i32 -1)
-  %87 = call ptr @tspp_string_concat(ptr @52, ptr %86)
+  %87 = call ptr @tspp_string_concat(ptr @49, ptr %86)
   call void @tspp_console_log(ptr %87)
   call void @tspp_free_string(ptr %86)
   %88 = call i32 @pointerPlay()
   %89 = call ptr @tspp_int_to_string(i32 %88)
-  %90 = call ptr @tspp_string_concat(ptr @53, ptr %89)
+  %90 = call ptr @tspp_string_concat(ptr @50, ptr %89)
   call void @tspp_console_log(ptr %90)
   call void @tspp_free_string(ptr %89)
   %91 = call i32 @storagePlay()
   %92 = call ptr @tspp_int_to_string(i32 %91)
-  %93 = call ptr @tspp_string_concat(ptr @54, ptr %92)
+  %93 = call ptr @tspp_string_concat(ptr @51, ptr %92)
   call void @tspp_console_log(ptr %93)
   call void @tspp_free_string(ptr %92)
   ret i32 0
 }
+
+declare ptr @tspp_ptr_to_string(ptr)
 
 declare ptr @tspp_bool_to_string(i1)
 

@@ -92,6 +92,15 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
     std::unordered_map<std::string, int> fieldIndex;  // field name -> index
     std::unordered_map<std::string, llvm::Type*>
         fieldTypes;  // field name -> LLVM type
+    // Keep original semantic type names for fields (e.g., "string", "int",
+    // "Foo*"), to aid in decisions like pretty-printing.
+    std::unordered_map<std::string, std::string>
+        fieldTypeNames;  // field -> name
+    // Track fields declared as #static (class-level), not part of instance
+    std::unordered_set<std::string> staticFields;
+    // Optional: for static fields, record their LLVM types and semantic names
+    std::unordered_map<std::string, llvm::Type*> staticFieldTypes;
+    std::unordered_map<std::string, std::string> staticFieldTypeNames;
     bool hasConstructor = false;
     // Track static methods by simple name
     std::unordered_set<std::string> staticMethods;

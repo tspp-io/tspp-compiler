@@ -19,15 +19,16 @@ entry:
 
 for.cond:                                         ; preds = %for.inc, %entry
   %0 = load i32, ptr %i, align 4
-  %icmpolt = icmp slt i32 %0, 3
+  %1 = sext i32 %0 to i64
+  %icmpolt = icmp slt i64 %1, 3
   br i1 %icmpolt, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %1 = load i32, ptr %i, align 4
-  %addtmp = add i32 %1, 1
+  %2 = load i32, ptr %i, align 4
+  %addtmp = add i32 %2, 1
   store i32 %addtmp, ptr %i, align 4
   br label %for.cond
 
