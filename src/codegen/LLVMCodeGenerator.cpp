@@ -17,6 +17,34 @@
 namespace codegen {
 using namespace ast;
 
+std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
+    ast::BaseNode* root,
+    std::unordered_map<std::string, llvm::Value*>& globals) {
+  // Create a new LLVM module for each REPL line
+  auto replModule = std::make_unique<llvm::Module>("tspp_repl", context);
+  // Always emit a valid entry function for REPL
+  llvm::FunctionType* fnType =
+      llvm::FunctionType::get(llvm::Type::getVoidTy(context), false);
+  llvm::Function* entryFn =
+      llvm::Function::Create(fnType, llvm::Function::ExternalLinkage,
+                             "__repl_entry", replModule.get());
+  llvm::BasicBlock* bb = llvm::BasicBlock::Create(context, "entry", entryFn);
+  builder->SetInsertPoint(bb);
+
+  // Emit code for the AST node
+  this->module = std::move(replModule);
+  root->accept(*this);
+
+  // Always terminate with a valid void return
+  if (!bb->getTerminator()) {
+    builder->CreateRetVoid();
+  }
+
+  // TODO: Persist globals (variables) across sessions using 'globals' map
+
+  return std::move(this->module);
+}
+
 // Visit ProgramNode: emit all declarations and statements in phases
 void LLVMCodeGenerator::visit(ProgramNode& node) {
   // Phase 1: emit global variable declarations first
@@ -1887,14 +1915,20 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
   if (node.value) {
     node.value->accept(*this);
     if (lastValue) {
-      // If the function expects a pointer (e.g., string), convert scalars
-      // appropriately
       llvm::Type* expectedTy = nullptr;
       if (currentFunction) {
         expectedTy = currentFunction->getReturnType();
       }
       llvm::Value* retVal = lastValue;
-      if (expectedTy && expectedTy->isPointerTy()) {
+      // Special case: if this is main, force i32 return
+      if (currentFunction && currentFunction->getName() == "main" &&
+          expectedTy && expectedTy->isIntegerTy(32)) {
+        // If retVal is not i32, always return 0 for safety
+        if (!retVal->getType()->isIntegerTy(32)) {
+          retVal = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+        }
+        builder->CreateRet(retVal);
+      } else if (expectedTy && expectedTy->isPointerTy()) {
         // Convert ints/bools/floats to strings
         if (retVal->getType()->isIntegerTy()) {
           if (retVal->getType()->isIntegerTy(1)) {
@@ -1905,7 +1939,6 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
                                                          boolToStrType);
             retVal = builder->CreateCall(boolToStr, {retVal});
           } else {
-            // Cast to i32
             llvm::Value* i32 = retVal;
             if (!retVal->getType()->isIntegerTy(32)) {
               i32 = builder->CreateIntCast(
@@ -1940,7 +1973,6 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
           // Assume pointer already represents string if the function expects
           // string
         } else {
-          // Fallback: cast to i32 and stringify
           llvm::Value* i32 = retVal;
           if (!retVal->getType()->isIntegerTy(32)) {
             if (retVal->getType()->isIntegerTy()) {
@@ -1957,8 +1989,10 @@ void LLVMCodeGenerator::visit(ReturnStmt& node) {
               module->getOrInsertFunction("tspp_int_to_string", intToStrType);
           retVal = builder->CreateCall(intToStr, {i32});
         }
+        builder->CreateRet(retVal);
+      } else {
+        builder->CreateRet(retVal);
       }
-      builder->CreateRet(retVal);
     }
   } else {
     builder->CreateRetVoid();
@@ -4209,6 +4243,24 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
   if (root) {
     root->accept(*this);
     emitPendingGlobalInits();
+    // Always emit a valid main function if not present
+    if (!module->getFunction("main")) {
+      llvm::FunctionType* mainType =
+          llvm::FunctionType::get(llvm::Type::getInt32Ty(context), false);
+      llvm::Function* mainFn = llvm::Function::Create(
+          mainType, llvm::Function::ExternalLinkage, "main", module.get());
+      llvm::BasicBlock* bb = llvm::BasicBlock::Create(context, "entry", mainFn);
+      builder->SetInsertPoint(bb);
+      builder->CreateRet(
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0));
+    } else {
+      // If user main exists, ensure it has correct i32 return type
+      auto* userMain = module->getFunction("main");
+      if (userMain && !userMain->getReturnType()->isIntegerTy(32)) {
+        // Patch: emit error or fixup (for now, emit error)
+        llvm::errs() << "[ERROR] User main() must return i32.\n";
+      }
+    }
   }
 }
 

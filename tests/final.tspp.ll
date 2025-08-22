@@ -1,14 +1,14 @@
 ; ModuleID = 'tspp'
 source_filename = "tspp"
 
-%Point = type { float, float, ptr, i32, i32 }
-%ByteArray = type <{ ptr }>
+%Point = type { i32, i32, i32, i32, i32 }
+%ByteArray = type <{ i32 }>
 %ResourceHandle = type { i32 }
-%Animal = type { ptr }
-%Dog = type { ptr, ptr }
-%Circle = type { float }
-%SBox = type { ptr }
-%PAdapter = type { float, float }
+%Animal = type { i32 }
+%Dog = type { i32, i32 }
+%Circle = type { i32 }
+%SBox = type { i32 }
+%PAdapter = type { i32, i32 }
 
 @Point.createdCount = internal global i32 0
 @0 = private unnamed_addr constant [19 x i8] c"Point.static block\00", align 1
@@ -17,7 +17,7 @@ source_filename = "tspp"
 @3 = private unnamed_addr constant [3 x i8] c", \00", align 1
 @4 = private unnamed_addr constant [2 x i8] c")\00", align 1
 @5 = private unnamed_addr constant [10 x i8] c"Resource#\00", align 1
-@Animal.kingdomName = internal global ptr null
+@Animal.kingdomName = internal global i32 0
 @6 = private unnamed_addr constant [15 x i8] c" makes a sound\00", align 1
 @7 = private unnamed_addr constant [9 x i8] c" barks (\00", align 1
 @8 = private unnamed_addr constant [2 x i8] c")\00", align 1
@@ -75,29 +75,29 @@ declare void @tspp_console_log(ptr)
 
 declare void @tspp_free_string(ptr)
 
-define void @__ctor_Point(ptr %this, float %x, float %y) {
+define void @__ctor_Point(ptr %this, i32 %x, i32 %y) {
 entry:
-  %y3 = alloca float, align 4
-  %x2 = alloca float, align 4
+  %y3 = alloca i32, align 4
+  %x2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store float %x, ptr %x2, align 4
-  store float %y, ptr %y3, align 4
-  %0 = load float, ptr %x2, align 4
+  store i32 %x, ptr %x2, align 4
+  store i32 %y, ptr %y3, align 4
+  %0 = load i32, ptr %x2, align 4
   %1 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Point, ptr %1, i32 0, i32 0
-  store float %0, ptr %field.ptr, align 4
-  %2 = load float, ptr %y3, align 4
+  store i32 %0, ptr %field.ptr, align 4
+  %2 = load i32, ptr %y3, align 4
   %3 = load ptr, ptr %this1, align 8
   %field.ptr4 = getelementptr %Point, ptr %3, i32 0, i32 1
-  store float %2, ptr %field.ptr4, align 4
+  store i32 %2, ptr %field.ptr4, align 4
   %4 = load i32, ptr @Point.createdCount, align 4
   %addtmp = add i32 %4, 1
   store i32 %addtmp, ptr @Point.createdCount, align 4
   ret void
 }
 
-define ptr @Point.stats() #0 {
+define i32 @Point.stats() #0 {
 entry:
   %0 = load i32, ptr @Point.createdCount, align 4
   %1 = call ptr @tspp_int_to_string(i32 %0)
@@ -109,52 +109,50 @@ declare ptr @tspp_int_to_string(i32)
 
 declare ptr @tspp_string_concat(ptr, ptr)
 
-define ptr @Point.toString(ptr %this) {
+define i32 @Point.toString(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Point, ptr %0, i32 0, i32 0
-  %1 = load float, ptr %field.ptr, align 4
-  %2 = call ptr @tspp_float_to_string(float %1)
+  %1 = load i32, ptr %field.ptr, align 4
+  %2 = call ptr @tspp_int_to_string(i32 %1)
   %3 = call ptr @tspp_string_concat(ptr @2, ptr %2)
   %4 = call ptr @tspp_string_concat(ptr %3, ptr @3)
   %5 = load ptr, ptr %this1, align 8
   %field.ptr2 = getelementptr %Point, ptr %5, i32 0, i32 1
-  %6 = load float, ptr %field.ptr2, align 4
-  %7 = call ptr @tspp_float_to_string(float %6)
+  %6 = load i32, ptr %field.ptr2, align 4
+  %7 = call ptr @tspp_int_to_string(i32 %6)
   %8 = call ptr @tspp_string_concat(ptr %4, ptr %7)
   %9 = call ptr @tspp_string_concat(ptr %8, ptr @4)
   ret ptr %9
 }
 
-declare ptr @tspp_float_to_string(float)
-
-define void @Point.move(ptr %this, float %dx, float %dy) {
+define i32 @Point.move(ptr %this, i32 %dx, i32 %dy) {
 entry:
-  %dy3 = alloca float, align 4
-  %dx2 = alloca float, align 4
+  %dy3 = alloca i32, align 4
+  %dx2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store float %dx, ptr %dx2, align 4
-  store float %dy, ptr %dy3, align 4
+  store i32 %dx, ptr %dx2, align 4
+  store i32 %dy, ptr %dy3, align 4
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Point, ptr %0, i32 0, i32 0
-  %1 = load float, ptr %field.ptr, align 4
-  %2 = load float, ptr %dx2, align 4
-  %faddtmp = fadd float %1, %2
+  %1 = load i32, ptr %field.ptr, align 4
+  %2 = load i32, ptr %dx2, align 4
+  %addtmp = add i32 %1, %2
   %3 = load ptr, ptr %this1, align 8
   %field.ptr4 = getelementptr %Point, ptr %3, i32 0, i32 0
-  store float %faddtmp, ptr %field.ptr4, align 4
+  store i32 %addtmp, ptr %field.ptr4, align 4
   %4 = load ptr, ptr %this1, align 8
   %field.ptr5 = getelementptr %Point, ptr %4, i32 0, i32 1
-  %5 = load float, ptr %field.ptr5, align 4
-  %6 = load float, ptr %dy3, align 4
-  %faddtmp6 = fadd float %5, %6
+  %5 = load i32, ptr %field.ptr5, align 4
+  %6 = load i32, ptr %dy3, align 4
+  %addtmp6 = add i32 %5, %6
   %7 = load ptr, ptr %this1, align 8
   %field.ptr7 = getelementptr %Point, ptr %7, i32 0, i32 1
-  store float %faddtmp6, ptr %field.ptr7, align 4
-  ret void
+  store i32 %addtmp6, ptr %field.ptr7, align 4
+  ret i32 0
 }
 
 define void @__ctor_ByteArray(ptr %this, i32 %n) {
@@ -175,7 +173,7 @@ entry:
 
 declare ptr @GC_malloc(i64)
 
-define void @ByteArray.set(ptr %this, i32 %i, i32 %v) {
+define i32 @ByteArray.set(ptr %this, i32 %i, i32 %v) {
 entry:
   %v3 = alloca i32, align 4
   %i2 = alloca i32, align 4
@@ -186,11 +184,12 @@ entry:
   %0 = load i32, ptr %v3, align 4
   %1 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %ByteArray, ptr %1, i32 0, i32 0
-  %2 = load ptr, ptr %field.ptr, align 8
+  %2 = load i32, ptr %field.ptr, align 4
   %3 = load i32, ptr %i2, align 4
-  %elem.ptr = getelementptr i32, ptr %2, i32 %3
+  %4 = inttoptr i32 %2 to ptr
+  %elem.ptr = getelementptr i32, ptr %4, i32 %3
   store i32 %0, ptr %elem.ptr, align 4
-  ret void
+  ret i32 0
 }
 
 define i32 @ByteArray.get(ptr %this, i32 %i) {
@@ -201,11 +200,12 @@ entry:
   store i32 %i, ptr %i2, align 4
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %ByteArray, ptr %0, i32 0, i32 0
-  %1 = load ptr, ptr %field.ptr, align 8
+  %1 = load i32, ptr %field.ptr, align 4
   %2 = load i32, ptr %i2, align 4
-  %elem.ptr = getelementptr i32, ptr %1, i32 %2
-  %3 = load i32, ptr %elem.ptr, align 4
-  ret i32 %3
+  %3 = inttoptr i32 %1 to ptr
+  %elem.ptr = getelementptr i32, ptr %3, i32 %2
+  %4 = load i32, ptr %elem.ptr, align 4
+  ret i32 %4
 }
 
 define void @__ctor_ResourceHandle(ptr %this, i32 %id) {
@@ -221,7 +221,7 @@ entry:
   ret void
 }
 
-define void @ResourceHandle.print(ptr %this) {
+define i32 @ResourceHandle.print(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
@@ -231,248 +231,256 @@ entry:
   %2 = call ptr @tspp_int_to_string(i32 %1)
   %3 = call ptr @tspp_string_concat(ptr @5, ptr %2)
   call void @tspp_console_log(ptr %3)
-  ret void
+  ret i32 0
 }
 
-define void @__ctor_Animal(ptr %this, ptr %name) {
+define void @__ctor_Animal(ptr %this, i32 %name) {
 entry:
-  %name2 = alloca ptr, align 8
+  %name2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store ptr %name, ptr %name2, align 8
-  %0 = load ptr, ptr %name2, align 8
+  store i32 %name, ptr %name2, align 4
+  %0 = load i32, ptr %name2, align 4
   %1 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Animal, ptr %1, i32 0, i32 0
-  store ptr %0, ptr %field.ptr, align 8
+  store i32 %0, ptr %field.ptr, align 4
   ret void
 }
 
-define ptr @Animal.speak(ptr %this) {
+define i32 @Animal.speak(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Animal, ptr %0, i32 0, i32 0
-  %1 = load ptr, ptr %field.ptr, align 8
-  %2 = call ptr @tspp_string_concat(ptr %1, ptr @6)
-  ret ptr %2
+  %1 = load i32, ptr %field.ptr, align 4
+  %2 = call ptr @tspp_int_to_string(i32 %1)
+  %3 = call ptr @tspp_string_concat(ptr %2, ptr @6)
+  ret ptr %3
 }
 
-define ptr @Animal.kingdom() #0 {
+define i32 @Animal.kingdom() #0 {
 entry:
-  %0 = load ptr, ptr @Animal.kingdomName, align 8
-  ret ptr %0
+  %0 = load i32, ptr @Animal.kingdomName, align 4
+  ret i32 %0
 }
 
-define void @__ctor_Dog(ptr %this, ptr %name, ptr %breed) {
+define void @__ctor_Dog(ptr %this, i32 %name, i32 %breed) {
 entry:
-  %breed3 = alloca ptr, align 8
-  %name2 = alloca ptr, align 8
+  %breed3 = alloca i32, align 4
+  %name2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store ptr %name, ptr %name2, align 8
-  store ptr %breed, ptr %breed3, align 8
+  store i32 %name, ptr %name2, align 4
+  store i32 %breed, ptr %breed3, align 4
   %0 = load ptr, ptr %this1, align 8
-  %1 = load ptr, ptr %name2, align 8
-  call void @__ctor_Animal(ptr %0, ptr %1)
-  %2 = load ptr, ptr %breed3, align 8
+  %1 = load i32, ptr %name2, align 4
+  call void @__ctor_Animal(ptr %0, i32 %1)
+  %2 = load i32, ptr %breed3, align 4
   %3 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Dog, ptr %3, i32 0, i32 1
-  store ptr %2, ptr %field.ptr, align 8
+  store i32 %2, ptr %field.ptr, align 4
   ret void
 }
 
-define ptr @Dog.speak(ptr %this) #1 {
+define i32 @Dog.speak(ptr %this) #1 {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Dog, ptr %0, i32 0, i32 0
-  %1 = load ptr, ptr %field.ptr, align 8
-  %2 = call ptr @tspp_string_concat(ptr %1, ptr @7)
-  %3 = load ptr, ptr %this1, align 8
-  %field.ptr2 = getelementptr %Dog, ptr %3, i32 0, i32 1
-  %4 = load ptr, ptr %field.ptr2, align 8
-  %5 = call ptr @tspp_string_concat(ptr %2, ptr %4)
-  %6 = call ptr @tspp_string_concat(ptr %5, ptr @8)
-  ret ptr %6
+  %1 = load i32, ptr %field.ptr, align 4
+  %2 = call ptr @tspp_int_to_string(i32 %1)
+  %3 = call ptr @tspp_string_concat(ptr %2, ptr @7)
+  %4 = load ptr, ptr %this1, align 8
+  %field.ptr2 = getelementptr %Dog, ptr %4, i32 0, i32 1
+  %5 = load i32, ptr %field.ptr2, align 4
+  %6 = call ptr @tspp_int_to_string(i32 %5)
+  %7 = call ptr @tspp_string_concat(ptr %3, ptr %6)
+  %8 = call ptr @tspp_string_concat(ptr %7, ptr @8)
+  ret ptr %8
 }
 
-define ptr @Dog.getBreed(ptr %this) {
+define i32 @Dog.getBreed(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Dog, ptr %0, i32 0, i32 1
-  %1 = load ptr, ptr %field.ptr, align 8
-  ret ptr %1
+  %1 = load i32, ptr %field.ptr, align 4
+  ret i32 %1
 }
 
-define void @Dog.print(ptr %this) {
+define i32 @Dog.print(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
-  %1 = call ptr @Dog.speak(ptr %0)
-  call void @tspp_console_log(ptr %1)
-  ret void
+  %1 = call i32 @Dog.speak(ptr %0)
+  %2 = call ptr @tspp_int_to_string(i32 %1)
+  call void @tspp_console_log(ptr %2)
+  call void @tspp_free_string(ptr %2)
+  ret i32 0
 }
 
-define float @Shape.area(ptr %this) {
+define i32 @Shape.area(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  ret float 0.000000e+00
+  ret i32 0
 }
 
-define void @__ctor_Circle(ptr %this, float %r) {
+define void @__ctor_Circle(ptr %this, i32 %r) {
 entry:
-  %r2 = alloca float, align 4
+  %r2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store float %r, ptr %r2, align 4
-  %0 = load float, ptr %r2, align 4
+  store i32 %r, ptr %r2, align 4
+  %0 = load i32, ptr %r2, align 4
   %1 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Circle, ptr %1, i32 0, i32 0
-  store float %0, ptr %field.ptr, align 4
+  store i32 %0, ptr %field.ptr, align 4
   ret void
 }
 
-define float @Circle.area(ptr %this) #1 {
+define i32 @Circle.area(ptr %this) #1 {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %Circle, ptr %0, i32 0, i32 0
-  %1 = load float, ptr %field.ptr, align 4
-  %fmultmp = fmul float 0x40091EB860000000, %1
+  %1 = load i32, ptr %field.ptr, align 4
+  %sitofp = sitofp i32 %1 to float
+  %fmultmp = fmul float 0x40091EB860000000, %sitofp
   %2 = load ptr, ptr %this1, align 8
   %field.ptr2 = getelementptr %Circle, ptr %2, i32 0, i32 0
-  %3 = load float, ptr %field.ptr2, align 4
-  %fmultmp3 = fmul float %fmultmp, %3
-  ret float %fmultmp3
+  %3 = load i32, ptr %field.ptr2, align 4
+  %sitofp3 = sitofp i32 %3 to float
+  %fmultmp4 = fmul float %fmultmp, %sitofp3
+  ret float %fmultmp4
 }
 
-define void @__ctor_SBox(ptr %this, ptr %v) {
+define void @__ctor_SBox(ptr %this, i32 %v) {
 entry:
-  %v2 = alloca ptr, align 8
+  %v2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store ptr %v, ptr %v2, align 8
-  %0 = load ptr, ptr %v2, align 8
+  store i32 %v, ptr %v2, align 4
+  %0 = load i32, ptr %v2, align 4
   %1 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %SBox, ptr %1, i32 0, i32 0
-  store ptr %0, ptr %field.ptr, align 8
+  store i32 %0, ptr %field.ptr, align 4
   ret void
 }
 
-define ptr @SBox.get(ptr %this) {
+define i32 @SBox.get(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %SBox, ptr %0, i32 0, i32 0
-  %1 = load ptr, ptr %field.ptr, align 8
-  ret ptr %1
+  %1 = load i32, ptr %field.ptr, align 4
+  ret i32 %1
 }
 
-define void @SBox.set(ptr %this, ptr %v) {
+define i32 @SBox.set(ptr %this, i32 %v) {
 entry:
-  %v2 = alloca ptr, align 8
+  %v2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store ptr %v, ptr %v2, align 8
-  %0 = load ptr, ptr %v2, align 8
+  store i32 %v, ptr %v2, align 4
+  %0 = load i32, ptr %v2, align 4
   %1 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %SBox, ptr %1, i32 0, i32 0
-  store ptr %0, ptr %field.ptr, align 8
-  ret void
+  store i32 %0, ptr %field.ptr, align 4
+  ret i32 0
 }
 
-define void @__ctor_PAdapter(ptr %this, float %x, float %y) {
+define void @__ctor_PAdapter(ptr %this, i32 %x, i32 %y) {
 entry:
-  %y3 = alloca float, align 4
-  %x2 = alloca float, align 4
+  %y3 = alloca i32, align 4
+  %x2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store float %x, ptr %x2, align 4
-  store float %y, ptr %y3, align 4
-  %0 = load float, ptr %x2, align 4
+  store i32 %x, ptr %x2, align 4
+  store i32 %y, ptr %y3, align 4
+  %0 = load i32, ptr %x2, align 4
   %1 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %PAdapter, ptr %1, i32 0, i32 0
-  store float %0, ptr %field.ptr, align 4
-  %2 = load float, ptr %y3, align 4
+  store i32 %0, ptr %field.ptr, align 4
+  %2 = load i32, ptr %y3, align 4
   %3 = load ptr, ptr %this1, align 8
   %field.ptr4 = getelementptr %PAdapter, ptr %3, i32 0, i32 1
-  store float %2, ptr %field.ptr4, align 4
+  store i32 %2, ptr %field.ptr4, align 4
   ret void
 }
 
-define ptr @PAdapter.toString(ptr %this) {
+define i32 @PAdapter.toString(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %PAdapter, ptr %0, i32 0, i32 0
-  %1 = load float, ptr %field.ptr, align 4
-  %2 = call ptr @tspp_float_to_string(float %1)
+  %1 = load i32, ptr %field.ptr, align 4
+  %2 = call ptr @tspp_int_to_string(i32 %1)
   %3 = call ptr @tspp_string_concat(ptr @9, ptr %2)
   %4 = call ptr @tspp_string_concat(ptr %3, ptr @10)
   %5 = load ptr, ptr %this1, align 8
   %field.ptr2 = getelementptr %PAdapter, ptr %5, i32 0, i32 1
-  %6 = load float, ptr %field.ptr2, align 4
-  %7 = call ptr @tspp_float_to_string(float %6)
+  %6 = load i32, ptr %field.ptr2, align 4
+  %7 = call ptr @tspp_int_to_string(i32 %6)
   %8 = call ptr @tspp_string_concat(ptr %4, ptr %7)
   %9 = call ptr @tspp_string_concat(ptr %8, ptr @11)
   ret ptr %9
 }
 
-define void @PAdapter.move(ptr %this, float %dx, float %dy) {
+define i32 @PAdapter.move(ptr %this, i32 %dx, i32 %dy) {
 entry:
-  %dy3 = alloca float, align 4
-  %dx2 = alloca float, align 4
+  %dy3 = alloca i32, align 4
+  %dx2 = alloca i32, align 4
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
-  store float %dx, ptr %dx2, align 4
-  store float %dy, ptr %dy3, align 4
+  store i32 %dx, ptr %dx2, align 4
+  store i32 %dy, ptr %dy3, align 4
   %0 = load ptr, ptr %this1, align 8
   %field.ptr = getelementptr %PAdapter, ptr %0, i32 0, i32 0
-  %1 = load float, ptr %field.ptr, align 4
-  %2 = load float, ptr %dx2, align 4
-  %faddtmp = fadd float %1, %2
+  %1 = load i32, ptr %field.ptr, align 4
+  %2 = load i32, ptr %dx2, align 4
+  %addtmp = add i32 %1, %2
   %3 = load ptr, ptr %this1, align 8
   %field.ptr4 = getelementptr %PAdapter, ptr %3, i32 0, i32 0
-  store float %faddtmp, ptr %field.ptr4, align 4
+  store i32 %addtmp, ptr %field.ptr4, align 4
   %4 = load ptr, ptr %this1, align 8
   %field.ptr5 = getelementptr %PAdapter, ptr %4, i32 0, i32 1
-  %5 = load float, ptr %field.ptr5, align 4
-  %6 = load float, ptr %dy3, align 4
-  %faddtmp6 = fadd float %5, %6
+  %5 = load i32, ptr %field.ptr5, align 4
+  %6 = load i32, ptr %dy3, align 4
+  %addtmp6 = add i32 %5, %6
   %7 = load ptr, ptr %this1, align 8
   %field.ptr7 = getelementptr %PAdapter, ptr %7, i32 0, i32 1
-  store float %faddtmp6, ptr %field.ptr7, align 4
-  ret void
+  store i32 %addtmp6, ptr %field.ptr7, align 4
+  ret i32 0
 }
 
-define void @PAdapter.print(ptr %this) {
+define i32 @PAdapter.print(ptr %this) {
 entry:
   %this1 = alloca ptr, align 8
   store ptr %this, ptr %this1, align 8
   %0 = load ptr, ptr %this1, align 8
-  %1 = call ptr @PAdapter.toString(ptr %0)
-  %2 = call ptr @tspp_string_concat(ptr @12, ptr %1)
-  call void @tspp_console_log(ptr %2)
-  ret void
+  %1 = call i32 @PAdapter.toString(ptr %0)
+  %2 = call ptr @tspp_int_to_string(i32 %1)
+  %3 = call ptr @tspp_string_concat(ptr @12, ptr %2)
+  call void @tspp_console_log(ptr %3)
+  ret i32 0
 }
 
-define ptr @firstOf(ptr %a, ptr %b) {
+define i32 @firstOf(i32 %a, i32 %b) {
 entry:
-  %b2 = alloca ptr, align 8
-  %a1 = alloca ptr, align 8
-  store ptr %a, ptr %a1, align 8
-  store ptr %b, ptr %b2, align 8
-  %0 = load ptr, ptr %a1, align 8
-  ret ptr %0
+  %b2 = alloca i32, align 4
+  %a1 = alloca i32, align 4
+  store i32 %a, ptr %a1, align 4
+  store i32 %b, ptr %b2, align 4
+  %0 = load i32, ptr %a1, align 4
+  ret i32 %0
 }
 
 define i32 @idNum(i32 %n) {
@@ -483,31 +491,39 @@ entry:
   ret i32 %0
 }
 
-define ptr @stringifyPoint(ptr %pt) {
+define i32 @stringifyPoint(i32 %pt) {
 entry:
-  %pt1 = alloca ptr, align 8
-  store ptr %pt, ptr %pt1, align 8
-  %0 = load ptr, ptr %pt1, align 8
-  %1 = call ptr @PAdapter.toString(ptr %0)
-  %2 = call ptr @tspp_string_concat(ptr @13, ptr %1)
-  ret ptr %2
+  %pt1 = alloca i32, align 4
+  store i32 %pt, ptr %pt1, align 4
+  %0 = load i32, ptr %pt1, align 4
+  %1 = inttoptr i32 %0 to ptr
+  %2 = call i32 @PAdapter.toString(ptr %1)
+  %3 = call ptr @tspp_int_to_string(i32 %2)
+  %4 = call ptr @tspp_string_concat(ptr @13, ptr %3)
+  ret ptr %4
 }
 
-define ptr @useBoxString(ptr %bx) {
+define i32 @useBoxString(i32 %bx) {
 entry:
-  %bx1 = alloca ptr, align 8
-  store ptr %bx, ptr %bx1, align 8
-  %0 = load ptr, ptr %bx1, align 8
-  %1 = load ptr, ptr %bx1, align 8
-  %2 = call ptr @SBox.get(ptr %1)
-  %3 = call ptr @tspp_string_concat(ptr %2, ptr @14)
-  call void @SBox.set(ptr %0, ptr %3)
-  %4 = load ptr, ptr %bx1, align 8
-  %5 = call ptr @SBox.get(ptr %4)
-  ret ptr %5
+  %bx1 = alloca i32, align 4
+  store i32 %bx, ptr %bx1, align 4
+  %0 = load i32, ptr %bx1, align 4
+  %1 = load i32, ptr %bx1, align 4
+  %2 = inttoptr i32 %1 to ptr
+  %3 = call i32 @SBox.get(ptr %2)
+  %4 = call ptr @tspp_int_to_string(i32 %3)
+  %5 = call ptr @tspp_string_concat(ptr %4, ptr @14)
+  %6 = inttoptr i32 %0 to ptr
+  %7 = ptrtoint ptr %5 to i64
+  %8 = trunc i64 %7 to i32
+  %9 = call i32 @SBox.set(ptr %6, i32 %8)
+  %10 = load i32, ptr %bx1, align 4
+  %11 = inttoptr i32 %10 to ptr
+  %12 = call i32 @SBox.get(ptr %11)
+  ret i32 %12
 }
 
-define i1 @isEven(i32 %n) {
+define i32 @isEven(i32 %n) {
 entry:
   %n1 = alloca i32, align 4
   store i32 %n, ptr %n1, align 4
@@ -723,39 +739,39 @@ entry:
   %arr1 = alloca ptr, align 8
   %p = alloca ptr, align 8
   %obj = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Point, ptr null, i32 1) to i64))
-  call void @__ctor_Point(ptr %obj, float 1.000000e+00, float 2.000000e+00)
+  call void @__ctor_Point(ptr %obj, i32 1, i32 2)
   store ptr %obj, ptr %p, align 8
   %0 = load ptr, ptr %p, align 8
-  call void @Point.move(ptr %0, float 1.000000e+00, float 3.000000e+00)
+  %1 = call i32 @PAdapter.move(ptr %0, i32 1, i32 3)
   %arr = call ptr @GC_malloc(i64 12)
-  %1 = getelementptr i32, ptr %arr, i32 0
-  store i32 10, ptr %1, align 4
-  %2 = getelementptr i32, ptr %arr, i32 1
-  store i32 20, ptr %2, align 4
-  %3 = getelementptr i32, ptr %arr, i32 2
-  store i32 30, ptr %3, align 4
+  %2 = getelementptr i32, ptr %arr, i32 0
+  store i32 10, ptr %2, align 4
+  %3 = getelementptr i32, ptr %arr, i32 1
+  store i32 20, ptr %3, align 4
+  %4 = getelementptr i32, ptr %arr, i32 2
+  store i32 30, ptr %4, align 4
   store ptr %arr, ptr %arr1, align 8
-  %4 = load ptr, ptr %arr1, align 8
-  %elem.ptr = getelementptr i32, ptr %4, i32 1
-  %5 = load i32, ptr %elem.ptr, align 4
-  %addtmp = add i32 %5, 79
-  %6 = load ptr, ptr %arr1, align 8
-  %elem.ptr2 = getelementptr i32, ptr %6, i32 1
-  store i32 %addtmp, ptr %elem.ptr2, align 4
+  %5 = load ptr, ptr %arr1, align 8
+  %elem.ptr = getelementptr i32, ptr %5, i32 1
+  %6 = load i32, ptr %elem.ptr, align 4
+  %addtmp = add i32 %6, 79
   %7 = load ptr, ptr %arr1, align 8
-  %elem.ptr3 = getelementptr i32, ptr %7, i32 0
-  %8 = load i32, ptr %elem.ptr3, align 4
-  %9 = load ptr, ptr %arr1, align 8
-  %elem.ptr4 = getelementptr i32, ptr %9, i32 1
-  %10 = load i32, ptr %elem.ptr4, align 4
-  %addtmp5 = add i32 %8, %10
-  %11 = load ptr, ptr %arr1, align 8
-  %elem.ptr6 = getelementptr i32, ptr %11, i32 2
-  %12 = load i32, ptr %elem.ptr6, align 4
-  %addtmp7 = add i32 %addtmp5, %12
+  %elem.ptr2 = getelementptr i32, ptr %7, i32 1
+  store i32 %addtmp, ptr %elem.ptr2, align 4
+  %8 = load ptr, ptr %arr1, align 8
+  %elem.ptr3 = getelementptr i32, ptr %8, i32 0
+  %9 = load i32, ptr %elem.ptr3, align 4
+  %10 = load ptr, ptr %arr1, align 8
+  %elem.ptr4 = getelementptr i32, ptr %10, i32 1
+  %11 = load i32, ptr %elem.ptr4, align 4
+  %addtmp5 = add i32 %9, %11
+  %12 = load ptr, ptr %arr1, align 8
+  %elem.ptr6 = getelementptr i32, ptr %12, i32 2
+  %13 = load i32, ptr %elem.ptr6, align 4
+  %addtmp7 = add i32 %addtmp5, %13
   store i32 %addtmp7, ptr %chk, align 4
-  %13 = load i32, ptr %chk, align 4
-  %addtmp8 = add i32 %13, 2
+  %14 = load i32, ptr %chk, align 4
+  %addtmp8 = add i32 %14, 2
   %addtmp9 = add i32 %addtmp8, 5
   ret i32 %addtmp9
 }
@@ -829,16 +845,19 @@ ifcont12:                                         ; preds = %then11, %land.end8
   ret i32 %12
 }
 
-define ptr @describePointLike(ptr %p) {
+define i32 @describePointLike(i32 %p) {
 entry:
-  %p1 = alloca ptr, align 8
-  store ptr %p, ptr %p1, align 8
-  %0 = load ptr, ptr %p1, align 8
-  call void @PAdapter.print(ptr %0)
-  %1 = load ptr, ptr %p1, align 8
-  %2 = call ptr @PAdapter.toString(ptr %1)
-  %3 = call ptr @tspp_string_concat(ptr @15, ptr %2)
-  ret ptr %3
+  %p1 = alloca i32, align 4
+  store i32 %p, ptr %p1, align 4
+  %0 = load i32, ptr %p1, align 4
+  %1 = inttoptr i32 %0 to ptr
+  %2 = call i32 @Dog.print(ptr %1)
+  %3 = load i32, ptr %p1, align 4
+  %4 = inttoptr i32 %3 to ptr
+  %5 = call i32 @PAdapter.toString(ptr %4)
+  %6 = call ptr @tspp_int_to_string(i32 %5)
+  %7 = call ptr @tspp_string_concat(ptr @15, ptr %6)
+  ret ptr %7
 }
 
 define i32 @storagePlay() {
@@ -889,148 +908,177 @@ entry:
   %7 = call ptr @tspp_string_concat(ptr @19, ptr %6)
   call void @tspp_console_log(ptr %7)
   %obj = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Point, ptr null, i32 1) to i64))
-  call void @__ctor_Point(ptr %obj, float 1.500000e+00, float 2.500000e+00)
+  call void @__ctor_Point(ptr %obj, i32 1, i32 2)
   store ptr %obj, ptr %p1, align 8
   %8 = load ptr, ptr %p1, align 8
-  %9 = call ptr @Point.toString(ptr %8)
-  %10 = call ptr @tspp_string_concat(ptr @20, ptr %9)
-  call void @tspp_console_log(ptr %10)
-  %11 = load ptr, ptr %p1, align 8
-  call void @Point.move(ptr %11, float 5.000000e-01, float 5.000000e-01)
+  %9 = call i32 @PAdapter.toString(ptr %8)
+  %10 = call ptr @tspp_int_to_string(i32 %9)
+  %11 = call ptr @tspp_string_concat(ptr @20, ptr %10)
+  call void @tspp_console_log(ptr %11)
+  call void @tspp_free_string(ptr %10)
   %12 = load ptr, ptr %p1, align 8
-  %13 = call ptr @Point.toString(ptr %12)
-  %14 = call ptr @tspp_string_concat(ptr @21, ptr %13)
-  call void @tspp_console_log(ptr %14)
-  %15 = call ptr @Point.stats()
-  call void @tspp_console_log(ptr %15)
-  %16 = load ptr, ptr %p1, align 8
-  %17 = call ptr @stringifyPoint(ptr %16)
-  %18 = call ptr @tspp_string_concat(ptr @22, ptr %17)
-  call void @tspp_console_log(ptr %18)
+  %13 = call i32 @PAdapter.move(ptr %12, i32 0, i32 0)
+  %14 = load ptr, ptr %p1, align 8
+  %15 = call i32 @PAdapter.toString(ptr %14)
+  %16 = call ptr @tspp_int_to_string(i32 %15)
+  %17 = call ptr @tspp_string_concat(ptr @21, ptr %16)
+  call void @tspp_console_log(ptr %17)
+  call void @tspp_free_string(ptr %16)
+  %18 = call i32 @Point.stats()
+  %19 = call ptr @tspp_int_to_string(i32 %18)
+  call void @tspp_console_log(ptr %19)
+  call void @tspp_free_string(ptr %19)
+  %20 = load ptr, ptr %p1, align 8
+  %21 = ptrtoint ptr %20 to i64
+  %22 = trunc i64 %21 to i32
+  %23 = call i32 @stringifyPoint(i32 %22)
+  %24 = call ptr @tspp_int_to_string(i32 %23)
+  %25 = call ptr @tspp_string_concat(ptr @22, ptr %24)
+  call void @tspp_console_log(ptr %25)
+  call void @tspp_free_string(ptr %24)
   %obj1 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
   call void @__ctor_SBox(ptr %obj1, ptr @23)
   store ptr %obj1, ptr %sb, align 8
-  %19 = load ptr, ptr %sb, align 8
-  %20 = call ptr @useBoxString(ptr %19)
-  %21 = call ptr @tspp_string_concat(ptr @24, ptr %20)
-  call void @tspp_console_log(ptr %21)
+  %26 = load ptr, ptr %sb, align 8
+  %27 = ptrtoint ptr %26 to i64
+  %28 = trunc i64 %27 to i32
+  %29 = call i32 @useBoxString(i32 %28)
+  %30 = call ptr @tspp_int_to_string(i32 %29)
+  %31 = call ptr @tspp_string_concat(ptr @24, ptr %30)
+  call void @tspp_console_log(ptr %31)
+  call void @tspp_free_string(ptr %30)
   %obj2 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Animal, ptr null, i32 1) to i64))
   call void @__ctor_Animal(ptr %obj2, ptr @25)
   store ptr %obj2, ptr %a, align 8
-  %22 = load ptr, ptr %a, align 8
-  %23 = call ptr @Animal.speak(ptr %22)
-  %24 = call ptr @tspp_string_concat(ptr @26, ptr %23)
-  call void @tspp_console_log(ptr %24)
-  %25 = call ptr @Animal.kingdom()
-  %26 = call ptr @tspp_string_concat(ptr @27, ptr %25)
-  call void @tspp_console_log(ptr %26)
+  %32 = load ptr, ptr %a, align 8
+  %33 = call i32 @Dog.speak(ptr %32)
+  %34 = call ptr @tspp_int_to_string(i32 %33)
+  %35 = call ptr @tspp_string_concat(ptr @26, ptr %34)
+  call void @tspp_console_log(ptr %35)
+  call void @tspp_free_string(ptr %34)
+  %36 = call i32 @Animal.kingdom()
+  %37 = call ptr @tspp_int_to_string(i32 %36)
+  %38 = call ptr @tspp_string_concat(ptr @27, ptr %37)
+  call void @tspp_console_log(ptr %38)
+  call void @tspp_free_string(ptr %37)
   %obj3 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Dog, ptr null, i32 1) to i64))
   call void @__ctor_Dog(ptr %obj3, ptr @28, ptr @29)
   store ptr %obj3, ptr %d, align 8
-  %27 = load ptr, ptr %d, align 8
-  %28 = call ptr @Dog.speak(ptr %27)
-  %29 = call ptr @tspp_string_concat(ptr @30, ptr %28)
-  call void @tspp_console_log(ptr %29)
-  %30 = load ptr, ptr %d, align 8
-  %31 = call ptr @Dog.getBreed(ptr %30)
-  %32 = call ptr @tspp_string_concat(ptr @31, ptr %31)
-  call void @tspp_console_log(ptr %32)
-  %33 = load ptr, ptr %d, align 8
-  call void @Dog.print(ptr %33)
+  %39 = load ptr, ptr %d, align 8
+  %40 = call i32 @Dog.speak(ptr %39)
+  %41 = call ptr @tspp_int_to_string(i32 %40)
+  %42 = call ptr @tspp_string_concat(ptr @30, ptr %41)
+  call void @tspp_console_log(ptr %42)
+  call void @tspp_free_string(ptr %41)
+  %43 = load ptr, ptr %d, align 8
+  %44 = call i32 @Dog.getBreed(ptr %43)
+  %45 = call ptr @tspp_int_to_string(i32 %44)
+  %46 = call ptr @tspp_string_concat(ptr @31, ptr %45)
+  call void @tspp_console_log(ptr %46)
+  call void @tspp_free_string(ptr %45)
+  %47 = load ptr, ptr %d, align 8
+  %48 = call i32 @Dog.print(ptr %47)
   %obj4 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Circle, ptr null, i32 1) to i64))
-  call void @__ctor_Circle(ptr %obj4, float 2.000000e+00)
+  call void @__ctor_Circle(ptr %obj4, i32 2)
   store ptr %obj4, ptr %c, align 8
-  %34 = load ptr, ptr %c, align 8
-  %35 = call float @Circle.area(ptr %34)
-  %36 = call ptr @tspp_float_to_string(float %35)
-  %37 = call ptr @tspp_string_concat(ptr @32, ptr %36)
-  call void @tspp_console_log(ptr %37)
-  call void @tspp_free_string(ptr %36)
+  %49 = load ptr, ptr %c, align 8
+  %50 = call i32 @Circle.area(ptr %49)
+  %51 = call ptr @tspp_int_to_string(i32 %50)
+  %52 = call ptr @tspp_string_concat(ptr @32, ptr %51)
+  call void @tspp_console_log(ptr %52)
+  call void @tspp_free_string(ptr %51)
   %obj5 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%ByteArray, ptr null, i32 1) to i64))
   call void @__ctor_ByteArray(ptr %obj5, i32 3)
   store ptr %obj5, ptr %ba, align 8
-  %38 = load ptr, ptr %ba, align 8
-  call void @ByteArray.set(ptr %38, i32 0, i32 42)
-  %39 = load ptr, ptr %ba, align 8
-  %40 = call i32 @ByteArray.get(ptr %39, i32 0)
-  %41 = call ptr @tspp_int_to_string(i32 %40)
-  %42 = call ptr @tspp_string_concat(ptr @33, ptr %41)
-  call void @tspp_console_log(ptr %42)
-  call void @tspp_free_string(ptr %41)
+  %53 = load ptr, ptr %ba, align 8
+  %54 = call i32 @SBox.set(ptr %53, i32 0, i32 42)
+  %55 = load ptr, ptr %ba, align 8
+  %56 = call i32 @SBox.get(ptr %55, i32 0)
+  %57 = call ptr @tspp_int_to_string(i32 %56)
+  %58 = call ptr @tspp_string_concat(ptr @33, ptr %57)
+  call void @tspp_console_log(ptr %58)
+  call void @tspp_free_string(ptr %57)
   %obj6 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%ResourceHandle, ptr null, i32 1) to i64))
   call void @__ctor_ResourceHandle(ptr %obj6, i32 7)
   store ptr %obj6, ptr %rh, align 8
-  %43 = load ptr, ptr %rh, align 8
-  call void @ResourceHandle.print(ptr %43)
-  %44 = call ptr @tspp_ptr_to_string(ptr @35)
-  %45 = call ptr @tspp_int_to_string(i32 20)
-  %46 = call ptr @tspp_string_concat(ptr @34, ptr %44)
-  %47 = call ptr @tspp_string_concat(ptr %46, ptr %45)
-  call void @tspp_console_log(ptr %47)
-  call void @tspp_free_string(ptr %44)
-  call void @tspp_free_string(ptr %45)
+  %59 = load ptr, ptr %rh, align 8
+  %60 = call i32 @Dog.print(ptr %59)
+  %61 = call ptr @tspp_ptr_to_string(ptr @35)
+  %62 = call ptr @tspp_int_to_string(i32 20)
+  %63 = call ptr @tspp_string_concat(ptr @34, ptr %61)
+  %64 = call ptr @tspp_string_concat(ptr %63, ptr %62)
+  call void @tspp_console_log(ptr %64)
+  call void @tspp_free_string(ptr %61)
+  call void @tspp_free_string(ptr %62)
   %obj7 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
   call void @__ctor_SBox(ptr %obj7, ptr @36)
   store ptr %obj7, ptr %bxS, align 8
   %obj8 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
-  %48 = call ptr @tspp_int_to_string(i32 5)
-  call void @__ctor_SBox(ptr %obj8, ptr %48)
+  call void @__ctor_SBox(ptr %obj8, i32 5)
   store ptr %obj8, ptr %bxI, align 8
-  %49 = load ptr, ptr %bxS, align 8
-  %50 = call ptr @SBox.get(ptr %49)
-  %51 = call ptr @tspp_string_concat(ptr @37, ptr %50)
-  call void @tspp_console_log(ptr %51)
-  %52 = load ptr, ptr %bxI, align 8
-  %53 = call ptr @SBox.get(ptr %52)
-  %54 = call ptr @tspp_string_concat(ptr @38, ptr %53)
-  call void @tspp_console_log(ptr %54)
-  %obj9 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%PAdapter, ptr null, i32 1) to i64))
-  call void @__ctor_PAdapter(ptr %obj9, float 2.000000e+00, float 3.000000e+00)
-  store ptr %obj9, ptr %pl, align 8
-  %55 = load ptr, ptr %pl, align 8
-  %56 = call ptr @describePointLike(ptr %55)
-  call void @tspp_console_log(ptr %56)
-  store i32 6, ptr %n, align 4
-  %57 = load i32, ptr %n, align 4
-  %58 = call i1 @isEven(i32 %57)
-  %59 = call ptr @tspp_bool_to_string(i1 %58)
-  %60 = call ptr @tspp_string_concat(ptr @39, ptr %59)
-  call void @tspp_console_log(ptr %60)
-  call void @tspp_free_string(ptr %59)
-  %61 = call i32 @sumTo(i32 5)
-  %62 = call ptr @tspp_int_to_string(i32 %61)
-  %63 = call ptr @tspp_string_concat(ptr @40, ptr %62)
-  call void @tspp_console_log(ptr %63)
-  call void @tspp_free_string(ptr %62)
-  %64 = call i32 @forVariants()
-  %65 = call ptr @tspp_int_to_string(i32 %64)
-  %66 = call ptr @tspp_string_concat(ptr @41, ptr %65)
-  call void @tspp_console_log(ptr %66)
-  call void @tspp_free_string(ptr %65)
-  %67 = call i32 @precedenceDemo()
-  %68 = call ptr @tspp_int_to_string(i32 %67)
-  %69 = call ptr @tspp_string_concat(ptr @42, ptr %68)
-  call void @tspp_console_log(ptr %69)
-  call void @tspp_free_string(ptr %68)
-  %70 = call i32 @memberAndIndexAccess()
+  %65 = load ptr, ptr %bxS, align 8
+  %66 = call i32 @SBox.get(ptr %65)
+  %67 = call ptr @tspp_int_to_string(i32 %66)
+  %68 = call ptr @tspp_string_concat(ptr @37, ptr %67)
+  call void @tspp_console_log(ptr %68)
+  call void @tspp_free_string(ptr %67)
+  %69 = load ptr, ptr %bxI, align 8
+  %70 = call i32 @SBox.get(ptr %69)
   %71 = call ptr @tspp_int_to_string(i32 %70)
-  %72 = call ptr @tspp_string_concat(ptr @43, ptr %71)
+  %72 = call ptr @tspp_string_concat(ptr @38, ptr %71)
   call void @tspp_console_log(ptr %72)
   call void @tspp_free_string(ptr %71)
+  %obj9 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%PAdapter, ptr null, i32 1) to i64))
+  call void @__ctor_PAdapter(ptr %obj9, i32 2, i32 3)
+  store ptr %obj9, ptr %pl, align 8
+  %73 = load ptr, ptr %pl, align 8
+  %74 = ptrtoint ptr %73 to i64
+  %75 = trunc i64 %74 to i32
+  %76 = call i32 @describePointLike(i32 %75)
+  %77 = call ptr @tspp_int_to_string(i32 %76)
+  call void @tspp_console_log(ptr %77)
+  call void @tspp_free_string(ptr %77)
+  store i32 6, ptr %n, align 4
+  %78 = load i32, ptr %n, align 4
+  %79 = call i32 @isEven(i32 %78)
+  %80 = call ptr @tspp_int_to_string(i32 %79)
+  %81 = call ptr @tspp_string_concat(ptr @39, ptr %80)
+  call void @tspp_console_log(ptr %81)
+  call void @tspp_free_string(ptr %80)
+  %82 = call i32 @sumTo(i32 5)
+  %83 = call ptr @tspp_int_to_string(i32 %82)
+  %84 = call ptr @tspp_string_concat(ptr @40, ptr %83)
+  call void @tspp_console_log(ptr %84)
+  call void @tspp_free_string(ptr %83)
+  %85 = call i32 @forVariants()
+  %86 = call ptr @tspp_int_to_string(i32 %85)
+  %87 = call ptr @tspp_string_concat(ptr @41, ptr %86)
+  call void @tspp_console_log(ptr %87)
+  call void @tspp_free_string(ptr %86)
+  %88 = call i32 @precedenceDemo()
+  %89 = call ptr @tspp_int_to_string(i32 %88)
+  %90 = call ptr @tspp_string_concat(ptr @42, ptr %89)
+  call void @tspp_console_log(ptr %90)
+  call void @tspp_free_string(ptr %89)
+  %91 = call i32 @memberAndIndexAccess()
+  %92 = call ptr @tspp_int_to_string(i32 %91)
+  %93 = call ptr @tspp_string_concat(ptr @43, ptr %92)
+  call void @tspp_console_log(ptr %93)
+  call void @tspp_free_string(ptr %92)
   store i32 0, ptr %x, align 4
   store i32 0, ptr %y, align 4
   store i32 5, ptr %y, align 4
   store i32 5, ptr %x, align 4
-  %73 = load i32, ptr %x, align 4
-  %74 = call ptr @tspp_int_to_string(i32 %73)
-  %75 = call ptr @tspp_string_concat(ptr @44, ptr %74)
-  call void @tspp_console_log(ptr %75)
-  call void @tspp_free_string(ptr %74)
-  %76 = load i32, ptr %y, align 4
-  %77 = call ptr @tspp_int_to_string(i32 %76)
-  %78 = call ptr @tspp_string_concat(ptr @45, ptr %77)
-  call void @tspp_console_log(ptr %78)
-  call void @tspp_free_string(ptr %77)
+  %94 = load i32, ptr %x, align 4
+  %95 = call ptr @tspp_int_to_string(i32 %94)
+  %96 = call ptr @tspp_string_concat(ptr @44, ptr %95)
+  call void @tspp_console_log(ptr %96)
+  call void @tspp_free_string(ptr %95)
+  %97 = load i32, ptr %y, align 4
+  %98 = call ptr @tspp_int_to_string(i32 %97)
+  %99 = call ptr @tspp_string_concat(ptr @45, ptr %98)
+  call void @tspp_console_log(ptr %99)
+  call void @tspp_free_string(ptr %98)
   br i1 false, label %land.rhs, label %land.end
 
 land.rhs:                                         ; preds = %entry
@@ -1046,35 +1094,37 @@ lor.rhs:                                          ; preds = %land.end
 lor.end:                                          ; preds = %lor.rhs, %land.end
   %lor = phi i1 [ true, %land.end ], [ true, %lor.rhs ]
   store i1 %lor, ptr %L, align 1
-  %79 = load i1, ptr %L, align 1
-  %80 = call ptr @tspp_bool_to_string(i1 %79)
-  %81 = call ptr @tspp_string_concat(ptr @46, ptr %80)
-  call void @tspp_console_log(ptr %81)
-  call void @tspp_free_string(ptr %80)
-  %82 = call ptr @tspp_int_to_string(i32 8)
-  %83 = call ptr @tspp_string_concat(ptr @47, ptr %82)
-  call void @tspp_console_log(ptr %83)
-  call void @tspp_free_string(ptr %82)
-  %84 = call ptr @tspp_int_to_string(i32 4)
-  %85 = call ptr @tspp_string_concat(ptr @48, ptr %84)
-  call void @tspp_console_log(ptr %85)
-  call void @tspp_free_string(ptr %84)
-  %86 = call ptr @tspp_int_to_string(i32 -1)
-  %87 = call ptr @tspp_string_concat(ptr @49, ptr %86)
-  call void @tspp_console_log(ptr %87)
-  call void @tspp_free_string(ptr %86)
-  %88 = call i32 @pointerPlay()
-  %89 = call ptr @tspp_int_to_string(i32 %88)
-  %90 = call ptr @tspp_string_concat(ptr @50, ptr %89)
-  call void @tspp_console_log(ptr %90)
-  call void @tspp_free_string(ptr %89)
-  %91 = call i32 @storagePlay()
-  %92 = call ptr @tspp_int_to_string(i32 %91)
-  %93 = call ptr @tspp_string_concat(ptr @51, ptr %92)
-  call void @tspp_console_log(ptr %93)
-  call void @tspp_free_string(ptr %92)
+  %100 = load i1, ptr %L, align 1
+  %101 = call ptr @tspp_bool_to_string(i1 %100)
+  %102 = call ptr @tspp_string_concat(ptr @46, ptr %101)
+  call void @tspp_console_log(ptr %102)
+  call void @tspp_free_string(ptr %101)
+  %103 = call ptr @tspp_int_to_string(i32 8)
+  %104 = call ptr @tspp_string_concat(ptr @47, ptr %103)
+  call void @tspp_console_log(ptr %104)
+  call void @tspp_free_string(ptr %103)
+  %105 = call ptr @tspp_int_to_string(i32 4)
+  %106 = call ptr @tspp_string_concat(ptr @48, ptr %105)
+  call void @tspp_console_log(ptr %106)
+  call void @tspp_free_string(ptr %105)
+  %107 = call ptr @tspp_int_to_string(i32 -1)
+  %108 = call ptr @tspp_string_concat(ptr @49, ptr %107)
+  call void @tspp_console_log(ptr %108)
+  call void @tspp_free_string(ptr %107)
+  %109 = call i32 @pointerPlay()
+  %110 = call ptr @tspp_int_to_string(i32 %109)
+  %111 = call ptr @tspp_string_concat(ptr @50, ptr %110)
+  call void @tspp_console_log(ptr %111)
+  call void @tspp_free_string(ptr %110)
+  %112 = call i32 @storagePlay()
+  %113 = call ptr @tspp_int_to_string(i32 %112)
+  %114 = call ptr @tspp_string_concat(ptr @51, ptr %113)
+  call void @tspp_console_log(ptr %114)
+  call void @tspp_free_string(ptr %113)
   ret i32 0
 }
+
+declare ptr @tspp_float_to_string(float)
 
 declare ptr @tspp_ptr_to_string(ptr)
 

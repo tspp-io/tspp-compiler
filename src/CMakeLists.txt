@@ -1,3 +1,10 @@
+# Interpreter library
+add_library(interpreter
+    interpreter/interpreter.cpp
+    interpreter/JITInterpreter.cpp
+)
+target_link_libraries(interpreter PUBLIC tspp_codegen core parser tokens lexer)
+target_include_directories(interpreter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(core
     core/diagnostics/error_reporter.cpp
     core/utils/file_utils.cpp
@@ -87,6 +94,8 @@ target_link_libraries(tspp
         lexer
         parser
         tspp_codegen
+        interpreter
+        LLVM
 )
 
 # Add TSPP standard library

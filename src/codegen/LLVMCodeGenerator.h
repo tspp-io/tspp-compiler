@@ -22,6 +22,11 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void generate(ast::BaseNode* root);
   void generate(ast::BaseNode* root, const std::string& outFile);
 
+  // REPL support
+  std::unique_ptr<llvm::Module> generateModuleForREPL(
+      ast::BaseNode* root,
+      std::unordered_map<std::string, llvm::Value*>& globals);
+
   // AST node visit overrides
   void visit(ast::ProgramNode&) override;
   void visit(ast::VarDecl&) override;
