@@ -5,7 +5,7 @@
 #include <cstring>
 
 extern "C" char* tspp_int_to_string(int value) {
-  char* buf = (char*)malloc(32);
+  char* buf = (char*)GC_MALLOC(32);
   if (buf) {
     snprintf(buf, 32, "%d", value);
   }
@@ -13,7 +13,7 @@ extern "C" char* tspp_int_to_string(int value) {
 }
 
 extern "C" char* tspp_float_to_string(float value) {
-  char* buf = (char*)malloc(64);
+  char* buf = (char*)GC_MALLOC(64);
   if (buf) {
     snprintf(buf, 64, "%g", value);
   }
@@ -21,7 +21,7 @@ extern "C" char* tspp_float_to_string(float value) {
 }
 
 extern "C" char* tspp_bool_to_string(bool value) {
-  char* buf = (char*)malloc(8);
+  char* buf = (char*)GC_MALLOC(8);
   if (buf) {
     snprintf(buf, 8, "%s", value ? "true" : "false");
   }
@@ -29,7 +29,7 @@ extern "C" char* tspp_bool_to_string(bool value) {
 }
 
 extern "C" char* tspp_ptr_to_string(void* value) {
-  char* buf = (char*)malloc(32);
+  char* buf = (char*)GC_MALLOC(32);
   if (buf) {
     // Print pointer as 0x... with platform-appropriate width
     snprintf(buf, 32, "%p", value);
@@ -53,5 +53,6 @@ extern "C" char* tspp_string_concat(const char* a, const char* b) {
 }
 
 extern "C" void tspp_free_string(char* p) {
-  free(p);
+  // No-op: Boehm GC handles memory management automatically
+  (void)p;  // Suppress unused parameter warning
 }

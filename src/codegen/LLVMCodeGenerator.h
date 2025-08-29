@@ -78,6 +78,11 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
     // Resolved semantic type name (e.g., "int", "string", "int*", etc.)
     std::string typeName;
   };
+
+  // === Add this in LLVMCodeGenerator.h, inside class LLVMCodeGenerator
+  // (private:) ===
+  llvm::Value* coerceToReturnType(llvm::Value* v, llvm::Type* expectedTy);
+
   std::unordered_map<std::string, SymbolInfo> symbolTable;
   llvm::Value* lastValue = nullptr;
   llvm::Function* currentFunction = nullptr;

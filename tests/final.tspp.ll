@@ -102,7 +102,9 @@ entry:
   %0 = load i32, ptr @Point.createdCount, align 4
   %1 = call ptr @tspp_int_to_string(i32 %0)
   %2 = call ptr @tspp_string_concat(ptr @1, ptr %1)
-  ret ptr %2
+  %3 = ptrtoint ptr %2 to i64
+  %4 = trunc i64 %3 to i32
+  ret i32 %4
 }
 
 declare ptr @tspp_int_to_string(i32)
@@ -125,7 +127,9 @@ entry:
   %7 = call ptr @tspp_int_to_string(i32 %6)
   %8 = call ptr @tspp_string_concat(ptr %4, ptr %7)
   %9 = call ptr @tspp_string_concat(ptr %8, ptr @4)
-  ret ptr %9
+  %10 = ptrtoint ptr %9 to i64
+  %11 = trunc i64 %10 to i32
+  ret i32 %11
 }
 
 define i32 @Point.move(ptr %this, i32 %dx, i32 %dy) {
@@ -256,7 +260,9 @@ entry:
   %1 = load i32, ptr %field.ptr, align 4
   %2 = call ptr @tspp_int_to_string(i32 %1)
   %3 = call ptr @tspp_string_concat(ptr %2, ptr @6)
-  ret ptr %3
+  %4 = ptrtoint ptr %3 to i64
+  %5 = trunc i64 %4 to i32
+  ret i32 %5
 }
 
 define i32 @Animal.kingdom() #0 {
@@ -298,7 +304,9 @@ entry:
   %6 = call ptr @tspp_int_to_string(i32 %5)
   %7 = call ptr @tspp_string_concat(ptr %3, ptr %6)
   %8 = call ptr @tspp_string_concat(ptr %7, ptr @8)
-  ret ptr %8
+  %9 = ptrtoint ptr %8 to i64
+  %10 = trunc i64 %9 to i32
+  ret i32 %10
 }
 
 define i32 @Dog.getBreed(ptr %this) {
@@ -357,7 +365,8 @@ entry:
   %3 = load i32, ptr %field.ptr2, align 4
   %sitofp3 = sitofp i32 %3 to float
   %fmultmp4 = fmul float %fmultmp, %sitofp3
-  ret float %fmultmp4
+  %4 = fptosi float %fmultmp4 to i32
+  ret i32 %4
 }
 
 define void @__ctor_SBox(ptr %this, i32 %v) {
@@ -431,7 +440,9 @@ entry:
   %7 = call ptr @tspp_int_to_string(i32 %6)
   %8 = call ptr @tspp_string_concat(ptr %4, ptr %7)
   %9 = call ptr @tspp_string_concat(ptr %8, ptr @11)
-  ret ptr %9
+  %10 = ptrtoint ptr %9 to i64
+  %11 = trunc i64 %10 to i32
+  ret i32 %11
 }
 
 define i32 @PAdapter.move(ptr %this, i32 %dx, i32 %dy) {
@@ -496,11 +507,13 @@ entry:
   %pt1 = alloca i32, align 4
   store i32 %pt, ptr %pt1, align 4
   %0 = load i32, ptr %pt1, align 4
-  %1 = inttoptr i32 %0 to ptr
+  %1 = call ptr @tspp_int_to_string(i32 %0)
   %2 = call i32 @PAdapter.toString(ptr %1)
   %3 = call ptr @tspp_int_to_string(i32 %2)
   %4 = call ptr @tspp_string_concat(ptr @13, ptr %3)
-  ret ptr %4
+  %5 = ptrtoint ptr %4 to i64
+  %6 = trunc i64 %5 to i32
+  ret i32 %6
 }
 
 define i32 @useBoxString(i32 %bx) {
@@ -509,18 +522,16 @@ entry:
   store i32 %bx, ptr %bx1, align 4
   %0 = load i32, ptr %bx1, align 4
   %1 = load i32, ptr %bx1, align 4
-  %2 = inttoptr i32 %1 to ptr
+  %2 = call ptr @tspp_int_to_string(i32 %1)
   %3 = call i32 @SBox.get(ptr %2)
   %4 = call ptr @tspp_int_to_string(i32 %3)
   %5 = call ptr @tspp_string_concat(ptr %4, ptr @14)
-  %6 = inttoptr i32 %0 to ptr
-  %7 = ptrtoint ptr %5 to i64
-  %8 = trunc i64 %7 to i32
-  %9 = call i32 @SBox.set(ptr %6, i32 %8)
-  %10 = load i32, ptr %bx1, align 4
-  %11 = inttoptr i32 %10 to ptr
-  %12 = call i32 @SBox.get(ptr %11)
-  ret i32 %12
+  %6 = call ptr @tspp_int_to_string(i32 %0)
+  %7 = call i32 @SBox.set(ptr %6, ptr %5)
+  %8 = load i32, ptr %bx1, align 4
+  %9 = call ptr @tspp_int_to_string(i32 %8)
+  %10 = call i32 @SBox.get(ptr %9)
+  ret i32 %10
 }
 
 define i32 @isEven(i32 %n) {
@@ -531,7 +542,8 @@ entry:
   %modtmp = srem i32 %0, 2
   %1 = sext i32 %modtmp to i64
   %icmpeq = icmp eq i64 %1, 0
-  ret i1 %icmpeq
+  %2 = sext i1 %icmpeq to i32
+  ret i32 %2
 }
 
 define i32 @sumTo(i32 %n) {
@@ -850,14 +862,16 @@ entry:
   %p1 = alloca i32, align 4
   store i32 %p, ptr %p1, align 4
   %0 = load i32, ptr %p1, align 4
-  %1 = inttoptr i32 %0 to ptr
+  %1 = call ptr @tspp_int_to_string(i32 %0)
   %2 = call i32 @Dog.print(ptr %1)
   %3 = load i32, ptr %p1, align 4
-  %4 = inttoptr i32 %3 to ptr
+  %4 = call ptr @tspp_int_to_string(i32 %3)
   %5 = call i32 @PAdapter.toString(ptr %4)
   %6 = call ptr @tspp_int_to_string(i32 %5)
   %7 = call ptr @tspp_string_concat(ptr @15, ptr %6)
-  ret ptr %7
+  %8 = ptrtoint ptr %7 to i64
+  %9 = trunc i64 %8 to i32
+  ret i32 %9
 }
 
 define i32 @storagePlay() {
@@ -929,156 +943,150 @@ entry:
   call void @tspp_console_log(ptr %19)
   call void @tspp_free_string(ptr %19)
   %20 = load ptr, ptr %p1, align 8
-  %21 = ptrtoint ptr %20 to i64
-  %22 = trunc i64 %21 to i32
-  %23 = call i32 @stringifyPoint(i32 %22)
-  %24 = call ptr @tspp_int_to_string(i32 %23)
-  %25 = call ptr @tspp_string_concat(ptr @22, ptr %24)
-  call void @tspp_console_log(ptr %25)
-  call void @tspp_free_string(ptr %24)
+  %21 = call i32 @stringifyPoint(ptr %20)
+  %22 = call ptr @tspp_int_to_string(i32 %21)
+  %23 = call ptr @tspp_string_concat(ptr @22, ptr %22)
+  call void @tspp_console_log(ptr %23)
+  call void @tspp_free_string(ptr %22)
   %obj1 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
   call void @__ctor_SBox(ptr %obj1, ptr @23)
   store ptr %obj1, ptr %sb, align 8
-  %26 = load ptr, ptr %sb, align 8
-  %27 = ptrtoint ptr %26 to i64
-  %28 = trunc i64 %27 to i32
-  %29 = call i32 @useBoxString(i32 %28)
-  %30 = call ptr @tspp_int_to_string(i32 %29)
-  %31 = call ptr @tspp_string_concat(ptr @24, ptr %30)
-  call void @tspp_console_log(ptr %31)
-  call void @tspp_free_string(ptr %30)
+  %24 = load ptr, ptr %sb, align 8
+  %25 = call i32 @useBoxString(ptr %24)
+  %26 = call ptr @tspp_int_to_string(i32 %25)
+  %27 = call ptr @tspp_string_concat(ptr @24, ptr %26)
+  call void @tspp_console_log(ptr %27)
+  call void @tspp_free_string(ptr %26)
   %obj2 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Animal, ptr null, i32 1) to i64))
   call void @__ctor_Animal(ptr %obj2, ptr @25)
   store ptr %obj2, ptr %a, align 8
-  %32 = load ptr, ptr %a, align 8
-  %33 = call i32 @Dog.speak(ptr %32)
-  %34 = call ptr @tspp_int_to_string(i32 %33)
-  %35 = call ptr @tspp_string_concat(ptr @26, ptr %34)
-  call void @tspp_console_log(ptr %35)
-  call void @tspp_free_string(ptr %34)
-  %36 = call i32 @Animal.kingdom()
-  %37 = call ptr @tspp_int_to_string(i32 %36)
-  %38 = call ptr @tspp_string_concat(ptr @27, ptr %37)
-  call void @tspp_console_log(ptr %38)
-  call void @tspp_free_string(ptr %37)
+  %28 = load ptr, ptr %a, align 8
+  %29 = call i32 @Dog.speak(ptr %28)
+  %30 = call ptr @tspp_int_to_string(i32 %29)
+  %31 = call ptr @tspp_string_concat(ptr @26, ptr %30)
+  call void @tspp_console_log(ptr %31)
+  call void @tspp_free_string(ptr %30)
+  %32 = call i32 @Animal.kingdom()
+  %33 = call ptr @tspp_int_to_string(i32 %32)
+  %34 = call ptr @tspp_string_concat(ptr @27, ptr %33)
+  call void @tspp_console_log(ptr %34)
+  call void @tspp_free_string(ptr %33)
   %obj3 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Dog, ptr null, i32 1) to i64))
   call void @__ctor_Dog(ptr %obj3, ptr @28, ptr @29)
   store ptr %obj3, ptr %d, align 8
+  %35 = load ptr, ptr %d, align 8
+  %36 = call i32 @Dog.speak(ptr %35)
+  %37 = call ptr @tspp_int_to_string(i32 %36)
+  %38 = call ptr @tspp_string_concat(ptr @30, ptr %37)
+  call void @tspp_console_log(ptr %38)
+  call void @tspp_free_string(ptr %37)
   %39 = load ptr, ptr %d, align 8
-  %40 = call i32 @Dog.speak(ptr %39)
+  %40 = call i32 @Dog.getBreed(ptr %39)
   %41 = call ptr @tspp_int_to_string(i32 %40)
-  %42 = call ptr @tspp_string_concat(ptr @30, ptr %41)
+  %42 = call ptr @tspp_string_concat(ptr @31, ptr %41)
   call void @tspp_console_log(ptr %42)
   call void @tspp_free_string(ptr %41)
   %43 = load ptr, ptr %d, align 8
-  %44 = call i32 @Dog.getBreed(ptr %43)
-  %45 = call ptr @tspp_int_to_string(i32 %44)
-  %46 = call ptr @tspp_string_concat(ptr @31, ptr %45)
-  call void @tspp_console_log(ptr %46)
-  call void @tspp_free_string(ptr %45)
-  %47 = load ptr, ptr %d, align 8
-  %48 = call i32 @Dog.print(ptr %47)
+  %44 = call i32 @Dog.print(ptr %43)
   %obj4 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%Circle, ptr null, i32 1) to i64))
   call void @__ctor_Circle(ptr %obj4, i32 2)
   store ptr %obj4, ptr %c, align 8
-  %49 = load ptr, ptr %c, align 8
-  %50 = call i32 @Circle.area(ptr %49)
-  %51 = call ptr @tspp_int_to_string(i32 %50)
-  %52 = call ptr @tspp_string_concat(ptr @32, ptr %51)
-  call void @tspp_console_log(ptr %52)
-  call void @tspp_free_string(ptr %51)
+  %45 = load ptr, ptr %c, align 8
+  %46 = call i32 @Circle.area(ptr %45)
+  %47 = call ptr @tspp_int_to_string(i32 %46)
+  %48 = call ptr @tspp_string_concat(ptr @32, ptr %47)
+  call void @tspp_console_log(ptr %48)
+  call void @tspp_free_string(ptr %47)
   %obj5 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%ByteArray, ptr null, i32 1) to i64))
   call void @__ctor_ByteArray(ptr %obj5, i32 3)
   store ptr %obj5, ptr %ba, align 8
-  %53 = load ptr, ptr %ba, align 8
-  %54 = call i32 @SBox.set(ptr %53, i32 0, i32 42)
-  %55 = load ptr, ptr %ba, align 8
-  %56 = call i32 @SBox.get(ptr %55, i32 0)
-  %57 = call ptr @tspp_int_to_string(i32 %56)
-  %58 = call ptr @tspp_string_concat(ptr @33, ptr %57)
-  call void @tspp_console_log(ptr %58)
-  call void @tspp_free_string(ptr %57)
+  %49 = load ptr, ptr %ba, align 8
+  %50 = call i32 @SBox.set(ptr %49, i32 0, i32 42)
+  %51 = load ptr, ptr %ba, align 8
+  %52 = call i32 @SBox.get(ptr %51, i32 0)
+  %53 = call ptr @tspp_int_to_string(i32 %52)
+  %54 = call ptr @tspp_string_concat(ptr @33, ptr %53)
+  call void @tspp_console_log(ptr %54)
+  call void @tspp_free_string(ptr %53)
   %obj6 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%ResourceHandle, ptr null, i32 1) to i64))
   call void @__ctor_ResourceHandle(ptr %obj6, i32 7)
   store ptr %obj6, ptr %rh, align 8
-  %59 = load ptr, ptr %rh, align 8
-  %60 = call i32 @Dog.print(ptr %59)
-  %61 = call ptr @tspp_ptr_to_string(ptr @35)
-  %62 = call ptr @tspp_int_to_string(i32 20)
-  %63 = call ptr @tspp_string_concat(ptr @34, ptr %61)
-  %64 = call ptr @tspp_string_concat(ptr %63, ptr %62)
-  call void @tspp_console_log(ptr %64)
-  call void @tspp_free_string(ptr %61)
-  call void @tspp_free_string(ptr %62)
+  %55 = load ptr, ptr %rh, align 8
+  %56 = call i32 @Dog.print(ptr %55)
+  %57 = call ptr @tspp_ptr_to_string(ptr @35)
+  %58 = call ptr @tspp_int_to_string(i32 20)
+  %59 = call ptr @tspp_string_concat(ptr @34, ptr %57)
+  %60 = call ptr @tspp_string_concat(ptr %59, ptr %58)
+  call void @tspp_console_log(ptr %60)
+  call void @tspp_free_string(ptr %57)
+  call void @tspp_free_string(ptr %58)
   %obj7 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
   call void @__ctor_SBox(ptr %obj7, ptr @36)
   store ptr %obj7, ptr %bxS, align 8
   %obj8 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%SBox, ptr null, i32 1) to i64))
   call void @__ctor_SBox(ptr %obj8, i32 5)
   store ptr %obj8, ptr %bxI, align 8
-  %65 = load ptr, ptr %bxS, align 8
+  %61 = load ptr, ptr %bxS, align 8
+  %62 = call i32 @SBox.get(ptr %61)
+  %63 = call ptr @tspp_int_to_string(i32 %62)
+  %64 = call ptr @tspp_string_concat(ptr @37, ptr %63)
+  call void @tspp_console_log(ptr %64)
+  call void @tspp_free_string(ptr %63)
+  %65 = load ptr, ptr %bxI, align 8
   %66 = call i32 @SBox.get(ptr %65)
   %67 = call ptr @tspp_int_to_string(i32 %66)
-  %68 = call ptr @tspp_string_concat(ptr @37, ptr %67)
+  %68 = call ptr @tspp_string_concat(ptr @38, ptr %67)
   call void @tspp_console_log(ptr %68)
   call void @tspp_free_string(ptr %67)
-  %69 = load ptr, ptr %bxI, align 8
-  %70 = call i32 @SBox.get(ptr %69)
-  %71 = call ptr @tspp_int_to_string(i32 %70)
-  %72 = call ptr @tspp_string_concat(ptr @38, ptr %71)
-  call void @tspp_console_log(ptr %72)
-  call void @tspp_free_string(ptr %71)
   %obj9 = call ptr @GC_malloc(i64 ptrtoint (ptr getelementptr (%PAdapter, ptr null, i32 1) to i64))
   call void @__ctor_PAdapter(ptr %obj9, i32 2, i32 3)
   store ptr %obj9, ptr %pl, align 8
-  %73 = load ptr, ptr %pl, align 8
-  %74 = ptrtoint ptr %73 to i64
-  %75 = trunc i64 %74 to i32
-  %76 = call i32 @describePointLike(i32 %75)
-  %77 = call ptr @tspp_int_to_string(i32 %76)
-  call void @tspp_console_log(ptr %77)
-  call void @tspp_free_string(ptr %77)
+  %69 = load ptr, ptr %pl, align 8
+  %70 = call i32 @describePointLike(ptr %69)
+  %71 = call ptr @tspp_int_to_string(i32 %70)
+  call void @tspp_console_log(ptr %71)
+  call void @tspp_free_string(ptr %71)
   store i32 6, ptr %n, align 4
-  %78 = load i32, ptr %n, align 4
-  %79 = call i32 @isEven(i32 %78)
+  %72 = load i32, ptr %n, align 4
+  %73 = call i32 @isEven(i32 %72)
+  %74 = call ptr @tspp_int_to_string(i32 %73)
+  %75 = call ptr @tspp_string_concat(ptr @39, ptr %74)
+  call void @tspp_console_log(ptr %75)
+  call void @tspp_free_string(ptr %74)
+  %76 = call i32 @sumTo(i32 5)
+  %77 = call ptr @tspp_int_to_string(i32 %76)
+  %78 = call ptr @tspp_string_concat(ptr @40, ptr %77)
+  call void @tspp_console_log(ptr %78)
+  call void @tspp_free_string(ptr %77)
+  %79 = call i32 @forVariants()
   %80 = call ptr @tspp_int_to_string(i32 %79)
-  %81 = call ptr @tspp_string_concat(ptr @39, ptr %80)
+  %81 = call ptr @tspp_string_concat(ptr @41, ptr %80)
   call void @tspp_console_log(ptr %81)
   call void @tspp_free_string(ptr %80)
-  %82 = call i32 @sumTo(i32 5)
+  %82 = call i32 @precedenceDemo()
   %83 = call ptr @tspp_int_to_string(i32 %82)
-  %84 = call ptr @tspp_string_concat(ptr @40, ptr %83)
+  %84 = call ptr @tspp_string_concat(ptr @42, ptr %83)
   call void @tspp_console_log(ptr %84)
   call void @tspp_free_string(ptr %83)
-  %85 = call i32 @forVariants()
+  %85 = call i32 @memberAndIndexAccess()
   %86 = call ptr @tspp_int_to_string(i32 %85)
-  %87 = call ptr @tspp_string_concat(ptr @41, ptr %86)
+  %87 = call ptr @tspp_string_concat(ptr @43, ptr %86)
   call void @tspp_console_log(ptr %87)
   call void @tspp_free_string(ptr %86)
-  %88 = call i32 @precedenceDemo()
-  %89 = call ptr @tspp_int_to_string(i32 %88)
-  %90 = call ptr @tspp_string_concat(ptr @42, ptr %89)
-  call void @tspp_console_log(ptr %90)
-  call void @tspp_free_string(ptr %89)
-  %91 = call i32 @memberAndIndexAccess()
-  %92 = call ptr @tspp_int_to_string(i32 %91)
-  %93 = call ptr @tspp_string_concat(ptr @43, ptr %92)
-  call void @tspp_console_log(ptr %93)
-  call void @tspp_free_string(ptr %92)
   store i32 0, ptr %x, align 4
   store i32 0, ptr %y, align 4
   store i32 5, ptr %y, align 4
   store i32 5, ptr %x, align 4
-  %94 = load i32, ptr %x, align 4
-  %95 = call ptr @tspp_int_to_string(i32 %94)
-  %96 = call ptr @tspp_string_concat(ptr @44, ptr %95)
-  call void @tspp_console_log(ptr %96)
-  call void @tspp_free_string(ptr %95)
-  %97 = load i32, ptr %y, align 4
-  %98 = call ptr @tspp_int_to_string(i32 %97)
-  %99 = call ptr @tspp_string_concat(ptr @45, ptr %98)
-  call void @tspp_console_log(ptr %99)
-  call void @tspp_free_string(ptr %98)
+  %88 = load i32, ptr %x, align 4
+  %89 = call ptr @tspp_int_to_string(i32 %88)
+  %90 = call ptr @tspp_string_concat(ptr @44, ptr %89)
+  call void @tspp_console_log(ptr %90)
+  call void @tspp_free_string(ptr %89)
+  %91 = load i32, ptr %y, align 4
+  %92 = call ptr @tspp_int_to_string(i32 %91)
+  %93 = call ptr @tspp_string_concat(ptr @45, ptr %92)
+  call void @tspp_console_log(ptr %93)
+  call void @tspp_free_string(ptr %92)
   br i1 false, label %land.rhs, label %land.end
 
 land.rhs:                                         ; preds = %entry
@@ -1094,33 +1102,33 @@ lor.rhs:                                          ; preds = %land.end
 lor.end:                                          ; preds = %lor.rhs, %land.end
   %lor = phi i1 [ true, %land.end ], [ true, %lor.rhs ]
   store i1 %lor, ptr %L, align 1
-  %100 = load i1, ptr %L, align 1
-  %101 = call ptr @tspp_bool_to_string(i1 %100)
-  %102 = call ptr @tspp_string_concat(ptr @46, ptr %101)
+  %94 = load i1, ptr %L, align 1
+  %95 = call ptr @tspp_bool_to_string(i1 %94)
+  %96 = call ptr @tspp_string_concat(ptr @46, ptr %95)
+  call void @tspp_console_log(ptr %96)
+  call void @tspp_free_string(ptr %95)
+  %97 = call ptr @tspp_int_to_string(i32 8)
+  %98 = call ptr @tspp_string_concat(ptr @47, ptr %97)
+  call void @tspp_console_log(ptr %98)
+  call void @tspp_free_string(ptr %97)
+  %99 = call ptr @tspp_int_to_string(i32 4)
+  %100 = call ptr @tspp_string_concat(ptr @48, ptr %99)
+  call void @tspp_console_log(ptr %100)
+  call void @tspp_free_string(ptr %99)
+  %101 = call ptr @tspp_int_to_string(i32 -1)
+  %102 = call ptr @tspp_string_concat(ptr @49, ptr %101)
   call void @tspp_console_log(ptr %102)
   call void @tspp_free_string(ptr %101)
-  %103 = call ptr @tspp_int_to_string(i32 8)
-  %104 = call ptr @tspp_string_concat(ptr @47, ptr %103)
-  call void @tspp_console_log(ptr %104)
-  call void @tspp_free_string(ptr %103)
-  %105 = call ptr @tspp_int_to_string(i32 4)
-  %106 = call ptr @tspp_string_concat(ptr @48, ptr %105)
-  call void @tspp_console_log(ptr %106)
-  call void @tspp_free_string(ptr %105)
-  %107 = call ptr @tspp_int_to_string(i32 -1)
-  %108 = call ptr @tspp_string_concat(ptr @49, ptr %107)
+  %103 = call i32 @pointerPlay()
+  %104 = call ptr @tspp_int_to_string(i32 %103)
+  %105 = call ptr @tspp_string_concat(ptr @50, ptr %104)
+  call void @tspp_console_log(ptr %105)
+  call void @tspp_free_string(ptr %104)
+  %106 = call i32 @storagePlay()
+  %107 = call ptr @tspp_int_to_string(i32 %106)
+  %108 = call ptr @tspp_string_concat(ptr @51, ptr %107)
   call void @tspp_console_log(ptr %108)
   call void @tspp_free_string(ptr %107)
-  %109 = call i32 @pointerPlay()
-  %110 = call ptr @tspp_int_to_string(i32 %109)
-  %111 = call ptr @tspp_string_concat(ptr @50, ptr %110)
-  call void @tspp_console_log(ptr %111)
-  call void @tspp_free_string(ptr %110)
-  %112 = call i32 @storagePlay()
-  %113 = call ptr @tspp_int_to_string(i32 %112)
-  %114 = call ptr @tspp_string_concat(ptr @51, ptr %113)
-  call void @tspp_console_log(ptr %114)
-  call void @tspp_free_string(ptr %113)
   ret i32 0
 }
 
