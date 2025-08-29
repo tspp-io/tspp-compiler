@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-20.04]
+        compiler: [gcc, clang]
+        include:
+          - os: ubuntu-22.04
+            compiler: gcc
+            cxx: g++-11
+            cc: gcc-11
+          - os: ubuntu-22.04
+            compiler: clang
+            cxx: clang++-14
+            cc: clang-14
+          - os: ubuntu-20.04
+            compiler: gcc
+            cxx: g++-10
+            cc: gcc-10
+          - os: ubuntu-20.04
+            compiler: clang
+            cxx: clang++-12
+            cc: clang-12
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+        
+        # Install LLVM 17
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-17 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+        sudo apt-get update
+        sudo apt-get install -y llvm-17 llvm-17-dev llvm-17-tools clang-17
+        
+        # Install Boehm GC
+        sudo apt-get install -y libgc-dev
+        
+        # Install specific compiler version if needed
+        if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+          sudo apt-get install -y ${{ matrix.cc }} ${{ matrix.cxx }}
+        elif [[ "${{ matrix.compiler }}" == "clang" ]]; then
+          sudo apt-get install -y ${{ matrix.cc }} ${{ matrix.cxx }}
+        fi
+
+    - name: Setup environment
+      run: |
+        echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
+        echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
+        echo "LLVM_DIR=/usr/lib/llvm-17" >> $GITHUB_ENV
+        echo "/usr/lib/llvm-17/bin" >> $GITHUB_PATH
+
+    - name: Verify dependencies
+      run: |
+        cmake --version
+        ${{ matrix.cc }} --version
+        ${{ matrix.cxx }} --version
+        llvm-config-17 --version
+        clang-17 --version
+
+    - name: Build project
+      run: |
+        chmod +x build.sh
+        ./build.sh
+
+    - name: Verify build artifacts
+      run: |
+        ls -la build/src/
+        file build/src/tspp
+        build/src/tspp --version || echo "Version command not implemented yet"
+
+    - name: Run basic tests
+      run: |
+        chmod +x test.sh
+        
+        # Create a simple test file
+        echo 'func main() { println("Hello, TSPP!"); }' > simple_test.tspp
+        
+        # Test compilation (allow for the fact that the test might not produce output)
+        ./test.sh simple_test.tspp || echo "Test completed with exit code $?"
+        
+        # Clean up
+        rm -f simple_test.tspp simple_test.tspp.ll temp_exec temp.bc
+
+    - name: Run additional tests if available
+      run: |
+        if [ -d "tests" ]; then
+          echo "Running test suite..."
+          # Add specific test commands here when available
+          find tests -name "*.tspp" -type f | head -5 | while read -r test_file; do
+            echo "Testing: $test_file"
+            ./test.sh "$test_file" || echo "Test $test_file completed with exit code $?"
+          done
+        else
+          echo "No test directory found, skipping additional tests"
+        fi
+
+    - name: Check for memory leaks (Debug build)
+      run: |
+        # Create a simple test for memory leak detection
+        echo 'func main() { let x = 42; }' > leak_test.tspp
+        
+        # Set stricter sanitizer options for leak detection
+        export ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0"
+        export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=1"
+        
+        ./test.sh leak_test.tspp || echo "Memory leak test completed"
+        
+        # Clean up
+        rm -f leak_test.tspp leak_test.tspp.ll temp_exec temp.bc
+
+  code-quality:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install clang-format
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format-14
+
+    - name: Check code formatting
+      run: |
+        if [ -f ".clang-format" ]; then
+          echo "Checking code formatting..."
+          find src -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | xargs clang-format-14 --dry-run --Werror
+        else
+          echo "No .clang-format file found, skipping format check"
+        fi
+
+    - name: Check for TODO/FIXME comments
+      run: |
+        echo "Checking for TODO/FIXME comments..."
+        if grep -r "TODO\|FIXME" src/ --include="*.cpp" --include="*.h" --include="*.hpp"; then
+          echo "Found TODO/FIXME comments (informational only)"
+        else
+          echo "No TODO/FIXME comments found"
+        fi

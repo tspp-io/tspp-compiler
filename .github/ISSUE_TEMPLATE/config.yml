@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🤔 Ask a Question
+    url: https://github.com/theQuarky/tspp/discussions
+    about: Ask questions about TSPP usage, get help with your code, or discuss ideas
+  - name: 💬 General Discussion
+    url: https://github.com/theQuarky/tspp/discussions
+    about: General discussions about TSPP development, roadmap, and community
+  - name: 🔒 Security Vulnerability
+    url: mailto:security@example.com
+    about: Please report security vulnerabilities privately via email (see SECURITY.md)

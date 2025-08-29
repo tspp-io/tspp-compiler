@@ -8,10 +8,24 @@ build/
 *.obj
 *.exe
 *.out
-*.tspp
+
+# TSPP-specific artifacts
+*.ll
 temp.bc
 temp.s
 temp_exec
 
-# Ignore GitHub workflow and config files
-.github/
+# IDE and editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
