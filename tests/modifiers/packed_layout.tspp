@@ -1,0 +1,23 @@
+#packed class P1 {
+  a: int;
+  b: boolean;
+  c: int;
+}
+
+class P2 {
+  a: int;
+  b: boolean;
+  c: int;
+}
+
+function main(): void {
+  let x: P1 = new P1();
+  let y: P2 = new P2();
+  // Touch fields to ensure GEPs are emitted
+  x.a = 1;
+  x.b = true;
+  x.c = 2;
+  y.a = 3;
+  y.b = false;
+  y.c = 4;
+}

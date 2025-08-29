@@ -1,0 +1,53 @@
+// ---------- Function Declarations ----------
+
+// Simple function with parameters
+function add(x: int, y: int): int {
+  return x + y;
+}
+
+// Function with default parameter
+function greet(name: string = "World"): string {
+  return "Hello, " + name;
+}
+
+// Function with parameter type and return type
+function multiply(a: float, b: float): float {
+  return a * b;
+}
+
+// Function with multiple parameters, mixed default values
+function formatPoint(x: float, y: float = 0.0, label: string = "P"): string {
+  return label + "(" + x + ", " + y + ")";
+}
+
+// Function with modifier (#constexpr)
+#constexpr function square(n: int): int {
+  return n * n;
+}
+
+// Function with modifiers (#inline + #atomic)
+#inline #atomic function increment(x: int): int {
+  return x + 1;
+}
+
+// Function without return type (void-style)
+function logMessage(msg: string): void {
+  console.log("logMessage: ", msg); // logMessage: <msg>
+}
+
+// ---------- Main Function ----------
+function main(): int {
+  console.log("add(2,3): ", add(2, 3));                        // add(2,3): 5
+  console.log("greet(): ", greet());                           // greet(): Hello, World
+  console.log("greet('Alice'): ", greet("Alice"));             // greet('Alice'): Hello, Alice
+  console.log("multiply(2.5, 4.0): ", multiply(2.5, 4.0));     // multiply(2.5, 4.0): 10
+  console.log("formatPoint(1.1): ", formatPoint(1.1));         // formatPoint(1.1): P(1.1, 0)
+  console.log("formatPoint(2.2, 3.3,'Q'): ", formatPoint(2.2, 3.3, "Q")); // formatPoint(2.2,3.3,'Q'): Q(2.2, 3.3)
+  console.log("square(5): ", square(5));                       // square(5): 25
+  console.log("increment(7): ", increment(7));                 // increment(7): 8
+
+  // Call void-style function
+  logMessage("This is a test log");                            // logMessage: This is a test log
+
+  return 0;
+}

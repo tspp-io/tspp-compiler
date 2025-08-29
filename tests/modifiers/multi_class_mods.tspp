@@ -1,0 +1,4 @@
+#abstract #packed #final class MP {
+  a: int;
+  b: bool;
+}

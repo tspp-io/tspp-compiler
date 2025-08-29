@@ -1,0 +1,11 @@
+import Utils from "std/utils";
+
+class A {
+  static {
+    // static initializer body
+  }
+}
+
+function main() {
+  // no-op
+}

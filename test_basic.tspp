@@ -1,0 +1,4 @@
+// Simple test for the interpreter
+let x: int = 42;
+let y: int = 10;
+let result: int = x + y;
