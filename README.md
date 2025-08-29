@@ -325,11 +325,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] **Build System**: Package compilation and dependency management
 - [ ] **Cross-compilation**: Multiple target architectures
 
-#### Performance Optimizations
-- [ ] **Escape Analysis**: Stack vs heap allocation decisions
-- [ ] **Inlining**: Function call optimization
-- [ ] **Dead Code Elimination**: Unused code removal
-- [ ] **SIMD Optimizations**: Vector operation enhancements
+#### IR Code Optimization Passes
+- [ ] **Post-IR Generation Optimizations**: LLVM-based optimization pipeline
+  - [ ] **Escape Analysis**: Stack vs heap allocation decisions
+  - [ ] **Inlining**: Function call optimization
+  - [ ] **Dead Code Elimination**: Unused code removal
+  - [ ] **Constant Folding**: Compile-time constant evaluation
+  - [ ] **Loop Optimizations**: Loop unrolling and vectorization
+  - [ ] **SIMD Optimizations**: Vector operation enhancements
+  - [ ] **Register Allocation**: Optimal register usage
+  - [ ] **Instruction Scheduling**: CPU pipeline optimization
 
 ### 🎯 Priority Implementation Order
 
@@ -354,7 +359,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
    - Testing framework
 
 5. **Phase 5: Performance & Polish**
-   - Optimization passes
+   - IR code optimization passes (post-IR generation)
    - Memory management refinements
    - Documentation and examples
 
