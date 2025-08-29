@@ -1,6 +1,10 @@
 # TSPP++ Language Specification
 
-## Memory Model
+> **Note**: This specification covers currently implemented features. For planned Go semantics, concurrency primitives, and standard library features, see the [comprehensive TODO in README.md](../README.md#todo---roadmap-to-full-implementation).
+
+## Current Implementation Status
+
+### Memory Model
 - `#stack`, `#heap`, `#static`: Explicit memory region selection for variables and objects.
 - Example: `#stack int x = 5;`
 

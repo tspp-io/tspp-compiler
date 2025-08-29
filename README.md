@@ -195,6 +195,169 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## TODO - Roadmap to Full Implementation
+
+### 🔄 Go Semantics Implementation
+
+#### Concurrency Primitives
+- [ ] **Goroutines**: Implement `go` keyword for lightweight thread creation
+- [ ] **Channels**: Typed channels with buffered/unbuffered variants (`chan T`, `chan<- T`, `<-chan T`)
+- [ ] **Select Statement**: Multi-way communication with timeout support
+- [ ] **WaitGroups**: Synchronization primitives for goroutine coordination
+- [ ] **Mutexes**: Read/write mutexes for shared memory protection
+
+#### Built-in Functions
+- [ ] **`mark_shared<T>()`**: Memory sharing annotation for concurrent access
+- [ ] **`make()`**: Dynamic allocation for slices, maps, channels
+- [ ] **`new()`**: Zero-value allocation for any type
+- [ ] **`len()`**: Length function for collections (arrays, slices, maps, strings, channels)
+- [ ] **`cap()`**: Capacity function for slices and channels
+- [ ] **`close()`**: Channel closing mechanism
+- [ ] **`copy()`**: Slice copying with overlap handling
+- [ ] **`append()`**: Slice append with automatic growth
+- [ ] **`delete()`**: Map key deletion
+- [ ] **`panic()` / `recover()`**: Error handling mechanism
+
+#### Type System Extensions
+- [ ] **Interfaces**: Method set definitions and dynamic dispatch
+- [ ] **Type Assertions**: Runtime type checking (`x.(T)`, `x.(type)`)
+- [ ] **Type Switches**: Pattern matching on interface types
+- [ ] **Slices**: Dynamic arrays with length/capacity (`[]T`)
+- [ ] **Maps**: Hash table implementation (`map[K]V`)
+- [ ] **Method Sets**: Interface satisfaction checking
+
+#### Control Flow
+- [ ] **Defer Statements**: Deferred execution with LIFO ordering
+- [ ] **Range Iteration**: For-range over slices, maps, channels, strings
+- [ ] **Labeled Breaks/Continues**: Multi-level loop control
+
+### 📚 Standard Library Implementation
+
+#### Core Packages
+- [ ] **`context`**: Cancellation and deadline propagation
+- [ ] **`errors`**: Error creation and handling utilities
+- [ ] **`fmt`**: Formatted I/O (Printf, Sprintf, etc.)
+- [ ] **`io`**: I/O primitives (Reader, Writer, Closer interfaces)
+- [ ] **`sort`**: Sorting algorithms and interfaces
+- [ ] **`strings`**: String manipulation utilities
+- [ ] **`strconv`**: String conversions (Atoi, Itoa, etc.)
+- [ ] **`time`**: Time and date handling with timezones
+
+#### Network Programming
+- [ ] **`net`**: TCP/UDP socket programming
+  - [ ] TCP server/client implementation
+  - [ ] UDP socket support
+  - [ ] Unix domain sockets
+  - [ ] IP address parsing and manipulation
+- [ ] **`net/http`**: HTTP client and server
+  - [ ] HTTP/1.1 and HTTP/2 support
+  - [ ] Middleware system
+  - [ ] WebSocket support
+  - [ ] TLS integration
+- [ ] **`net/url`**: URL parsing and manipulation
+- [ ] **`net/smtp`**: SMTP client implementation
+
+#### Operating System Interface
+- [ ] **`os`**: Operating system interface
+  - [ ] File operations (create, open, read, write, delete)
+  - [ ] Directory operations (mkdir, readdir, walk)
+  - [ ] Process management (exec, fork, wait)
+  - [ ] Environment variables
+  - [ ] Signal handling
+  - [ ] User and group information
+- [ ] **`os/exec`**: External command execution
+- [ ] **`path/filepath`**: File path manipulation
+- [ ] **`syscall`**: Low-level system calls
+
+#### Data Encoding/Decoding
+- [ ] **`encoding/json`**: JSON marshaling/unmarshaling
+- [ ] **`encoding/xml`**: XML processing
+- [ ] **`encoding/base64`**: Base64 encoding/decoding
+- [ ] **`encoding/hex`**: Hexadecimal encoding
+- [ ] **`encoding/csv`**: CSV file processing
+- [ ] **`compress/gzip`**: GZIP compression/decompression
+
+#### Cryptography & Security
+- [ ] **`crypto`**: Cryptographic primitives
+- [ ] **`crypto/rand`**: Cryptographically secure random numbers
+- [ ] **`crypto/md5`**: MD5 hashing (deprecated but needed)
+- [ ] **`crypto/sha1`**: SHA-1 hashing
+- [ ] **`crypto/sha256`**: SHA-256 hashing
+- [ ] **`crypto/aes`**: AES encryption/decryption
+- [ ] **`crypto/rsa`**: RSA public key cryptography
+- [ ] **`crypto/tls`**: TLS/SSL implementation
+
+#### Mathematics
+- [ ] **`math`**: Mathematical functions (sin, cos, sqrt, etc.)
+- [ ] **`math/big`**: Arbitrary precision arithmetic
+- [ ] **`math/rand`**: Pseudo-random number generation
+
+#### Concurrency Support
+- [ ] **`sync`**: Synchronization primitives
+  - [ ] Mutex, RWMutex implementations
+  - [ ] WaitGroup for goroutine synchronization
+  - [ ] Once for one-time initialization
+  - [ ] Pool for object reuse
+  - [ ] Atomic operations
+- [ ] **`sync/atomic`**: Low-level atomic memory primitives
+
+#### Development & Testing
+- [ ] **`testing`**: Unit testing framework
+- [ ] **`log`**: Logging utilities with different levels
+- [ ] **`flag`**: Command-line flag parsing
+- [ ] **`runtime`**: Runtime reflection and control
+  - [ ] Garbage collector interface
+  - [ ] Memory statistics
+  - [ ] Goroutine inspection
+
+### 🏗️ Language Infrastructure
+
+#### Memory Management
+- [ ] **Garbage Collector**: Enhance Boehm GC integration
+- [ ] **Memory Regions**: Implement `#stack`, `#heap`, `#static` annotations
+- [ ] **Smart Pointers**: Complete implementation of `#shared<T>`, `#unique<T>`, `#weak<T>`
+- [ ] **Memory Safety**: Bounds checking for arrays and slices
+
+#### Compiler Features
+- [ ] **Package System**: Import/export mechanism with visibility rules
+- [ ] **Generic Programming**: Type parameters and constraints
+- [ ] **Reflection**: Runtime type information and method calling
+- [ ] **Build System**: Package compilation and dependency management
+- [ ] **Cross-compilation**: Multiple target architectures
+
+#### Performance Optimizations
+- [ ] **Escape Analysis**: Stack vs heap allocation decisions
+- [ ] **Inlining**: Function call optimization
+- [ ] **Dead Code Elimination**: Unused code removal
+- [ ] **SIMD Optimizations**: Vector operation enhancements
+
+### 🎯 Priority Implementation Order
+
+1. **Phase 1: Core Go Semantics**
+   - Built-in functions (`make`, `new`, `len`, `cap`)
+   - Slices and maps basic implementation
+   - Interfaces and method sets
+
+2. **Phase 2: Concurrency Foundation**
+   - Goroutines and channel basics
+   - Select statements
+   - Defer implementation
+
+3. **Phase 3: Essential Standard Library**
+   - `fmt` package for formatted I/O
+   - `os` package for file operations
+   - `net` package for basic networking
+
+4. **Phase 4: Advanced Features**
+   - HTTP server/client
+   - JSON marshaling
+   - Testing framework
+
+5. **Phase 5: Performance & Polish**
+   - Optimization passes
+   - Memory management refinements
+   - Documentation and examples
+
 ## Acknowledgments
 
 - **LLVM Project** - For the excellent compiler infrastructure
