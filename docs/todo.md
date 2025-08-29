@@ -1,5 +1,9 @@
 # Remaining to implement (prioritized)
 
+> **Note**: For the comprehensive roadmap including Go semantics, built-in functions, and standard library implementation, see the [TODO section in README.md](../README.md#todo---roadmap-to-full-implementation).
+
+## Current Language Feature Priorities
+
 ## Method/field modifiers beyond what’s wired
 - Method: #static, #abstract, #virtual, #override, #inline (currently skipped as generic attributes).
 - Field: #readonly, #volatile, #atomic, #constexpr (only storage is captured now).
