@@ -29,7 +29,8 @@ cd build || handle_error "Failed to enter build directory"
 
 # Configure CMake
 echo -e "${YELLOW}Configuring CMake...${NC}"
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON || handle_error "CMake configuration failed"
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DCMAKE_CXX_FLAGS="-fPIE" -DCMAKE_EXE_LINKER_FLAGS="-fPIE -pie" || handle_error "CMake configuration failed"
 
 # Get number of CPU cores for parallel build
 if [ "$(uname)" == "Darwin" ]; then

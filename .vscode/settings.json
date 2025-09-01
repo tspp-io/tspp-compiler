@@ -83,6 +83,7 @@
     "valarray": "cpp",
     "variant": "cpp",
     "*.inc": "cpp",
-    "*.def": "cpp"
+    "*.def": "cpp",
+    "shared_mutex": "cpp"
   }
 }

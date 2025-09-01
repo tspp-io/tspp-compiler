@@ -1,0 +1,4 @@
+function main(): int {
+  console.log("startup");
+  return 0;
+}
