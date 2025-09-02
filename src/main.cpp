@@ -1,12 +1,13 @@
-#include <llvm/Support/ManagedStatic.h>
-#include <llvm/ExecutionEngine/Orc/LLJIT.h>
-#include <llvm/Support/TargetSelect.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Bitcode/BitcodeReader.h>
+#include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/IRReader/IRReader.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/ManagedStatic.h>
+#include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/TargetSelect.h>
 #include <sys/wait.h>
 
 #include <fstream>
@@ -28,7 +29,8 @@ static bool hasFlag(int argc, char* argv[], const char* flag) {
   return false;
 }
 
-static std::vector<const char*> filterArgs(int argc, char* argv[], const std::vector<std::string>& toStrip) {
+static std::vector<const char*> filterArgs(
+    int argc, char* argv[], const std::vector<std::string>& toStrip) {
   std::vector<const char*> out;
   for (int i = 0; i < argc; ++i) {
     bool skip = false;
@@ -46,7 +48,8 @@ static std::vector<const char*> filterArgs(int argc, char* argv[], const std::ve
 int main(int argc, char* argv[]) {
   llvm::llvm_shutdown_obj shutdown_on_exit;
   // Simple CLI flags
-  bool forceJIT = hasFlag(argc, argv, "--jit") || hasFlag(argc, argv, "--native");
+  bool forceJIT =
+      hasFlag(argc, argv, "--jit") || hasFlag(argc, argv, "--native");
   bool noJIT = hasFlag(argc, argv, "--no-jit");
 
   // Compute positional args (strip our flags)
@@ -83,22 +86,30 @@ int main(int argc, char* argv[]) {
                        << llvm::toString(jitExpected.takeError()) << "\n";
         } else {
           auto jit = std::move(*jitExpected);
+          // Make host process symbols (including statically linked stdlib) visible
+          if (auto gen = llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+                  jit->getDataLayout().getGlobalPrefix())) {
+            jit->getMainJITDylib().addGenerator(std::move(*gen));
+          }
           // Generate module in-memory
           codegen.generate(ast.get());
           std::unique_ptr<llvm::Module> M = codegen.takeModule();
-          // Serialize to bitcode and re-parse into dedicated context for ORC
-          llvm::SmallVector<char, 0> bcBuf;
-          llvm::raw_svector_ostream bcOS(bcBuf);
-          llvm::WriteBitcodeToFile(*M, bcOS);
-          // no flush needed; raw_svector_ostream writes directly
+          // Serialize to textual IR and re-parse into dedicated context for ORC
+          std::string ir;
+          llvm::raw_string_ostream irOS(ir);
+          M->print(irOS, nullptr);
+          irOS.flush();
           auto TSCtx = std::make_unique<llvm::LLVMContext>();
-          auto memBuf = llvm::MemoryBuffer::getMemBufferCopy(
-              llvm::StringRef(bcBuf.data(), bcBuf.size()));
-          auto expM = llvm::parseBitcodeFile(memBuf->getMemBufferRef(), *TSCtx);
-          if (!expM) {
-            llvm::errs() << "Failed to parse in-memory bitcode for REPL\n";
+          llvm::SMDiagnostic diag;
+          auto memBuf = llvm::MemoryBuffer::getMemBuffer(ir);
+          std::unique_ptr<llvm::Module> parsedM =
+              llvm::parseIR(memBuf->getMemBufferRef(), diag, *TSCtx);
+          if (!parsedM) {
+            llvm::errs() << "Failed to parse in-memory IR for REPL: "
+                         << diag.getMessage() << "\n";
+            continue;  // skip this snippet and prompt again
           }
-          M = std::move(*expM);
+          M = std::move(parsedM);
           // Set DL and optimize O3
           M->setTargetTriple("");
           M->setDataLayout(jit->getDataLayout());
@@ -115,9 +126,11 @@ int main(int argc, char* argv[]) {
           llvm::ModulePassManager mpm =
               pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
           mpm.run(*M, mam);
-          auto tsm = llvm::orc::ThreadSafeModule(std::move(M), std::move(TSCtx));
+          auto tsm =
+              llvm::orc::ThreadSafeModule(std::move(M), std::move(TSCtx));
           if (auto err = jit->addIRModule(std::move(tsm))) {
-            llvm::errs() << "JIT add module error: " << llvm::toString(std::move(err)) << "\n";
+            llvm::errs() << "JIT add module error: "
+                         << llvm::toString(std::move(err)) << "\n";
           } else {
             // run main() if present (void or i32)
             if (auto sym = jit->lookup("main")) {
@@ -156,7 +169,7 @@ int main(int argc, char* argv[]) {
   auto ast = parser::buildAST(tokens);
   if (ast) {
     // Decide path: JIT fast path by default unless explicitly disabled
-    bool useJIT = forceJIT || !noJIT; // default ON unless --no-jit
+    bool useJIT = forceJIT || !noJIT;  // default ON unless --no-jit
     if (useJIT) {
       // Initialize JIT
       llvm::InitializeNativeTarget();
@@ -168,98 +181,109 @@ int main(int argc, char* argv[]) {
                      << llvm::toString(jitExpected.takeError()) << "\n";
       } else {
         auto jit = std::move(*jitExpected);
-        // Build module in-memory
+        // Ensure host process symbols are visible prior to materialization
+        auto genOrErr = llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+            jit->getDataLayout().getGlobalPrefix());
+        if (genOrErr) {
+          jit->getMainJITDylib().addGenerator(std::move(*genOrErr));
+        }
+        // Build module in-memory and re-parse via textual IR to a fresh context
         codegen::LLVMCodeGenerator codegen;
         codegen.generate(ast.get());
         std::unique_ptr<llvm::Module> M = codegen.takeModule();
-        // Serialize to bitcode and re-parse into an isolated context
-        llvm::SmallVector<char, 0> bcBuf;
-        llvm::raw_svector_ostream bcOS(bcBuf);
-        llvm::WriteBitcodeToFile(*M, bcOS);
-  // no flush needed; raw_svector_ostream writes directly
         auto TSCtx = std::make_unique<llvm::LLVMContext>();
-        auto memBuf = llvm::MemoryBuffer::getMemBufferCopy(
-            llvm::StringRef(bcBuf.data(), bcBuf.size()));
-        auto expM = llvm::parseBitcodeFile(memBuf->getMemBufferRef(), *TSCtx);
-        if (!expM) {
-          llvm::errs() << "Failed to parse in-memory bitcode\n";
-        }
-        M = std::move(*expM);
-        // Detect main() signature and set DL
-        bool hasMain = false;
-        bool mainIsInt0 = false;
-        bool mainIsVoid0 = false;
-        bool mainIsIntArgv = false;
-        if (M) {
-          if (auto *F = M->getFunction("main")) {
-            hasMain = true;
-            auto *FTy = F->getFunctionType();
-            auto *ret = FTy->getReturnType();
-            unsigned n = FTy->getNumParams();
-            mainIsInt0 = ret->isIntegerTy(32) && n == 0;
-            mainIsVoid0 = ret->isVoidTy() && n == 0;
-            if (ret->isIntegerTy(32) && n == 2) {
-              auto *p0 = FTy->getParamType(0);
-              auto *p1 = FTy->getParamType(1);
-              bool p0ok = p0->isIntegerTy(32);
-              bool p1ok = p1->isPointerTy(); // accept any pointer (opaque pointers)
-              mainIsIntArgv = p0ok && p1ok;
+        std::string ir;
+        llvm::raw_string_ostream irOS(ir);
+        M->print(irOS, nullptr);
+        irOS.flush();
+        llvm::SMDiagnostic diag;
+        auto memBuf = llvm::MemoryBuffer::getMemBuffer(ir);
+        std::unique_ptr<llvm::Module> parsedM =
+            llvm::parseIR(memBuf->getMemBufferRef(), diag, *TSCtx);
+        if (!parsedM) {
+          llvm::errs() << "Failed to parse in-memory IR: "
+                       << diag.getMessage() << "\n";
+        } else {
+          M = std::move(parsedM);
+          // Detect main() signature and set DL
+          bool hasMain = false;
+          bool mainIsInt0 = false;
+          bool mainIsVoid0 = false;
+          bool mainIsIntArgv = false;
+          if (M) {
+            if (auto* F = M->getFunction("main")) {
+              hasMain = true;
+              auto* FTy = F->getFunctionType();
+              auto* ret = FTy->getReturnType();
+              unsigned n = FTy->getNumParams();
+              mainIsInt0 = ret->isIntegerTy(32) && n == 0;
+              mainIsVoid0 = ret->isVoidTy() && n == 0;
+              if (ret->isIntegerTy(32) && n == 2) {
+                auto* p0 = FTy->getParamType(0);
+                auto* p1 = FTy->getParamType(1);
+                bool p0ok = p0->isIntegerTy(32);
+                bool p1ok = p1->isPointerTy();  // accept any pointer (opaque)
+                mainIsIntArgv = p0ok && p1ok;
+              }
             }
           }
-        }
-        M->setTargetTriple("");
-        M->setDataLayout(jit->getDataLayout());
-        // Optimize O3
-        llvm::PassBuilder pb;
-        llvm::LoopAnalysisManager lam;
-        llvm::FunctionAnalysisManager fam;
-        llvm::CGSCCAnalysisManager cam;
-        llvm::ModuleAnalysisManager mam;
-        pb.registerModuleAnalyses(mam);
-        pb.registerCGSCCAnalyses(cam);
-        pb.registerFunctionAnalyses(fam);
-        pb.registerLoopAnalyses(lam);
-        pb.crossRegisterProxies(lam, fam, cam, mam);
-        llvm::ModulePassManager mpm =
-            pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
-        mpm.run(*M, mam);
-        auto tsm = llvm::orc::ThreadSafeModule(std::move(M), std::move(TSCtx));
-        if (auto err = jit->addIRModule(std::move(tsm))) {
-          llvm::errs() << "JIT add module error: " << llvm::toString(std::move(err)) << "\n";
-        } else {
-          // Lookup and call main directly for supported signatures
-          if (hasMain) {
-            if (mainIsInt0) {
-              if (auto sym = jit->lookup("main")) {
-                using IntMain = int (*)();
-                IntMain fn = sym->toPtr<IntMain>();
-                return fn();
-              }
-            } else if (mainIsVoid0) {
-              if (auto sym = jit->lookup("main")) {
-                using VoidMain = void (*)();
-                VoidMain fn = sym->toPtr<VoidMain>();
-                fn();
-                return 0;
-              }
-            } else if (mainIsIntArgv) {
-              if (auto sym = jit->lookup("main")) {
-                using IntArgvMain = int (*)(int, char**);
-                IntArgvMain fn = sym->toPtr<IntArgvMain>();
-                int cargc = pargc;
-                // Build a temporary argv (drop program name to mimic C argv[0]=inputFile)
-                std::vector<std::string> argStorage;
-                std::vector<char*> argvVec;
-                argStorage.reserve(pargc);
-                argvVec.reserve(pargc + 1);
-                for (int i = 0; i < pargc; ++i) {
-                  argStorage.emplace_back(args[i]);
+          M->setTargetTriple("");
+          M->setDataLayout(jit->getDataLayout());
+          // Optimize O3
+          llvm::PassBuilder pb;
+          llvm::LoopAnalysisManager lam;
+          llvm::FunctionAnalysisManager fam;
+          llvm::CGSCCAnalysisManager cam;
+          llvm::ModuleAnalysisManager mam;
+          pb.registerModuleAnalyses(mam);
+          pb.registerCGSCCAnalyses(cam);
+          pb.registerFunctionAnalyses(fam);
+          pb.registerLoopAnalyses(lam);
+          pb.crossRegisterProxies(lam, fam, cam, mam);
+          llvm::ModulePassManager mpm =
+              pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
+          mpm.run(*M, mam);
+          auto tsm =
+              llvm::orc::ThreadSafeModule(std::move(M), std::move(TSCtx));
+          if (auto err = jit->addIRModule(std::move(tsm))) {
+            llvm::errs() << "JIT add module error: "
+                         << llvm::toString(std::move(err)) << "\n";
+          } else {
+            // Lookup and call main directly for supported signatures
+            if (hasMain) {
+              if (mainIsInt0) {
+                if (auto sym = jit->lookup("main")) {
+                  using IntMain = int (*)();
+                  IntMain fn = sym->toPtr<IntMain>();
+                  return fn();
                 }
-                for (int i = 0; i < pargc; ++i) {
-                  argvVec.push_back(argStorage[i].data());
+              } else if (mainIsVoid0) {
+                if (auto sym = jit->lookup("main")) {
+                  using VoidMain = void (*)();
+                  VoidMain fn = sym->toPtr<VoidMain>();
+                  fn();
+                  return 0;
                 }
-                argvVec.push_back(nullptr);
-                return fn(cargc, argvVec.data());
+              } else if (mainIsIntArgv) {
+                if (auto sym = jit->lookup("main")) {
+                  using IntArgvMain = int (*)(int, char**);
+                  IntArgvMain fn = sym->toPtr<IntArgvMain>();
+                  int cargc = pargc;
+                  // Build a temporary argv (drop program name to mimic C
+                  // argv[0]=inputFile)
+                  std::vector<std::string> argStorage;
+                  std::vector<char*> argvVec;
+                  argStorage.reserve(pargc);
+                  argvVec.reserve(pargc + 1);
+                  for (int i = 0; i < pargc; ++i) {
+                    argStorage.emplace_back(args[i]);
+                  }
+                  for (int i = 0; i < pargc; ++i) {
+                    argvVec.push_back(argStorage[i].data());
+                  }
+                  argvVec.push_back(nullptr);
+                  return fn(cargc, argvVec.data());
+                }
               }
             }
           }
@@ -271,20 +295,22 @@ int main(int argc, char* argv[]) {
     codegen::LLVMCodeGenerator codegen;
     std::string irFile = inputFile + ".ll";
     codegen.generate(ast.get(), irFile);
-    std::string sedCmd = "sed -i '/^[[:space:]]*target triple[[:space:]]*=/Id' " + irFile;
+    std::string sedCmd =
+        "sed -i '/^[[:space:]]*target triple[[:space:]]*=/Id' " + irFile;
     std::system(sedCmd.c_str());
     std::string asCmd = "llvm-as " + irFile + " -o temp.bc";
     std::system(asCmd.c_str());
-    std::string stdlib = "./build/src/packages/tspp_std/libtspp_std.a";
-    std::string clangCmd = "clang " + irFile + " " + stdlib +
-                           " -O3 -o temp_exec -lstdc++ -lgc -no-pie -Wno-override-module";
+    std::string stdlib = "./src/packages/tspp_std/libtspp_std.a";
+    std::string clangCmd =
+        "clang " + irFile + " " + stdlib +
+        " -O3 -o temp_exec -lstdc++ -lgc -no-pie -Wno-override-module";
     std::system(clangCmd.c_str());
     std::string runCmd = "./temp_exec";
-  int status = std::system(runCmd.c_str());
+    int status = std::system(runCmd.c_str());
 #ifdef WEXITSTATUS
-  return WEXITSTATUS(status);
+    return WEXITSTATUS(status);
 #else
-  return (status >> 8) & 0xFF;
+    return (status >> 8) & 0xFF;
 #endif
   } else {
     std::cerr << "Parse error\n";

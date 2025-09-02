@@ -20,6 +20,7 @@ using namespace ast;
 std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
     ast::BaseNode* root,
     std::unordered_map<std::string, llvm::Value*>& globals) {
+  (void)globals;  // currently unused in REPL path
   // Create a new LLVM module for each REPL line
   auto replModule = std::make_unique<llvm::Module>("tspp_repl", context);
   // Always emit a valid entry function for REPL
@@ -801,7 +802,7 @@ void LLVMCodeGenerator::visit(ast::BinaryExpr& node) {
         if (auto innerIdent =
                 dynamic_cast<IdentifierExpr*>(call->callee.get())) {
           innerName = innerIdent->name.getLexeme();
-        } else if (auto innerMember =
+  } else if (/*unused*/ auto innerMember =
                        dynamic_cast<MemberAccessExpr*>(call->callee.get())) {
           if (auto objIdent =
                   dynamic_cast<IdentifierExpr*>(innerMember->object.get())) {
@@ -2204,8 +2205,7 @@ void LLVMCodeGenerator::visit(ast::CallExpr& node) {
         if (auto innerIdent =
                 dynamic_cast<IdentifierExpr*>(callArg->callee.get())) {
           calleeName = innerIdent->name.getLexeme();
-        } else if (auto innerMember =
-                       dynamic_cast<MemberAccessExpr*>(callArg->callee.get())) {
+  } else if (dynamic_cast<MemberAccessExpr*>(callArg->callee.get())) {
           // We only care about free functions here; skip member calls
         }
         bool looksErasedGeneric = false;
@@ -3439,11 +3439,11 @@ void LLVMCodeGenerator::visit(ast::TypeConstraintNode& node) {
   }
 }
 
-void LLVMCodeGenerator::visit(ast::GenericTypeNode& node) {
+void LLVMCodeGenerator::visit(ast::GenericTypeNode& /*node*/) {
   // Generics are erased in codegen for now
 }
 
-void LLVMCodeGenerator::visit(ast::TypeParam& node) {
+void LLVMCodeGenerator::visit(ast::TypeParam& /*node*/) {
   // Type parameters have no runtime representation in current codegen
 }
 
@@ -3554,10 +3554,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     auto itBase = classes.find(baseName);
     if (itBase != classes.end()) {
       ClassInfo& base = itBase->second;
-      // Append base fields in order
-      for (auto& kv : base.fieldIndex) {
-        // Recompute order based on index
-      }
+  // Append base fields in order (recomputed below using an index->name map)
       // Build reverse map index->name to keep the same order
       std::vector<std::pair<int, std::string>> ordered;
       for (auto& kv : base.fieldIndex)
@@ -3829,12 +3826,12 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
   classNameStack.pop_back();
 }
 
-void LLVMCodeGenerator::visit(ast::InterfaceDecl& node) {
+void LLVMCodeGenerator::visit(ast::InterfaceDecl& /*node*/) {
   // Basic interface declaration handling
   // Not implemented in codegen yet
 }
 
-void LLVMCodeGenerator::visit(ast::TypeAliasDecl& node) {
+void LLVMCodeGenerator::visit(ast::TypeAliasDecl& /*node*/) {
   // Handle type alias declarations - these are handled by semantic analysis
   // No code generation needed for type aliases themselves
 }
@@ -3888,7 +3885,7 @@ llvm::Value* LLVMCodeGenerator::emitFieldPtr(llvm::Value* objPtr,
 }
 
 // --- New, This, MemberAccess ---
-void LLVMCodeGenerator::visit(ast::ThisExpr& node) {
+void LLVMCodeGenerator::visit(ast::ThisExpr& /*node*/) {
   // Load the current 'this' pointer (stored as local alloca named "this")
   auto it = symbolTable.find("this");
   if (it == symbolTable.end()) {
@@ -4251,13 +4248,13 @@ llvm::Constant* LLVMCodeGenerator::constantValueToLLVM(
 
 // Constructor implementations
 LLVMCodeGenerator::LLVMCodeGenerator()
-    : builder(std::make_unique<llvm::IRBuilder<>>(context)),
-      module(std::make_unique<llvm::Module>("tspp", context)) {}
+    : module(std::make_unique<llvm::Module>("tspp", context)),
+      builder(std::make_unique<llvm::IRBuilder<>>(context)) {}
 
 LLVMCodeGenerator::LLVMCodeGenerator(
     ast::SemanticAnalyzerVisitor* semanticAnalyzer)
-    : builder(std::make_unique<llvm::IRBuilder<>>(context)),
-      module(std::make_unique<llvm::Module>("tspp", context)),
+    : module(std::make_unique<llvm::Module>("tspp", context)),
+      builder(std::make_unique<llvm::IRBuilder<>>(context)),
       semanticAnalyzer(semanticAnalyzer) {}
 
 // Generate method implementations

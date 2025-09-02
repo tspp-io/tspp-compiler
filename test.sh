@@ -70,7 +70,7 @@ llvm-as "$LLVM_IR" -o temp.bc
 
 
 # 4. Compile to native executable
-STD_LIB="./build/src/packages/tspp_std/libtspp_std.a"
+STD_LIB="./src/packages/tspp_std/libtspp_std.a"
 
 # Decide sanitizer flags by reading the build configuration
 SAN_FLAGS=""

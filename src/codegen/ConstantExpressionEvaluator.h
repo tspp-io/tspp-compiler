@@ -87,31 +87,31 @@ class ConstantExpressionEvaluator : public ASTVisitor {
   void visit(AssignmentExpr& node) override;
 
   // Statement visitors (no-op for constant evaluation)
-  void visit(BlockStmt& node) override {}
-  void visit(ExprStmt& node) override {}
-  void visit(IfStmt& node) override {}
-  void visit(WhileStmt& node) override {}
-  void visit(ForStmt& node) override {}
-  void visit(ReturnStmt& node) override {}
+  void visit(BlockStmt& /*node*/) override {}
+  void visit(ExprStmt& /*node*/) override {}
+  void visit(IfStmt& /*node*/) override {}
+  void visit(WhileStmt& /*node*/) override {}
+  void visit(ForStmt& /*node*/) override {}
+  void visit(ReturnStmt& /*node*/) override {}
 
   // Declaration visitors (no-op for constant evaluation)
-  void visit(VarDecl& node) override {}
-  void visit(Parameter& node) override {}
-  void visit(FunctionDecl& node) override {}
-  void visit(ClassDecl& node) override {}
-  void visit(InterfaceDecl& node) override {}
-  void visit(TypeAliasDecl& node) override {}
-  void visit(ImportDecl& node) override {}
+  void visit(VarDecl& /*node*/) override {}
+  void visit(Parameter& /*node*/) override {}
+  void visit(FunctionDecl& /*node*/) override {}
+  void visit(ClassDecl& /*node*/) override {}
+  void visit(InterfaceDecl& /*node*/) override {}
+  void visit(TypeAliasDecl& /*node*/) override {}
+  void visit(ImportDecl& /*node*/) override {}
 
   // Program node visitor (no-op for constant evaluation)
-  void visit(ProgramNode& node) override {}
+  void visit(ProgramNode& /*node*/) override {}
 
   // Type node visitors (no-op for constant evaluation)
-  void visit(ast::BasicTypeNode&) override {}
-  void visit(ast::PointerTypeNode&) override {}
-  void visit(ast::SmartPointerTypeNode&) override {}
-  void visit(ast::UnionTypeNode&) override {}
-  void visit(ast::TypeConstraintNode&) override {}
+  void visit(ast::BasicTypeNode& /*unused*/) override {}
+  void visit(ast::PointerTypeNode& /*unused*/) override {}
+  void visit(ast::SmartPointerTypeNode& /*unused*/) override {}
+  void visit(ast::UnionTypeNode& /*unused*/) override {}
+  void visit(ast::TypeConstraintNode& /*unused*/) override {}
 };
 
 }  // namespace ast

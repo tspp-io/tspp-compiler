@@ -98,7 +98,18 @@ target_link_libraries(tspp
         LLVM
 )
 
+# Export symbols from the tspp binary so ORC JIT can resolve runtime helpers
+# provided by statically linked libraries (e.g., tspp_std) via dlsym.
+if (UNIX)
+    target_link_options(tspp PRIVATE -Wl,--export-dynamic)
+endif()
+
 # Add TSPP standard library
 add_subdirectory(packages/tspp_std)
 
-target_link_libraries(tspp PRIVATE tspp_std)
+# Force-load all objects from tspp_std so symbols are present at runtime for JIT
+if (UNIX)
+    target_link_libraries(tspp PRIVATE "-Wl,--whole-archive" tspp_std "-Wl,--no-whole-archive")
+else()
+    target_link_libraries(tspp PRIVATE tspp_std)
+endif()

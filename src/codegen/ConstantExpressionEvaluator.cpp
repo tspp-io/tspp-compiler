@@ -347,15 +347,15 @@ void ConstantExpressionEvaluator::visit(UnaryExpr& node) {
   }
 }
 
-void ConstantExpressionEvaluator::visit(CallExpr& node) {
+void ConstantExpressionEvaluator::visit(CallExpr& /*node*/) {
   evaluationSucceeded = false;
 }
 
-void ConstantExpressionEvaluator::visit(AssignmentExpr& node) {
+void ConstantExpressionEvaluator::visit(AssignmentExpr& /*node*/) {
   evaluationSucceeded = false;
 }
 
-void ConstantExpressionEvaluator::visit(MemberAccessExpr& node) {
+void ConstantExpressionEvaluator::visit(MemberAccessExpr& /*node*/) {
   // Member access cannot be evaluated as a constant in most cases
   // unless we have a complete type system with constant members
   evaluationSucceeded = false;
@@ -372,12 +372,12 @@ void ConstantExpressionEvaluator::visit(GroupingExpr& node) {
   }
 }
 
-void ConstantExpressionEvaluator::visit(ThisExpr& node) {
+void ConstantExpressionEvaluator::visit(ThisExpr& /*node*/) {
   // 'this' cannot be evaluated as a constant expression
   evaluationSucceeded = false;
 }
 
-void ConstantExpressionEvaluator::visit(NullExpr& node) {
+void ConstantExpressionEvaluator::visit(NullExpr& /*node*/) {
   // 'null' evaluates to a null pointer constant
   result = std::make_unique<ConstantValue>(ConstantValue::nullPtr());
   evaluationSucceeded = true;
