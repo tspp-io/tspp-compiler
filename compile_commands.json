@@ -181,6 +181,12 @@
 },
 {
   "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/go_builtins.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/go_builtins.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/go_builtins.cpp",
+  "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/go_builtins.cpp.o"
+},
+{
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
   "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/os.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/os.cpp",
   "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/os.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/os.cpp.o"
