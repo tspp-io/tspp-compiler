@@ -11,9 +11,21 @@ if [ -z "$INPUT_FILE" ]; then
   exit 1
 fi
 
+# locate compiler binary
+BIN="./build/src/tspp"
+if [ ! -x "$BIN" ]; then
+  if [ -x "./src/tspp" ]; then
+    BIN="./src/tspp"
+  fi
+fi
+if [ ! -x "$BIN" ]; then
+  echo "❌ Compiler binary not found at build/src/tspp or src/tspp. Run ./build.sh first."
+  exit 1
+fi
+
 # compile the input file to LLVM IR
 echo "=== Compiling $INPUT_FILE to LLVM IR ==="
-./build/src/tspp "$INPUT_FILE"
+"$BIN" "$INPUT_FILE"
 
 # 2. Derive LLVM IR filename
 LLVM_IR="${INPUT_FILE}.ll"
@@ -59,10 +71,20 @@ llvm-as "$LLVM_IR" -o temp.bc
 
 # 4. Compile to native executable
 STD_LIB="./build/src/packages/tspp_std/libtspp_std.a"
+
+# Decide sanitizer flags by reading the build configuration
+SAN_FLAGS=""
+if [ -f "CMakeCache.txt" ]; then
+  BUILD_TYPE=$(grep -E '^CMAKE_BUILD_TYPE:' CMakeCache.txt | sed 's/.*=//')
+  ENABLE_SAN=$(grep -E '^ENABLE_SANITIZERS:BOOL=' CMakeCache.txt | sed 's/.*=//')
+  if [ "$ENABLE_SAN" = "ON" ] || [ "$BUILD_TYPE" = "Debug" ]; then
+    SAN_FLAGS="-fsanitize=address"
+  fi
+fi
 if [ -f "$STD_LIB" ]; then
   # Stdlib is built with AddressSanitizer; link with it to satisfy symbols.
   # Suppress harmless LLVM warning about overriding module target triple
-  clang "$LLVM_IR" "$STD_LIB" -o temp_exec -lstdc++ -lgc -fsanitize=address -no-pie -Wno-override-module
+  clang "$LLVM_IR" "$STD_LIB" -o temp_exec -lstdc++ -lgc $SAN_FLAGS -no-pie -Wno-override-module
 else
   echo "❌ Standard library not found at $STD_LIB. Did you build the project?"
   exit 1

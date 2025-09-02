@@ -22,7 +22,7 @@ OUT_DIR="$BENCH_DIR/output"
 mkdir -p "$OUT_DIR"
 
 # Configure paths
-TSPP_BIN="$REPO_ROOT/build/src/tspp"   # adjust if your tspp binary lives elsewhere
+TSPP_BIN="$REPO_ROOT/src/tspp"   # adjust if your tspp binary lives elsewhere
 CPP_SRC_DIR="$BENCH_DIR/cpp"
 CPP_BUILD_DIR="$BENCH_DIR/cpp/build"
 NODE_DIR="$BENCH_DIR/node"
@@ -143,9 +143,9 @@ for b in "${BENCHS[@]}"; do
   fi
   echo " - tspp: $b"
   # time
-  t=$(run_and_time "$TSPP_BIN" "$src")
+  t=$(run_and_time "$TSPP_BIN" --jit "$src")
   # perf
-  read instr cycles cmiss bmiss < <(run_perf_and_parse "$TSPP_BIN" "$src")
+  read instr cycles cmiss bmiss < <(run_perf_and_parse "$TSPP_BIN" --jit "$src")
   # ns/op
   N=${NMAP[$b]}
   nsop=$(compute_nsop "$t" "$N")

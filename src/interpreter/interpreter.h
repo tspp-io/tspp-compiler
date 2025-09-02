@@ -9,6 +9,8 @@
 
 namespace interpreter {
 
+extern bool fast_int_enabled;
+
 class JITInterpreter {
  public:
   JITInterpreter();

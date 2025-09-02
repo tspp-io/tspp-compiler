@@ -22,6 +22,9 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void generate(ast::BaseNode* root);
   void generate(ast::BaseNode* root, const std::string& outFile);
 
+  // Access generated module (move ownership)
+  std::unique_ptr<llvm::Module> takeModule() { return std::move(module); }
+
   // REPL support
   std::unique_ptr<llvm::Module> generateModuleForREPL(
       ast::BaseNode* root,

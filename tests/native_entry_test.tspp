@@ -1,0 +1,4 @@
+// Simple program to validate native JIT fast path
+function main(): int {
+  return 42;
+}

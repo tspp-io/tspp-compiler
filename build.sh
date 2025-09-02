@@ -43,7 +43,17 @@ fi
 
 # Build project using all available cores
 echo -e "${YELLOW}Building project using ${NUM_CORES} cores...${NC}"
-cmake --build . -- -j"${NUM_CORES}" || handle_error "Build failed"
+if [ -f "CMakeCache.txt" ]; then
+    cmake --build . -- -j"${NUM_CORES}" || handle_error "Build failed"
+else
+    # Some environments already have an in-source CMakeCache at project root
+    if [ -f "../CMakeCache.txt" ]; then
+        echo -e "${YELLOW}Building parent directory (in-source CMake).${NC}"
+        cmake --build .. -- -j"${NUM_CORES}" || handle_error "Build failed"
+    else
+        handle_error "not a CMake build directory (missing CMakeCache.txt)"
+    fi
+fi
 
 echo -e "${GREEN}Build completed successfully!${NC}"
 
@@ -59,6 +69,12 @@ fi
 echo -e "${YELLOW}Running test build...${NC}"
 cd .. || handle_error "Failed to return to project root"
 export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=0:exitcode=0"
-./build/src/tspp --version 2>&1 | grep -v 'LeakSanitizer' | grep -v 'SUMMARY: AddressSanitizer' | grep -v 'Direct leak' || echo -e "${YELLOW}Note: --version not implemented yet${NC}"
+BIN="./build/src/tspp"
+if [ ! -x "$BIN" ] && [ -x "./src/tspp" ]; then BIN="./src/tspp"; fi
+if [ -x "$BIN" ]; then
+    "$BIN" --version 2>&1 | grep -v 'LeakSanitizer' | grep -v 'SUMMARY: AddressSanitizer' | grep -v 'Direct leak' || echo -e "${YELLOW}Note: --version not implemented yet${NC}"
+else
+    echo -e "${YELLOW}Binary not found at $BIN; skipping version check${NC}"
+fi
 
 echo -e "${GREEN}All done! Binary located at ./build/src/tspp${NC}"

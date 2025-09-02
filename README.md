@@ -61,6 +61,24 @@ cd tspp
 # The binary will be located at ./build/src/tspp
 ```
 
+Release build (optimized, no sanitizers by default):
+
+1. Configure CMake
+  -D CMAKE_BUILD_TYPE=RelWithDebInfo
+  -D ENABLE_SANITIZERS=OFF
+
+2. Build
+
+Sanitizers can be enabled in non-release builds with `-DENABLE_SANITIZERS=ON`.
+
+## Native JIT fast path
+
+The compiler can execute programs by JITing the generated LLVM IR and calling `main()` directly when it has signature `i32 ()`.
+
+- Run: `./build/src/tspp --jit benchmark/intinc.tspp`
+- Force the slower AOT path: `./build/src/tspp --no-jit file.tspp`
+
+For simple numeric benchmarks (e.g., `benchmark/intinc.tspp`), this avoids any interpreter/boxing overhead.
 ### Your First TSPP++ Program
 
 Create a file called `hello.tspp`:
