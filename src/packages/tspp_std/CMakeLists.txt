@@ -1,6 +1,7 @@
 add_library(tspp_std STATIC
     console.cpp
     fs.cpp
+    go_builtins.cpp
     os.cpp
     path.cpp
     std_entrypoint.cpp
