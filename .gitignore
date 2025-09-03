@@ -4,6 +4,10 @@ src/CMakeFiles/
 src/Makefile
 src/cmake_install.cmake
 build/
+# Prevent CMake build artifacts in root directory
+/Makefile
+/CMakeCache.txt
+/cmake_install.cmake
 *.o
 *.obj
 *.exe
