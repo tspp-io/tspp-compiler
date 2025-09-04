@@ -33,3 +33,16 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+
+# Performance and benchmark files
+perf.*
+*.folded
+*.svg
+results.txt
+*_results.md
+lsan.supp
+
+# Test artifacts and compiled outputs
+tests/*.ll
+tests/*_test
+tests/*/output
