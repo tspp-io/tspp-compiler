@@ -1,6 +1,0 @@
-// Empty loop microbenchmark
-function main(): int {
-  let i: int = 0;
-  for (let j: int = 0; j < 30000000; j = j + 1) { }
-  return i;
-}

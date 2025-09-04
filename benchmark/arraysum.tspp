@@ -1,9 +1,0 @@
-// Array memory access and sum microbenchmark
-function main(): int {
-  let n: int = 5000000;
-  let a: []int = memory.alloc(n); // using stdlib memory.alloc
-  for (let i: int = 0; i < n; i = i + 1) a[i] = i;
-  let s: int = 0;
-  for (let i: int = 0; i < n; i = i + 1) s = s + a[i];
-  return s;
-}
