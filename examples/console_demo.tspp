@@ -1,0 +1,193 @@
+// Simple Node.js-style console demo for TSPP using syscalls
+// Demonstrates familiar console API implemented with external functions
+
+// External syscall declarations
+extern function tspp_sys_write(fd: int, buf: string, count: int): int;
+extern function tspp_sys_exit(status: int): int;
+
+// Constants
+const STDOUT_FILENO = 1;
+const STDERR_FILENO = 2;
+
+// ANSI color codes
+const RESET = "\x1b[0m";
+const RED = "\x1b[31m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const BLUE = "\x1b[34m";
+const CYAN = "\x1b[36m";
+const MAGENTA = "\x1b[35m";
+
+// Helper functions
+function writeToStdout(message: string): void {
+    tspp_sys_write(STDOUT_FILENO, message, 50); // Simplified length
+}
+
+function writeToStderr(message: string): void {
+    tspp_sys_write(STDERR_FILENO, message, 50); // Simplified length
+}
+
+// Node.js-style console functions (without namespace for now)
+function console_log(message: string): void {
+    writeToStdout(message);
+    writeToStdout("\n");
+}
+
+function console_info(message: string): void {
+    writeToStdout(CYAN);
+    writeToStdout("ℹ ");
+    writeToStdout(RESET);
+    writeToStdout(message);
+    writeToStdout("\n");
+}
+
+function console_warn(message: string): void {
+    writeToStderr(YELLOW);
+    writeToStderr("⚠ ");
+    writeToStderr(RESET);
+    writeToStderr(message);
+    writeToStderr("\n");
+}
+
+function console_error(message: string): void {
+    writeToStderr(RED);
+    writeToStderr("✖ ");
+    writeToStderr(RESET);
+    writeToStderr(message);
+    writeToStderr("\n");
+}
+
+function console_debug(message: string): void {
+    writeToStdout("🐛 [DEBUG] ");
+    writeToStdout(message);
+    writeToStdout("\n");
+}
+
+function console_trace(message: string): void {
+    writeToStdout(MAGENTA);
+    writeToStdout("📍 Trace: ");
+    writeToStdout(message);
+    writeToStdout(RESET);
+    writeToStdout("\n");
+}
+
+function console_clear(): void {
+    writeToStdout("\x1b[2J\x1b[H");
+}
+
+function console_time(label: string): void {
+    writeToStdout(BLUE);
+    writeToStdout("⏱ Timer '");
+    writeToStdout(label);
+    writeToStdout("' started");
+    writeToStdout(RESET);
+    writeToStdout("\n");
+}
+
+function console_timeEnd(label: string): void {
+    writeToStdout(BLUE);
+    writeToStdout("⏱ Timer '");
+    writeToStdout(label);
+    writeToStdout("' ended");
+    writeToStdout(RESET);
+    writeToStdout("\n");
+}
+
+function console_assert(condition: bool, message: string): void {
+    if (!condition) {
+        writeToStderr(RED);
+        writeToStderr("ASSERTION FAILED: ");
+        writeToStderr(message);
+        writeToStderr(RESET);
+        writeToStderr("\n");
+    }
+}
+
+function console_group(label: string): void {
+    writeToStdout("▼ ");
+    writeToStdout(label);
+    writeToStdout("\n");
+}
+
+function console_table(title: string): void {
+    writeToStdout("┌─────────────────────────────────────┐\n");
+    writeToStdout("│ ");
+    writeToStdout(title);
+    writeToStdout(" │\n");
+    writeToStdout("└─────────────────────────────────────┘\n");
+}
+
+// Global print utilities
+function print(message: string): void {
+    writeToStdout(message);
+}
+
+function println(message: string): void {
+    writeToStdout(message);
+    writeToStdout("\n");
+}
+
+// Main demonstration
+function main(): int {
+    // Clear screen and start demo
+    console_clear();
+    
+    console_log("🚀 TSPP Node.js-Style Console Demo");
+    console_log("===================================");
+    console_log("");
+    
+    // Basic logging
+    console_log("This is a basic log message");
+    console_info("This is an info message with icon");
+    console_warn("This is a warning message");
+    console_error("This is an error message");
+    console_debug("This is a debug message");
+    console_trace("This is a trace message");
+    console_log("");
+    
+    // Timing demo
+    console_time("demo-timer");
+    console_log("Performing some operation...");
+    console_timeEnd("demo-timer");
+    console_log("");
+    
+    // Assertion demo
+    console_log("Testing assertions:");
+    console_assert(true, "This assertion should pass");
+    console_assert(false, "This assertion should fail!");
+    console_log("");
+    
+    // Grouping demo
+    console_group("User Information");
+    console_log("Name: John Doe");
+    console_log("Age: 30");
+    console_log("Email: john@example.com");
+    console_log("");
+    
+    // Table demo
+    console_table("Sample Data Table");
+    console_log("");
+    
+    // Alternative print functions
+    println("Using println() function");
+    print("Using print() function");
+    println(" (continued on same line)");
+    console_log("");
+    
+    // Success message
+    writeToStdout(GREEN);
+    writeToStdout("✅ Demo completed successfully!");
+    writeToStdout(RESET);
+    writeToStdout("\n");
+    console_log("");
+    console_log("This console library demonstrates:");
+    console_log("• Node.js-style API compatibility");
+    console_log("• Colored output with ANSI codes");
+    console_log("• Different log levels (info, warn, error, debug)");
+    console_log("• Timing utilities");
+    console_log("• Assertions");
+    console_log("• Grouping and tables");
+    console_log("• Direct syscall implementation in TSPP");
+    
+    return 0;
+}
