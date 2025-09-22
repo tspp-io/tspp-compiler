@@ -206,6 +206,9 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
     case tokens::TokenType::FUNCTION: {
       return buildFunction(stream, functionModifier);
     }
+    case tokens::TokenType::EXTERN: {
+      return buildExternFunction(stream);
+    }
     case tokens::TokenType::LET:
     case tokens::TokenType::CONST:
       return buildVariable(stream, storageQualifier);
@@ -1287,6 +1290,118 @@ Shared(ast::InterfaceDecl)
               << interfaceLoc.toString() << std::endl;
   }
   return interfaceDecl;
+}
+
+Shared(ast::FunctionDecl) DeclarationBuilder::buildExternFunction(tokens::TokenStream& stream) {
+  // Parse: extern function functionName(param1: Type1, param2: Type2): ReturnType ["libraryName"];
+  
+  if (stream.peek().getType() != tokens::TokenType::EXTERN) {
+    stream.advance();  // Skip faulty token
+    return nullptr;
+  }
+  stream.advance();  // consume 'extern'
+  
+  if (stream.peek().getType() != tokens::TokenType::FUNCTION) {
+    stream.advance();  // Skip faulty token
+    return nullptr;
+  }
+  stream.advance();  // consume 'function'
+  
+  // Accept identifier-like names including GET/SET keywords
+  auto nameTokType = stream.peek().getType();
+  if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
+        nameTokType == tokens::TokenType::GET ||
+        nameTokType == tokens::TokenType::SET)) {
+    stream.advance();  // Skip faulty token
+    return nullptr;
+  }
+  
+  tokens::Token funcName = stream.peek();
+  auto funcLoc = stream.peek().getLocation();
+  auto funcDecl = std::make_shared<ast::FunctionDecl>();
+  funcDecl->modifier = ast::FunctionModifier::None;
+  funcDecl->name = funcName;
+  funcDecl->location = funcLoc;
+  funcDecl->isExternal = true;
+  funcDecl->externalName = funcName.getLexeme();  // Default to same name
+  
+  stream.advance();  // consume identifier
+  
+  // Parse parameter list
+  if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
+    stream.advance();  // Skip faulty token
+    return nullptr;
+  }
+  stream.advance();  // consume '('
+  
+  // Parse parameters
+  while (!stream.isAtEnd() && stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+    if (stream.peek().getType() == tokens::TokenType::COMMA) {
+      stream.advance();
+      continue;
+    }
+    
+    auto param = std::make_shared<ast::Parameter>();
+    if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
+      stream.advance();  // Skip faulty token
+      return nullptr;
+    }
+    
+    tokens::Token paramName = stream.peek();
+    auto paramLoc = stream.peek().getLocation();
+    stream.advance();  // consume identifier
+    
+    if (stream.peek().getType() != tokens::TokenType::COLON) {
+      stream.advance();  // Skip faulty token
+      return nullptr;
+    }
+    stream.advance();  // consume ':'
+    
+    Shared(ast::TypeNode) paramType = TypeBuilder::build(stream);
+    if (!paramType) {
+      stream.advance();  // Skip faulty token
+      return nullptr;
+    }
+    
+    param->name = paramName;
+    param->type = paramType;
+    param->location = paramLoc;
+    funcDecl->params.push_back(param);
+  }
+  
+  if (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+    stream.advance();  // Skip faulty token
+    return nullptr;
+  }
+  stream.advance();  // consume ')'
+  
+  // Parse optional return type
+  if (stream.peek().getType() == tokens::TokenType::COLON) {
+    stream.advance();  // consume ':'
+    funcDecl->returnType = TypeBuilder::build(stream);
+    if (!funcDecl->returnType) {
+      stream.advance();  // Skip faulty token
+      return nullptr;
+    }
+  }
+  
+  // Parse optional external library name: ["libraryName"]
+  if (stream.peek().getType() == tokens::TokenType::STRING_LITERAL) {
+    std::string libraryName = stream.peek().getLexeme();
+    // Remove quotes from library name
+    if (libraryName.length() >= 2 && libraryName.front() == '"' && libraryName.back() == '"') {
+      libraryName = libraryName.substr(1, libraryName.length() - 2);
+    }
+    funcDecl->externalName = libraryName;
+    stream.advance();  // consume string literal
+  }
+  
+  // Expect semicolon
+  if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+    stream.advance();  // consume ';'
+  }
+  
+  return funcDecl;
 }
 
 }  // namespace parser

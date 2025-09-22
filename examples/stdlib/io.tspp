@@ -1,0 +1,76 @@
+// Example TSPP standard library module for file I/O using syscalls
+// This demonstrates how std libs can be written in TSPP itself
+
+// External syscall declarations
+extern function tspp_sys_open(pathname: string, flags: int, mode: int): int;
+extern function tspp_sys_read(fd: int, buf: string, count: int): int;
+extern function tspp_sys_write(fd: int, buf: string, count: int): int;
+extern function tspp_sys_close(fd: int): int;
+
+// File operation constants (Linux)
+const O_RDONLY = 0;
+const O_WRONLY = 1;
+const O_RDWR = 2;
+const O_CREAT = 64;
+const O_TRUNC = 512;
+
+// Standard file descriptors
+const STDIN_FILENO = 0;
+const STDOUT_FILENO = 1;
+const STDERR_FILENO = 2;
+
+// High-level file operations
+function openFile(path: string, mode: string): int {
+    let flags = 0;
+    
+    if (mode == "r") {
+        flags = O_RDONLY;
+    } else if (mode == "w") {
+        flags = O_WRONLY | O_CREAT | O_TRUNC;
+    } else if (mode == "a") {
+        flags = O_WRONLY | O_CREAT;
+    } else if (mode == "r+") {
+        flags = O_RDWR;
+    } else if (mode == "w+") {
+        flags = O_RDWR | O_CREAT | O_TRUNC;
+    }
+    
+    return tspp_sys_open(path, flags, 0644);
+}
+
+function closeFile(fd: int): int {
+    return tspp_sys_close(fd);
+}
+
+function readFromFile(fd: int, buffer: string, size: int): int {
+    return tspp_sys_read(fd, buffer, size);
+}
+
+function writeToFile(fd: int, data: string, size: int): int {
+    return tspp_sys_write(fd, data, size);
+}
+
+function writeString(fd: int, str: string): int {
+    // For simplicity, assume we can get string length
+    // In a real implementation, we'd need a strlen function
+    return tspp_sys_write(fd, str, 100); // simplified
+}
+
+// Console I/O using syscalls
+function print(message: string): void {
+    writeString(STDOUT_FILENO, message);
+}
+
+function println(message: string): void {
+    writeString(STDOUT_FILENO, message);
+    writeString(STDOUT_FILENO, "\n");
+}
+
+function eprint(message: string): void {
+    writeString(STDERR_FILENO, message);
+}
+
+function eprintln(message: string): void {
+    writeString(STDERR_FILENO, message);
+    writeString(STDERR_FILENO, "\n");
+}

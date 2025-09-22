@@ -202,5 +202,11 @@
   "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/string_util.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/string_util.cpp",
   "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/string_util.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/string_util.cpp.o"
+},
+{
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/syscall.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/syscall.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/syscall.cpp",
+  "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/syscall.cpp.o"
 }
 ]

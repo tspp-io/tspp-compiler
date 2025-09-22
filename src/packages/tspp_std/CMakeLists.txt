@@ -5,6 +5,7 @@ add_library(tspp_std STATIC
     path.cpp
     std_entrypoint.cpp
     string_util.cpp
+    syscall.cpp
 )
 
 target_include_directories(tspp_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

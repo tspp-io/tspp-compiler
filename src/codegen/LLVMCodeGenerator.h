@@ -96,6 +96,9 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   // Track function return types by name (resolved via semantic analyzer)
   std::unordered_map<std::string, std::string> functionReturnTypes;
 
+  // Track external functions: TSPP name -> LLVM Function*
+  std::unordered_map<std::string, llvm::Function*> externalFunctionMap;
+
   // Class metadata for codegen
   struct ClassInfo {
     llvm::StructType* structTy = nullptr;             // class struct type

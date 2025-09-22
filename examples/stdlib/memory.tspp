@@ -1,0 +1,75 @@
+// Example TSPP standard library module for memory management using syscalls
+// This demonstrates system-level memory operations
+
+// External syscall declarations
+extern function tspp_syscall2(number: int, arg1: int, arg2: int): int;
+extern function tspp_syscall3(number: int, arg1: int, arg2: int, arg3: int): int;
+extern function tspp_syscall6(number: int, arg1: int, arg2: int, arg3: int, arg4: int, arg5: int, arg6: int): int;
+
+// Linux syscall numbers (x86_64)
+const SYS_mmap = 9;
+const SYS_munmap = 11;
+const SYS_brk = 12;
+
+// Memory protection flags
+const PROT_READ = 1;
+const PROT_WRITE = 2;
+const PROT_EXEC = 4;
+const PROT_NONE = 0;
+
+// Memory mapping flags  
+const MAP_PRIVATE = 2;
+const MAP_ANONYMOUS = 32;
+
+// Simple memory allocator using mmap
+function allocateMemory(size: int): int {
+    // mmap(addr=0, length=size, prot=PROT_READ|PROT_WRITE, 
+    //      flags=MAP_PRIVATE|MAP_ANONYMOUS, fd=-1, offset=0)
+    return tspp_syscall6(SYS_mmap, 0, size, PROT_READ | PROT_WRITE, 
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+}
+
+function deallocateMemory(addr: int, size: int): int {
+    // munmap(addr, length)
+    return tspp_syscall2(SYS_munmap, addr, size);
+}
+
+function adjustHeap(increment: int): int {
+    // brk(addr) - if addr is 0, returns current break
+    let currentBreak = tspp_syscall2(SYS_brk, 0, 0);
+    if (increment == 0) {
+        return currentBreak;
+    }
+    return tspp_syscall2(SYS_brk, currentBreak + increment, 0);
+}
+
+// Simple stack-based allocator
+let stackTop: int = 0;
+let stackSize: int = 0;
+
+function initMemoryStack(size: int): bool {
+    stackTop = allocateMemory(size);
+    if (stackTop != -1) {
+        stackSize = size;
+        return true;
+    }
+    return false;
+}
+
+function stackAlloc(size: int): int {
+    if (stackSize >= size) {
+        let result = stackTop;
+        stackTop = stackTop + size;
+        stackSize = stackSize - size;
+        return result;
+    }
+    return 0; // Out of memory
+}
+
+function cleanupMemoryStack(): void {
+    if (stackTop != 0) {
+        deallocateMemory(stackTop, stackSize);
+        stackTop = 0;
+        stackSize = 0;
+    }
+}

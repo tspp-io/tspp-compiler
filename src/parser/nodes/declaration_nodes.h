@@ -84,6 +84,9 @@ class FunctionDecl : public Decl {
   Shared(BlockStmt) body;
   // Optional access modifier when declared inside a class
   AccessModifier access = AccessModifier::Default;
+  // External function information
+  bool isExternal = false;  // true if declared with 'extern' keyword
+  std::string externalName;  // optional external function name (defaults to name)
   AST_ACCEPT_IMPL(FunctionDecl);
 };
 
