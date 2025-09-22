@@ -27,7 +27,8 @@ enum class TokenType {
   GET,
   SET,
   CAST,
-  DECL_END = NEW,
+  EXTERN,            // 'extern' keyword for external function declarations
+  DECL_END = EXTERN,
 
   /*****************************************************************************
    * Generic and Template Related

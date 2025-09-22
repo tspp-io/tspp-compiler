@@ -54,6 +54,13 @@ class DeclarationBuilder {
       ast::FunctionModifier modifier = ast::FunctionModifier::None);
 
   /**
+   * @brief Build external function declaration
+   * @param stream Token stream to parse from
+   * @return Shared pointer to external function declaration, or nullptr on error
+   */
+  static Shared(ast::FunctionDecl) buildExternFunction(tokens::TokenStream& stream);
+
+  /**
    * @brief Build class declaration
    * @param stream Token stream to parse from
    * @return Shared pointer to class declaration, or nullptr on error

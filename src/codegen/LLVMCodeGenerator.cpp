@@ -1733,6 +1733,42 @@ void LLVMCodeGenerator::visit(ast::BinaryExpr& node) {
 
 // Visit FunctionDecl: emit function definition
 void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
+  // For external functions, just declare them without a body
+  if (node.isExternal) {
+    // Resolve return type
+    std::string resolvedRetType = "int";
+    llvm::Type* retType = llvm::Type::getInt32Ty(context);
+    if (semanticAnalyzer && node.returnType) {
+      resolvedRetType = semanticAnalyzer->resolveType(node.returnType.get());
+      retType = getLLVMType(resolvedRetType);
+    }
+    
+    // Record function return type for later call-site conversions
+    functionReturnTypes[node.name.getLexeme()] = resolvedRetType;
+    
+    std::vector<llvm::Type*> argTypes;
+    for (auto& param : node.params) {
+      std::string paramTypeName = "int";
+      llvm::Type* paramType = llvm::Type::getInt32Ty(context);
+      if (semanticAnalyzer && param->type) {
+        paramTypeName = semanticAnalyzer->resolveType(param->type.get());
+        paramType = getLLVMType(paramTypeName);
+      }
+      argTypes.push_back(paramType);
+    }
+    
+    auto funcType = llvm::FunctionType::get(retType, argTypes, false);
+    // Use the external name for the LLVM function, which could be different from the TSPP name
+    std::string externalName = node.externalName.empty() ? node.name.getLexeme() : node.externalName;
+    auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
+                                       externalName, module.get());
+    
+    // Store mapping from TSPP name to LLVM function for call generation
+    externalFunctionMap[node.name.getLexeme()] = func;
+    return;
+  }
+  
+  // Regular function implementation follows...
   // Resolve return type using semantic analyzer if available
   std::string resolvedRetType = "int";
   llvm::Type* retType = llvm::Type::getInt32Ty(context);
@@ -2837,8 +2873,18 @@ void LLVMCodeGenerator::visit(ast::CallExpr& node) {
     builder->CreateCall(warnFunc, args);
     lastValue = nullptr;
   } else {
-    // Try to call a user-defined function or a lowered method
-    if (auto func = module->getFunction(funcName)) {
+    // Try to call a user-defined function, external function, or a lowered method
+    llvm::Function* func = module->getFunction(funcName);
+    
+    // If not found in module, check external function map
+    if (!func) {
+      auto it = externalFunctionMap.find(funcName);
+      if (it != externalFunctionMap.end()) {
+        func = it->second;
+      }
+    }
+    
+    if (func) {
       // Before emitting the call, coerce each argument to match the callee
       // parameter type when feasible (int<->int, float<->float, ptr<->ptr).
       if (args.size() == func->arg_size()) {

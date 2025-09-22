@@ -35,6 +35,7 @@ const std::unordered_map<std::string, tokens::TokenType> &getKeywordMapImpl() {
       {"get", tokens::TokenType::GET},
       {"set", tokens::TokenType::SET},
       {"cast", tokens::TokenType::CAST},
+      {"extern", tokens::TokenType::EXTERN},
       {"where", tokens::TokenType::WHERE},
       {"throws", tokens::TokenType::THROWS},
       {"public", tokens::TokenType::PUBLIC},
