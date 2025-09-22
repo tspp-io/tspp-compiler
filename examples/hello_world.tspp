@@ -1,7 +1,20 @@
 // Hello World example for TSPP
-// This demonstrates basic function definition and output
+// This demonstrates basic function definition and Node.js-style console output
 
-func main() {
-    println("Hello, World!");
-    println("Welcome to TSPP - TypeScript-like syntax with Go-style semantics!");
+// External syscall declarations for console functionality
+extern function tspp_sys_write(fd: int, buf: string, count: int): int;
+
+// Constants
+const STDOUT_FILENO = 1;
+
+// Node.js-style console function
+function console_log(message: string): void {
+    tspp_sys_write(STDOUT_FILENO, message, 50); // Simplified length
+    tspp_sys_write(STDOUT_FILENO, "\n", 1);
+}
+
+function main(): int {
+    console_log("Hello, World!");
+    console_log("Welcome to TSPP - TypeScript-like syntax with Go-style semantics!");
+    return 0;
 }
