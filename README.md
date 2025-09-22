@@ -25,6 +25,8 @@ TSPP++ is an innovative programming language that brings together the familiar s
 ⚡ **SIMD Operations**: Native vectorization with `#simd`  
 🔧 **Zero-Cost Abstractions**: `#zerocast` for compile-time optimizations  
 🛡️ **Safety Controls**: `@unsafe` annotations for explicit unsafe operations  
+🌐 **Foreign Function Interface**: Call external functions and make syscalls directly  
+📚 **Self-Hosted Std Libs**: Standard libraries written in TSPP itself using syscalls  
 🎯 **TypeScript Syntax**: Familiar syntax for web developers  
 🔄 **Go Semantics**: Goroutine-inspired concurrency model  
 
@@ -150,6 +152,30 @@ Compile-time optimizations with zero runtime overhead:
 #const int result = max(10, 20);  // Resolved at compile time
 ```
 
+### Foreign Function Interface (FFI)
+
+Call external functions and make system calls directly from TSPP:
+
+```typescript
+// Declare external functions
+extern function puts(str: string): int;
+extern function malloc(size: int): string;
+
+// Make system calls
+extern function tspp_sys_write(fd: int, buf: string, count: int): int;
+
+function println(message: string): void {
+    tspp_sys_write(1, message, message.length);
+    tspp_sys_write(1, "\n", 1);
+}
+
+// Standard libraries can be written in TSPP itself!
+function openFile(path: string): int {
+    extern function tspp_sys_open(pathname: string, flags: int, mode: int): int;
+    return tspp_sys_open(path, 577, 0644);  // O_WRONLY | O_CREAT
+}
+```
+
 ## Architecture
 
 TSPP++ follows a modern compiler architecture:
@@ -179,6 +205,7 @@ flowchart TD
 - 📖 **[Language Specification](docs/language_spec.md)** - Complete language reference
 - 🔧 **[Compilation Pipeline](docs/pipeline.md)** - How TSPP++ works internally
 - 📝 **[Grammar Reference](docs/grammar.md)** - EBNF grammar specification
+- 🌐 **[FFI & Syscalls](docs/FFI_SYSCALLS.md)** - Foreign function interface and syscall support
 - 🎯 **[Examples](examples/)** - Sample programs and tutorials
 
 ## Contributing

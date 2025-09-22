@@ -1,0 +1,192 @@
+// Comprehensive example demonstrating TSPP FFI and syscall capabilities
+// This shows how standard libraries can be implemented in TSPP itself
+
+// ============================================================================
+// System Call Declarations
+// ============================================================================
+
+// Generic syscall interface
+extern function tspp_syscall0(number: int): int;
+extern function tspp_syscall1(number: int, arg1: int): int;
+extern function tspp_syscall2(number: int, arg1: int, arg2: int): int;
+extern function tspp_syscall3(number: int, arg1: int, arg2: int, arg3: int): int;
+
+// Common syscall wrappers
+extern function tspp_sys_open(pathname: string, flags: int, mode: int): int;
+extern function tspp_sys_read(fd: int, buf: string, count: int): int;
+extern function tspp_sys_write(fd: int, buf: string, count: int): int;
+extern function tspp_sys_close(fd: int): int;
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+// File operation flags (Linux)
+const O_RDONLY = 0;
+const O_WRONLY = 1;
+const O_RDWR = 2;
+const O_CREAT = 64;
+const O_TRUNC = 512;
+const O_APPEND = 1024;
+
+// Standard file descriptors
+const STDIN_FILENO = 0;
+const STDOUT_FILENO = 1;
+const STDERR_FILENO = 2;
+
+// Syscall numbers (Linux x86_64)
+const SYS_mmap = 9;
+const SYS_munmap = 11;
+const SYS_getpid = 39;
+
+// Memory protection flags
+const PROT_READ = 1;
+const PROT_WRITE = 2;
+const MAP_PRIVATE = 2;
+const MAP_ANONYMOUS = 32;
+
+// ============================================================================
+// TSPP Standard Library Implementation
+// ============================================================================
+
+// Console I/O module
+namespace Console {
+    function print(message: string): void {
+        tspp_sys_write(STDOUT_FILENO, message, 100); // simplified length
+    }
+    
+    function println(message: string): void {
+        print(message);
+        tspp_sys_write(STDOUT_FILENO, "\n", 1);
+    }
+    
+    function error(message: string): void {
+        tspp_sys_write(STDERR_FILENO, "Error: ", 7);
+        tspp_sys_write(STDERR_FILENO, message, 100);
+        tspp_sys_write(STDERR_FILENO, "\n", 1);
+    }
+}
+
+// File system module
+namespace FileSystem {
+    function openForReading(path: string): int {
+        return tspp_sys_open(path, O_RDONLY, 0);
+    }
+    
+    function openForWriting(path: string): int {
+        return tspp_sys_open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    }
+    
+    function openForAppending(path: string): int {
+        return tspp_sys_open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    }
+    
+    function close(fd: int): int {
+        return tspp_sys_close(fd);
+    }
+    
+    function write(fd: int, data: string): int {
+        return tspp_sys_write(fd, data, 100); // simplified
+    }
+    
+    function read(fd: int, buffer: string, size: int): int {
+        return tspp_sys_read(fd, buffer, size);
+    }
+}
+
+// Process utilities module
+namespace Process {
+    function getProcessId(): int {
+        return tspp_syscall0(SYS_getpid);
+    }
+}
+
+// Memory management module
+namespace Memory {
+    function allocate(size: int): int {
+        return tspp_syscall3(SYS_mmap, 0, size, PROT_READ | PROT_WRITE);
+    }
+    
+    function deallocate(addr: int, size: int): int {
+        return tspp_syscall2(SYS_munmap, addr, size);
+    }
+}
+
+// ============================================================================
+// Application Code
+// ============================================================================
+
+function demonstrateFileIO(): void {
+    Console.println("=== File I/O Demo ===");
+    
+    // Create and write to a file
+    let fd = FileSystem.openForWriting("/tmp/tspp_demo.txt");
+    if (fd != -1) {
+        FileSystem.write(fd, "Hello from TSPP standard library!\n");
+        FileSystem.write(fd, "This file was created using syscalls.\n");
+        FileSystem.close(fd);
+        Console.println("File created successfully!");
+    } else {
+        Console.error("Failed to create file");
+    }
+}
+
+function demonstrateProcessInfo(): void {
+    Console.println("=== Process Info Demo ===");
+    
+    let pid = Process.getProcessId();
+    Console.print("Process ID: ");
+    // Note: In a real implementation, we'd have integer to string conversion
+    Console.println("(integer conversion would be here)");
+}
+
+function demonstrateMemoryManagement(): void {
+    Console.println("=== Memory Management Demo ===");
+    
+    let size = 4096;
+    let memory = Memory.allocate(size);
+    
+    if (memory != -1) {
+        Console.println("Memory allocated successfully!");
+        // Use the memory here...
+        Memory.deallocate(memory, size);
+        Console.println("Memory deallocated successfully!");
+    } else {
+        Console.error("Failed to allocate memory");
+    }
+}
+
+// Main function demonstrating the complete system
+function main(): int {
+    Console.println("TSPP Standard Library Demo");
+    Console.println("Showcasing FFI and syscall capabilities");
+    Console.println("========================================");
+    
+    demonstrateFileIO();
+    demonstrateProcessInfo();
+    demonstrateMemoryManagement();
+    
+    Console.println("========================================");
+    Console.println("Demo completed successfully!");
+    
+    return 0;
+}
+
+// ============================================================================
+// Notes:
+// 
+// This example demonstrates how TSPP's FFI and syscall support enables:
+//
+// 1. Direct system call access from TSPP code
+// 2. Standard library implementation in TSPP itself
+// 3. Modular organization using namespaces
+// 4. Type-safe external function declarations
+// 5. Zero-overhead abstraction over system calls
+//
+// Benefits:
+// - No C++ wrapper overhead
+// - Standard libraries are readable and modifiable
+// - Easy extension of system capabilities
+// - Better debugging and maintenance
+// - Platform-specific optimizations possible in TSPP
+// ============================================================================
