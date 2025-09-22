@@ -1,206 +1,206 @@
 [
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tokens.dir/tokens/stream/token_stream.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/tokens/stream/token_stream.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/tokens/stream/token_stream.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tokens.dir/tokens/stream/token_stream.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/tokens/stream/token_stream.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/tokens/stream/token_stream.cpp",
   "output": "src/CMakeFiles/tokens.dir/tokens/stream/token_stream.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tokens.dir/tokens/token.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/tokens/token.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/tokens/token.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tokens.dir/tokens/token.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/tokens/token.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/tokens/token.cpp",
   "output": "src/CMakeFiles/tokens.dir/tokens/token.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/diagnostics/error_reporter.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/core/diagnostics/error_reporter.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/core/diagnostics/error_reporter.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/diagnostics/error_reporter.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/core/diagnostics/error_reporter.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/core/diagnostics/error_reporter.cpp",
   "output": "src/CMakeFiles/core.dir/core/diagnostics/error_reporter.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/file_utils.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/core/utils/file_utils.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/core/utils/file_utils.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/file_utils.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/core/utils/file_utils.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/core/utils/file_utils.cpp",
   "output": "src/CMakeFiles/core.dir/core/utils/file_utils.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/log_utils.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/core/utils/log_utils.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/core/utils/log_utils.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/log_utils.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/core/utils/log_utils.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/core/utils/log_utils.cpp",
   "output": "src/CMakeFiles/core.dir/core/utils/log_utils.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/string_utils.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/core/utils/string_utils.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/core/utils/string_utils.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/core.dir/core/utils/string_utils.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/core/utils/string_utils.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/core/utils/string_utils.cpp",
   "output": "src/CMakeFiles/core.dir/core/utils/string_utils.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/lexer.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/lexer.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/lexer.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/lexer.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/lexer.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/lexer.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/lexer.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/base/scanner_base.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/base/scanner_base.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/base/scanner_base.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/base/scanner_base.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/base/scanner_base.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/base/scanner_base.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/scanner/base/scanner_base.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/identifier_scanner.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/identifier_scanner.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/identifier_scanner.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/identifier_scanner.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/identifier_scanner.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/identifier_scanner.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/identifier_scanner.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/number_scanner.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/number_scanner.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/number_scanner.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/number_scanner.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/number_scanner.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/number_scanner.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/number_scanner.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/operator_scanner.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/operator_scanner.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/operator_scanner.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/operator_scanner.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/operator_scanner.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/operator_scanner.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/operator_scanner.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/string_scanner.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/string_scanner.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/specialized/string_scanner.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/specialized/string_scanner.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/string_scanner.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/specialized/string_scanner.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/scanner/specialized/string_scanner.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/token_scanner.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/token_scanner.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/scanner/token_scanner.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/scanner/token_scanner.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/token_scanner.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/scanner/token_scanner.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/scanner/token_scanner.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/state/lexer_state.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/lexer/state/lexer_state.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/lexer/state/lexer_state.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/lexer.dir/lexer/state/lexer_state.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/lexer/state/lexer_state.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/lexer/state/lexer_state.cpp",
   "output": "src/CMakeFiles/lexer.dir/lexer/state/lexer_state.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/parser.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/parser.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/parser.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/parser.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/parser.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/parser.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/parser.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builder_visitor.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builder_visitor.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builder_visitor.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builder_visitor.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builder_visitor.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builder_visitor.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builder_visitor.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/DeclarationBuilder.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/StatementBuilder.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/ExpressionBuilder.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/visitors/ast_builder/ast_builders/TypeBuilder.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/semantic/SemanticScope.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/visitors/semantic/SemanticScope.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/visitors/semantic/SemanticScope.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/visitors/semantic/SemanticScope.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/semantic/SemanticScope.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/visitors/semantic/SemanticScope.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/visitors/semantic/SemanticScope.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/module/ModuleResolver.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/parser/module/ModuleResolver.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/parser/module/ModuleResolver.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/parser.dir/parser/module/ModuleResolver.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/parser/module/ModuleResolver.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/parser/module/ModuleResolver.cpp",
   "output": "src/CMakeFiles/parser.dir/parser/module/ModuleResolver.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_codegen.dir/codegen/LLVMCodeGenerator.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/codegen/LLVMCodeGenerator.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/codegen/LLVMCodeGenerator.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_codegen.dir/codegen/LLVMCodeGenerator.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/codegen/LLVMCodeGenerator.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/codegen/LLVMCodeGenerator.cpp",
   "output": "src/CMakeFiles/tspp_codegen.dir/codegen/LLVMCodeGenerator.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_codegen.dir/codegen/ConstantExpressionEvaluator.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/codegen/ConstantExpressionEvaluator.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/codegen/ConstantExpressionEvaluator.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_codegen.dir/codegen/ConstantExpressionEvaluator.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/codegen/ConstantExpressionEvaluator.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/codegen/ConstantExpressionEvaluator.cpp",
   "output": "src/CMakeFiles/tspp_codegen.dir/codegen/ConstantExpressionEvaluator.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/interpreter.dir/interpreter/interpreter.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/interpreter/interpreter.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/interpreter/interpreter.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/home/runner/work/tspp-compiler/tspp-compiler/src -I/usr/lib/llvm-17/include -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/interpreter.dir/interpreter/interpreter.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/interpreter/interpreter.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/interpreter/interpreter.cpp",
   "output": "src/CMakeFiles/interpreter.dir/interpreter/interpreter.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/interpreter.dir/interpreter/JITInterpreter.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/interpreter/JITInterpreter.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/interpreter/JITInterpreter.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/home/runner/work/tspp-compiler/tspp-compiler/src -I/usr/lib/llvm-17/include -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/interpreter.dir/interpreter/JITInterpreter.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/interpreter/JITInterpreter.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/interpreter/JITInterpreter.cpp",
   "output": "src/CMakeFiles/interpreter.dir/interpreter/JITInterpreter.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src -I/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp.dir/main.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/main.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/main.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp.dir/main.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/main.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/main.cpp",
   "output": "src/CMakeFiles/tspp.dir/main.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src/packages/tspp_std",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/console.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/console.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/console.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/console.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/console.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/console.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/console.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src/packages/tspp_std",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/fs.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/fs.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/fs.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/fs.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/fs.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/fs.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/fs.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src/packages/tspp_std",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/os.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/os.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/os.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/os.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/os.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/os.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/os.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src/packages/tspp_std",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/path.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/path.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/path.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/path.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/path.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/path.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/path.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src/packages/tspp_std",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/std_entrypoint.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/std_entrypoint.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/std_entrypoint.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/std_entrypoint.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/std_entrypoint.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/std_entrypoint.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/std_entrypoint.cpp.o"
 },
 {
-  "directory": "/home/hiren/tspp-io/tspp-compiler/build/src/packages/tspp_std",
-  "command": "/usr/bin/c++  -I/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/string_util.cpp.o -c /home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/string_util.cpp",
-  "file": "/home/hiren/tspp-io/tspp-compiler/src/packages/tspp_std/string_util.cpp",
+  "directory": "/home/runner/work/tspp-compiler/tspp-compiler/build/src/packages/tspp_std",
+  "command": "/usr/bin/c++  -I/usr/lib/llvm-17/include -I/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std -fPIE -fsanitize=address -fno-omit-frame-pointer -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -Wall -Wextra -Wpedantic -o CMakeFiles/tspp_std.dir/string_util.cpp.o -c /home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/string_util.cpp",
+  "file": "/home/runner/work/tspp-compiler/tspp-compiler/src/packages/tspp_std/string_util.cpp",
   "output": "src/packages/tspp_std/CMakeFiles/tspp_std.dir/string_util.cpp.o"
 }
 ]
