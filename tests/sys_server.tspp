@@ -1,0 +1,56 @@
+// Test starting a background TCP server from the runtime and connecting to it
+function main(): int {
+  console.log("START_SERVER_TEST");
+  let port: int = 9002;
+  let serverHandle: int = sys.tcp_server_start(port);
+  console.log("SERVER_STARTED: ", serverHandle);
+
+  // Give the server a moment to start
+  // Use a tiny busy-wait loop since we don't have a sleep primitive here
+  for (let i: int = 0; i < 1000000; i = i + 1) {
+  }
+
+  let sock: int = sys.tcp_connect("127.0.0.1", port);
+  console.log("CLIENT_SOCK: ", sock);
+  if (sock > 0) {
+    let msg: string = "hello tspp";
+    // After connecting, accept the server-side client socket
+    let cfd: int = sys.tcp_server_accept(serverHandle, 5000);
+    console.log("SERVER_ACCEPTED: ", cfd);
+
+    let sent: int = sys.tcp_send(sock, msg, msg.length);
+    console.log("CLIENT_SENT: ", sent);
+
+    // Server reads the data using tcp_recv
+    let serverData: string = sys.tcp_recv(cfd, 1024);
+    console.log("SERVER_RECV: ", serverData);
+    sys.tcp_close(sock);
+  } else {
+    console.error("CLIENT_CONN_ERR");
+  }
+  // Connect a second time to verify server is still running
+  for (let i: int = 0; i < 500000; i = i + 1) {}
+  let sock2: int = sys.tcp_connect("127.0.0.1", port);
+  console.log("CLIENT2_SOCK: ", sock2);
+  if (sock2 > 0) {
+    let msg2: string = "second ping";
+    let cfd2: int = sys.tcp_server_accept(serverHandle, 5000);
+    console.log("SERVER_ACCEPTED2: ", cfd2);
+
+    let sent2: int = sys.tcp_send(sock2, msg2, msg2.length);
+    console.log("CLIENT2_SENT: ", sent2);
+
+    let serverData2: string = sys.tcp_recv(cfd2, 1024);
+    console.log("SERVER_RECV2: ", serverData2);
+
+    sys.tcp_close(sock2);
+    if (cfd2 > 0) sys.tcp_close(cfd2);
+  } else {
+    console.error("CLIENT2_CONN_ERR");
+  }
+
+  // Stop the server
+  let stopRes: int = sys.tcp_server_stop(serverHandle);
+  console.log("SERVER_STOPPED: ", stopRes);
+  return 0;
+}

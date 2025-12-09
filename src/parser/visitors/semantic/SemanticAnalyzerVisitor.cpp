@@ -16,11 +16,10 @@ namespace ast {
 
 SemanticAnalyzerVisitor::SemanticAnalyzerVisitor() {
   currentScope = std::make_shared<SemanticScope>();
-  // Register built-in global 'console'
-  Symbol consoleSym;
-  consoleSym.name = "console";
-  consoleSym.typeName = "builtin_object";
-  currentScope->insert("console", consoleSym);
+  // NOTE: We intentionally do not hoist 'console' or 'sys' as symbols here so
+  // user-defined classes or object bindings can shadow/override them. The
+  // semantic visitor will still accept member access for 'console.*' and
+  // 'sys.*' via special-cases in visit(MemberAccessExpr).
 }
 
 void SemanticAnalyzerVisitor::enterScope() {
@@ -166,10 +165,17 @@ void SemanticAnalyzerVisitor::visit(MemberAccessExpr& node) {
   if (node.object) node.object->accept(*this);
   // If object is 'console', allow 'log', 'error', 'warn' as built-in members
   if (auto objIdent = dynamic_cast<IdentifierExpr*>(node.object.get())) {
-    if (objIdent->name.getLexeme() == "console") {
+    auto objNameLex = objIdent->name.getLexeme();
+    if (objNameLex == "console") {
       std::string member = node.member.getLexeme();
       if (member == "log" || member == "error" || member == "warn") {
         // OK: treat as built-in
+        return;
+      }
+      // Accept 'sys' as a builtin object with runtime sys.* functions
+      if (objNameLex == "sys") {
+        // Allow any member access for now; concrete member validation happens
+        // during codegen or via metadata if desired.
         return;
       }
     }
@@ -567,6 +573,8 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
       }
       if (objName == "console") {
         funcName = objName + "." + member->member.getLexeme();
+      } else if (objName == "sys") {
+        funcName = objName + "." + member->member.getLexeme();
       } else {
         // Look up variable type; if it's a class type, use that
         auto sym = currentScope->lookup(objName);
@@ -591,7 +599,8 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
   }
   // Allow built-in console methods
   if (funcName == "console.log" || funcName == "console.error" ||
-      funcName == "console.warn") {
+      funcName == "console.warn" ||
+      (funcName.size() >= 4 && funcName.rfind("sys.", 0) == 0)) {
     // OK: treat as built-in
   } else {
     // Only validate and report if we have resolved a concrete function name.

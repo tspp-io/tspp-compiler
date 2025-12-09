@@ -1,0 +1,26 @@
+// Simple concurrent-like test: multiple rapid connect/accept sequences
+function main(): int {
+  console.log("START_SERVER_CONCURRENT_TEST");
+  let port: int = 9003;
+  let h: int = sys.tcp_server_start(port);
+  console.log("SERVER_HANDLE:", h);
+  for (let i: int = 0; i < 5; i = i + 1) {
+    // connect
+    let sock: int = sys.tcp_connect("127.0.0.1", port);
+    console.log("CLIENT", i, "SOCK:", sock);
+    if (sock > 0) {
+      let cfd: int = sys.tcp_server_accept(h, 5000);
+      console.log("SERVER_ACCEPTED:", cfd);
+      let msg: string = "ping " + sys.int_to_string(i);
+      let sent: int = sys.tcp_send(sock, msg, msg.length);
+      console.log("CLIENT_SENT:", sent);
+      let sdata: string = sys.tcp_recv(cfd, 1024);
+      console.log("SERVER_RECV:", sdata);
+      sys.tcp_close(sock);
+      if (cfd > 0) sys.tcp_close(cfd);
+    }
+  }
+  let stopRes: int = sys.tcp_server_stop(h);
+  console.log("SERVER_STOPPED:", stopRes);
+  return 0;
+}

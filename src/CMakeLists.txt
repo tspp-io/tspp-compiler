@@ -10,6 +10,7 @@ add_library(core
     core/utils/file_utils.cpp
     core/utils/log_utils.cpp
     core/utils/string_utils.cpp
+    core/syscall/syscall_wrapper.cpp
 )
 
 add_library(tokens
@@ -65,12 +66,21 @@ else()
     message(FATAL_ERROR "Boehm GC library not found. Please install libgc-dev.")
 endif()
 
+# Find libcurl for HTTP support in runtime syscalls
+find_package(CURL REQUIRED)
+if(CURL_FOUND)
+    message(STATUS "Found libcurl: ${CURL_VERSION_STRING}")
+else()
+    message(FATAL_ERROR "libcurl not found. Please install libcurl and development headers.")
+endif()
+
 # Include LLVM directories
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
 # Link dependencies
 target_link_libraries(core PUBLIC tokens)
+target_link_libraries(core PUBLIC CURL::libcurl)
 target_link_libraries(tokens PUBLIC core)
 target_link_libraries(lexer PUBLIC core tokens)
 target_link_libraries(parser PUBLIC core tokens)
@@ -97,8 +107,3 @@ target_link_libraries(tspp
         interpreter
         LLVM
 )
-
-# Add TSPP standard library
-add_subdirectory(packages/tspp_std)
-
-target_link_libraries(tspp PRIVATE tspp_std)

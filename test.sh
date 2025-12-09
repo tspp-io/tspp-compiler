@@ -58,13 +58,14 @@ llvm-as "$LLVM_IR" -o temp.bc
 
 
 # 4. Compile to native executable
-STD_LIB="./build/src/packages/tspp_std/libtspp_std.a"
-if [ -f "$STD_LIB" ]; then
-  # Stdlib is built with AddressSanitizer; link with it to satisfy symbols.
-  # Suppress harmless LLVM warning about overriding module target triple
-  clang "$LLVM_IR" "$STD_LIB" -o temp_exec -lstdc++ -lgc -fsanitize=address -no-pie -Wno-override-module
+CORE_LIB="./build/src/libcore.a"
+if [ -f "$CORE_LIB" ]; then
+  # Link with core runtime (which provides syscall wrappers and console functions)
+  clang "$LLVM_IR" "$CORE_LIB" -o temp_exec \
+    -Wl,--start-group -lcurl -lstdc++ -lgc -pthread -Wl,--end-group \
+    -fsanitize=address -no-pie -Wno-override-module
 else
-  echo "❌ Standard library not found at $STD_LIB. Did you build the project?"
+  echo "❌ Core runtime library not found at $CORE_LIB. Did you build the project?"
   exit 1
 fi
 

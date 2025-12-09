@@ -34,11 +34,20 @@ int main(int argc, char* argv[]) {
       out.close();
       // Compile to LLVM IR
       std::string irFile = tempFile + ".ll";
-      codegen::LLVMCodeGenerator codegen;
       lexer::Lexer lexer(codeBuffer);
       auto tokens = lexer.tokenize();
       auto ast = parser::buildAST(tokens);
       if (ast) {
+        // Run semantic analysis so codegen can get accurate types
+        ast::SemanticAnalyzerVisitor semanticAnalyzer;
+        ast->accept(semanticAnalyzer);
+        if (!semanticAnalyzer.getErrors().empty()) {
+          std::cerr << "Semantic error(s) in REPL input:\n";
+          for (auto& e : semanticAnalyzer.getErrors()) std::cerr << e << "\n";
+          codeBuffer.clear();
+          continue;
+        }
+        codegen::LLVMCodeGenerator codegen(&semanticAnalyzer);
         codegen.generate(ast.get(), irFile);
         // Remove target triple
         std::string sedCmd =
@@ -47,12 +56,12 @@ int main(int argc, char* argv[]) {
         // Assemble
         std::string asCmd = "llvm-as " + irFile + " -o temp.bc";
         std::system(asCmd.c_str());
-        // Link and build
-        std::string stdlib = "./build/src/packages/tspp_std/libtspp_std.a";
-        std::string clangCmd =
-            "clang " + irFile + " " + stdlib +
-            " -O3 -o temp_exec -lstdc++ -lgc -fsanitize=address "
-            "-no-pie -Wno-override-module";
+        // Link and build (without tspp_std - now using syscall wrapper)
+        std::string clangCmd = "clang " + irFile +
+                               " ./build/src/libcore.a "
+                               " -O3 -o temp_exec -lcurl -lstdc++ -lgc "
+                               "-pthread -fsanitize=address "
+                               "-no-pie -Wno-override-module";
         std::system(clangCmd.c_str());
         // Run and print output
         std::string runCmd = "./temp_exec";
@@ -80,7 +89,15 @@ int main(int argc, char* argv[]) {
   auto tokens = lexer.tokenize();
   auto ast = parser::buildAST(tokens);
   if (ast) {
-    codegen::LLVMCodeGenerator codegen;
+    // Run semantic analysis so codegen has resolved types
+    ast::SemanticAnalyzerVisitor semanticAnalyzer;
+    ast->accept(semanticAnalyzer);
+    if (!semanticAnalyzer.getErrors().empty()) {
+      std::cerr << "Semantic error(s):\n";
+      for (auto& e : semanticAnalyzer.getErrors()) std::cerr << e << "\n";
+      return 1;
+    }
+    codegen::LLVMCodeGenerator codegen(&semanticAnalyzer);
     codegen.generate(ast.get(), irFile);
     // Remove target triple
     std::string sedCmd =
@@ -89,11 +106,12 @@ int main(int argc, char* argv[]) {
     // Assemble
     std::string asCmd = "llvm-as " + irFile + " -o temp.bc";
     std::system(asCmd.c_str());
-    // Link and build
-    std::string stdlib = "./build/src/packages/tspp_std/libtspp_std.a";
-    std::string clangCmd = "clang " + irFile + " " + stdlib +
-                           " -O3 -o temp_exec -lstdc++ -lgc -fsanitize=address "
-                           "-no-pie -Wno-override-module";
+    // Link and build (without tspp_std - now using syscall wrapper)
+    std::string clangCmd =
+        "clang " + irFile +
+        " ./build/src/libcore.a "
+        " -O3 -o temp_exec -lcurl -lstdc++ -lgc -pthread -fsanitize=address "
+        "-no-pie -Wno-override-module";
     std::system(clangCmd.c_str());
     // Run and print output
     std::string runCmd = "./temp_exec";

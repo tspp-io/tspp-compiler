@@ -130,7 +130,7 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   llvm::Constant* constantValueToLLVM(const ast::ConstantValue& constVal);
 
   // Helpers for classes
-  llvm::Type* getPointerTy();
+  llvm::PointerType* getPointerTy();
   llvm::Value* emitSizeOfClass(const std::string& className);
   llvm::Value* ensureBitcast(llvm::Value* value, llvm::Type* toTy);
   llvm::Value* emitFieldPtr(llvm::Value* objPtr, const std::string& className,
