@@ -33,6 +33,7 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void visit(IfStmt&) override;
   void visit(WhileStmt&) override;
   void visit(ForStmt&) override;
+  void visit(AsmStmt&) override;
   void visit(ReturnStmt&) override;
   void visit(VarDecl&) override;
   void visit(Parameter&) override;

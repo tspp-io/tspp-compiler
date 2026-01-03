@@ -54,6 +54,13 @@ class StatementBuilder {
   static Shared(ast::ReturnStmt) buildReturn(tokens::TokenStream& stream);
 
   /**
+   * @brief Build asm statement
+   * @param stream Token stream to parse from
+   * @return Shared pointer to asm statement, or nullptr on error
+   */
+  static Shared(ast::AsmStmt) buildAsm(tokens::TokenStream& stream);
+
+  /**
    * @brief Build expression statement
    * @param stream Token stream to parse from
    * @return Shared pointer to expression statement, or nullptr on error

@@ -22,6 +22,8 @@ Shared(ast::Stmt) StatementBuilder::build(tokens::TokenStream& stream) {
       return buildFor(stream);
     case tokens::TokenType::RETURN:
       return buildReturn(stream);
+    case tokens::TokenType::ASM:
+      return buildAsm(stream);
     // Support storage-qualified local declarations: e.g., `#stack let x: int =
     // 1;`
     case tokens::TokenType::STACK: {
@@ -212,6 +214,118 @@ Shared(ast::ExprStmt)
   stmt->expression = expr;
   stmt->location = expr->location;
   if (stream.peek().getType() == tokens::TokenType::SEMICOLON) stream.advance();
+  return stmt;
+}
+
+Shared(ast::AsmStmt) StatementBuilder::buildAsm(tokens::TokenStream& stream) {
+  if (stream.peek().getType() != tokens::TokenType::ASM) return nullptr;
+  auto stmt = std::make_shared<ast::AsmStmt>();
+  stmt->location = stream.peek().getLocation();
+  stream.advance();  // consume #asm
+
+  if (stream.peek().getType() == tokens::TokenType::VOLATILE) {
+    stmt->isVolatile = true;
+    stream.advance();
+  }
+
+  if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
+    // Error: expected '('
+    return nullptr;
+  }
+  stream.advance();  // consume '('
+
+  // Parse assembly string
+  if (stream.peek().getType() != tokens::TokenType::STRING_LITERAL) {
+    // Error: expected string literal
+    return nullptr;
+  }
+  stmt->assembly = stream.peek().getLexeme();
+  // Remove quotes
+  if (stmt->assembly.size() >= 2) {
+    stmt->assembly = stmt->assembly.substr(1, stmt->assembly.size() - 2);
+  }
+  stream.advance();
+
+  // Parse outputs
+  if (stream.peek().getType() == tokens::TokenType::COLON) {
+    stream.advance();  // consume ':'
+    while (stream.peek().getType() == tokens::TokenType::STRING_LITERAL) {
+      ast::AsmStmt::Constraint c;
+      c.constraint = stream.peek().getLexeme();
+      if (c.constraint.size() >= 2)
+        c.constraint = c.constraint.substr(1, c.constraint.size() - 2);
+      stream.advance();
+
+      if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
+        stream.advance();
+        c.expression = ExpressionBuilder::build(stream);
+        if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+          stream.advance();
+        }
+      }
+      stmt->outputs.push_back(c);
+
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Parse inputs
+  if (stream.peek().getType() == tokens::TokenType::COLON) {
+    stream.advance();  // consume ':'
+    while (stream.peek().getType() == tokens::TokenType::STRING_LITERAL) {
+      ast::AsmStmt::Constraint c;
+      c.constraint = stream.peek().getLexeme();
+      if (c.constraint.size() >= 2)
+        c.constraint = c.constraint.substr(1, c.constraint.size() - 2);
+      stream.advance();
+
+      if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
+        stream.advance();
+        c.expression = ExpressionBuilder::build(stream);
+        if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+          stream.advance();
+        }
+      }
+      stmt->inputs.push_back(c);
+
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Parse clobbers
+  if (stream.peek().getType() == tokens::TokenType::COLON) {
+    stream.advance();  // consume ':'
+    while (stream.peek().getType() == tokens::TokenType::STRING_LITERAL) {
+      std::string clobber = stream.peek().getLexeme();
+      if (clobber.size() >= 2) clobber = clobber.substr(1, clobber.size() - 2);
+      stmt->clobbers.push_back(clobber);
+      stream.advance();
+
+      if (stream.peek().getType() == tokens::TokenType::COMMA) {
+        stream.advance();
+      } else {
+        break;
+      }
+    }
+  }
+
+  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
+    stream.advance();
+  }
+
+  // Optional semicolon
+  if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
+    stream.advance();
+  }
+
   return stmt;
 }
 

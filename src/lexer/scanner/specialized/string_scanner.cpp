@@ -85,15 +85,23 @@ std::string StringScanner::scanEscapeSequence() {
     // Simple escape sequences
     case '\'':
     case '"':
-    case '\\':
-    case 'n':
-    case 'r':
-    case 't':
-    case '0': {
+    case '\\': {
       char c = peek();
       advance();
       return std::string(1, c);
     }
+    case 'n':
+      advance();
+      return "\n";
+    case 'r':
+      advance();
+      return "\r";
+    case 't':
+      advance();
+      return "\t";
+    case '0':
+      advance();
+      return std::string(1, '\0');
     // Hex escape sequence
     case 'x': {
       advance();
@@ -122,10 +130,10 @@ std::string StringScanner::scanEscapeSequence() {
 }
 
 bool StringScanner::validateCharacter(char c) const {
-  return c >= 32 && c <= 126;  // Printable ASCII range
+  return (c >= 32 && c <= 126) || c == '\n' || c == '\t';
 }
 
-bool StringScanner::validateEscapeSequence(const std::string &sequence) const {
+bool StringScanner::validateEscapeSequence(const std::string& sequence) const {
   // Check hex escape sequence
   if (sequence.length() == 2) {
     return std::all_of(sequence.begin(), sequence.end(), ::isxdigit);

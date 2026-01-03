@@ -582,6 +582,17 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
           std::string typeName = sym->typeName;
           // strip pointer star if present
           if (!typeName.empty() && typeName.back() == '*') typeName.pop_back();
+
+          // Special case for string.length
+          if (typeName == "string" && member->member.getLexeme() == "length") {
+            // Valid built-in property/method
+            // Validate arguments
+            for (auto& a : node.arguments) {
+              if (a) a->accept(*this);
+            }
+            return;
+          }
+
           // normalize generic type: SBox<string> -> SBox
           size_t lt = typeName.find('<');
           if (lt != std::string::npos) {
@@ -599,7 +610,7 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
   }
   // Allow built-in console methods
   if (funcName == "console.log" || funcName == "console.error" ||
-      funcName == "console.warn" ||
+      funcName == "console.warn" || funcName == "__builtin_syscall" ||
       (funcName.size() >= 4 && funcName.rfind("sys.", 0) == 0)) {
     // OK: treat as built-in
   } else {
@@ -694,6 +705,16 @@ void SemanticAnalyzerVisitor::visit(StatementSequenceNode& node) {
     if (node.statements[i]) {
       node.statements[i]->accept(*this);
     }
+  }
+}
+
+void SemanticAnalyzerVisitor::visit(AsmStmt& node) {
+  // Visit inputs and outputs to ensure variables are declared
+  for (auto& out : node.outputs) {
+    if (out.expression) out.expression->accept(*this);
+  }
+  for (auto& in : node.inputs) {
+    if (in.expression) in.expression->accept(*this);
   }
 }
 

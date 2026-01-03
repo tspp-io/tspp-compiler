@@ -19,6 +19,8 @@ To run any example:
 - **`hello_world.tspp`** - The classic "Hello, World!" program
 - **`variables.tspp`** - Variable declarations, types, and constants
 - **`functions.tspp`** - Function definitions, parameters, and return values
+- **`system.tspp`** - A system library implementation using inline assembly and syscalls
+- **`import_test/`** - Demonstrates module importing and transitive dependencies
 
 ### Language Features
 

@@ -95,10 +95,13 @@ void ModuleResolver::mergeInto(
   if (mergedOnce_.count(modulePath)) return;  // already merged
   mergedOnce_.insert(modulePath);
 
-  // naive merge: append declarations and statements; keep imports of root
-  // unchanged
-  for (auto& d : module->declarations) root->declarations.push_back(d);
-  for (auto& s : module->statements) root->statements.push_back(s);
+  // Prepend declarations and statements so they are available/executed before
+  // root code
+  root->declarations.insert(root->declarations.begin(),
+                            module->declarations.begin(),
+                            module->declarations.end());
+  root->statements.insert(root->statements.begin(), module->statements.begin(),
+                          module->statements.end());
 }
 
 bool ModuleResolver::resolveAndMerge(ast::ProgramNode* root,

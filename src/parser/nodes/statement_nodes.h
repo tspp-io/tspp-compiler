@@ -56,6 +56,21 @@ class ForStmt : public Stmt {
   AST_ACCEPT_IMPL(ForStmt);
 };
 
+class AsmStmt : public Stmt {
+ public:
+  std::string assembly;
+  struct Constraint {
+    std::string constraint;
+    Shared(Expr) expression;  // For inputs/outputs
+  };
+  std::vector<Constraint> outputs;
+  std::vector<Constraint> inputs;
+  std::vector<std::string> clobbers;
+  bool isVolatile = false;
+
+  AST_ACCEPT_IMPL(AsmStmt);
+};
+
 class ReturnStmt : public Stmt {
  public:
   Shared(Expr) value;

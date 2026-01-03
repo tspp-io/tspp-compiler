@@ -1,6 +1,7 @@
 #include "LLVMCodeGenerator.h"
 
 #include <gc.h>
+#include <llvm/IR/InlineAsm.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -2079,6 +2080,47 @@ void LLVMCodeGenerator::visit(ast::CallExpr& node) {
       return;
     }
     funcName = ident->name.getLexeme();
+
+    if (funcName == "__builtin_syscall") {
+      if (node.arguments.empty()) return;
+
+      std::vector<llvm::Value*> args;
+      std::vector<llvm::Type*> argTypes;
+
+      // Evaluate arguments
+      for (auto& arg : node.arguments) {
+        arg->accept(*this);
+        if (!lastValue) return;
+        args.push_back(lastValue);
+        argTypes.push_back(lastValue->getType());
+      }
+
+      static const char* regConstraints[] = {"{rax}", "{rdi}", "{rsi}", "{rdx}",
+                                             "{r10}", "{r8}",  "{r9}"};
+
+      std::string asmConstraints = "={rax}";
+      std::vector<llvm::Value*> asmArgs;
+      std::vector<llvm::Type*> asmArgTypes;
+
+      for (size_t i = 0; i < args.size(); ++i) {
+        if (i >= 7) break;  // Max 6 args + ID
+        asmConstraints += ",";
+        asmConstraints += regConstraints[i];
+        asmArgs.push_back(args[i]);
+        asmArgTypes.push_back(args[i]->getType());
+      }
+
+      asmConstraints += ",~{rcx},~{r11},~{memory}";
+
+      llvm::FunctionType* ft = llvm::FunctionType::get(
+          llvm::Type::getInt64Ty(context), asmArgTypes, false);
+      llvm::InlineAsm* ia =
+          llvm::InlineAsm::get(ft, "syscall", asmConstraints, true);
+      lastValue = builder->CreateCall(ia, asmArgs);
+      activeCallExprs.erase(&node);
+      return;
+    }
+
     auto itFn = functionReturnTypes.find(funcName);
     if (itFn != functionReturnTypes.end()) {
       calleeRetType = itFn->second;
@@ -4750,5 +4792,78 @@ llvm::Value* LLVMCodeGenerator::coerceToReturnType(llvm::Value* v,
   }
 
   return llvm::PoisonValue::get(expectedTy);
+}
+
+void LLVMCodeGenerator::visit(ast::AsmStmt& node) {
+  std::vector<llvm::Type*> argTypes;
+  std::vector<llvm::Value*> args;
+  std::string constraints;
+
+  std::vector<llvm::Type*> outputTypes;
+  std::vector<llvm::Value*> outputPtrs;  // Pointers to store results
+
+  // Handle outputs
+  for (size_t i = 0; i < node.outputs.size(); ++i) {
+    auto& out = node.outputs[i];
+    if (i > 0) constraints += ",";
+    constraints += out.constraint;
+
+    if (auto id = dynamic_cast<ast::IdentifierExpr*>(out.expression.get())) {
+      auto it = symbolTable.find(id->name.getLexeme());
+      if (it != symbolTable.end()) {
+        outputPtrs.push_back(it->second.value);
+        outputTypes.push_back(getLLVMType(it->second.typeName));
+      } else {
+        llvm::errs() << "Error: Asm output identifier not found: "
+                     << id->name.getLexeme() << "\n";
+        return;
+      }
+    } else {
+      llvm::errs() << "Error: Asm output must be an identifier\n";
+      return;
+    }
+  }
+
+  // Handle inputs
+  for (auto& in : node.inputs) {
+    if (!constraints.empty()) constraints += ",";
+    constraints += in.constraint;
+
+    in.expression->accept(*this);
+    if (!lastValue) return;  // Error
+
+    args.push_back(lastValue);
+    argTypes.push_back(lastValue->getType());
+  }
+
+  // Handle clobbers
+  for (auto& clobber : node.clobbers) {
+    if (!constraints.empty()) constraints += ",";
+    constraints += "~{" + clobber + "}";
+  }
+
+  llvm::Type* retType = llvm::Type::getVoidTy(context);
+  if (outputTypes.size() == 1) {
+    retType = outputTypes[0];
+  } else if (outputTypes.size() > 1) {
+    retType = llvm::StructType::get(context, outputTypes);
+  }
+
+  llvm::FunctionType* ft = llvm::FunctionType::get(retType, argTypes, false);
+  llvm::InlineAsm* ia =
+      llvm::InlineAsm::get(ft, node.assembly, constraints, node.isVolatile);
+  llvm::Value* result = builder->CreateCall(ia, args);
+
+  // Store results
+  if (outputTypes.size() == 1) {
+    builder->CreateStore(result, outputPtrs[0]);
+  } else if (outputTypes.size() > 1) {
+    for (size_t i = 0; i < outputTypes.size(); ++i) {
+      llvm::Value* val = builder->CreateExtractValue(result, i);
+      builder->CreateStore(val, outputPtrs[i]);
+    }
+  }
+
+  lastValue = nullptr;
 }
 }  // namespace codegen

@@ -1,0 +1,22 @@
+import sys from "../system.tspp";
+import math from "./math.tspp";
+
+function main(): int {
+    write(1, "Starting main...\n", 17);
+    let res: int = add(10, 20);
+    if (res == 30) {
+        printf("Import works! 10 + 20 = 30\n");
+    } else {
+        printf("Import failed!\n");
+    }
+    
+    let res2: int = get_sum_constants();
+    if (res2 == 30) {
+        printf("Transitive import works! TEN + TWENTY = 30\n");
+    } else {
+        printf("Transitive import failed!\n");
+    }
+
+    return 0;
+}
+main();

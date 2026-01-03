@@ -25,6 +25,7 @@ class ExprStmt;
 class IfStmt;
 class WhileStmt;
 class ForStmt;
+class AsmStmt;
 class ReturnStmt;
 class VarDecl;
 class Parameter;
@@ -76,6 +77,7 @@ class ASTVisitor {
   virtual void visit(IfStmt&) {}
   virtual void visit(WhileStmt&) {}
   virtual void visit(ForStmt&) {}
+  virtual void visit(AsmStmt&) {}
   virtual void visit(ReturnStmt&) {}
   virtual void visit(VarDecl&) {}
   virtual void visit(Parameter&) {}

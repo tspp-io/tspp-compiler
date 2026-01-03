@@ -89,6 +89,13 @@ int main(int argc, char* argv[]) {
   auto tokens = lexer.tokenize();
   auto ast = parser::buildAST(tokens);
   if (ast) {
+    // Resolve imports
+    parser::modules::ModuleResolver resolver;
+    if (!resolver.resolveAndMerge(ast.get(), inputFile)) {
+      std::cerr << "Import resolution failed\n";
+      return 1;
+    }
+
     // Run semantic analysis so codegen has resolved types
     ast::SemanticAnalyzerVisitor semanticAnalyzer;
     ast->accept(semanticAnalyzer);

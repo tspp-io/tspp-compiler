@@ -1,0 +1,60 @@
+// System library for TSPP
+
+const SYS_read = 0;
+const SYS_write = 1;
+const SYS_exit = 60;
+
+function exit(code: int): void {
+    __builtin_syscall(SYS_exit, code);
+}
+
+function write(fd: int, buf: string, len: int): int {
+    return __builtin_syscall(SYS_write, fd, buf, len);
+}
+
+function read(fd: int, buf: string, len: int): int {
+    return __builtin_syscall(SYS_read, fd, buf, len);
+}
+
+function strlen(s: string): int {
+    let len: int = 0;
+    let ptr: string = s;
+    #asm("xor %rax, %rax; mov $1, %rdi; cmp $$0, %rdi; je 2f; 1: cmpb $$0, (%rdi); je 2f; inc %rdi; inc %rax; jmp 1b; 2: mov %eax, $0" : "=r"(len) : "r"(ptr) : "rax", "rdi", "cc");
+    return len;
+}
+
+// Global buffer
+let _printf_buffer: string = "";
+const _BUFFER_SIZE = 1024;
+
+function _flush_buffer(): void {
+    if (_printf_buffer != "") {
+        write(1, _printf_buffer, strlen(_printf_buffer));
+        _printf_buffer = "";
+    }
+}
+
+function printf(s: string): void {
+    _printf_buffer = _printf_buffer + s;
+    
+    if (strlen(_printf_buffer) >= _BUFFER_SIZE) {
+        _flush_buffer();
+        return;
+    }
+    
+    // Check for newline
+    let has_newline: int = 0;
+    let ptr: string = s;
+    let len: int = strlen(s);
+    
+    #asm(
+        "xor %rax, %rax; mov $1, %rdi; mov $2, %rsi; mov $$10, %dl; loop_start: cmp $$0, %rsi; je loop_end; cmpb (%rdi), %dl; je found_newline; inc %rdi; dec %rsi; jmp loop_start; found_newline: mov $$1, %rax; loop_end: mov %eax, $0"
+        : "=r"(has_newline)
+        : "r"(ptr), "r"(len)
+        : "rax", "rdi", "rsi", "rdx", "cc"
+    );
+    
+    if (has_newline) {
+        _flush_buffer();
+    }
+}
