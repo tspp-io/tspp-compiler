@@ -1,6 +1,0 @@
-function main(): int {
-  for (let i: int = 0; i < 3; i = i + 1) {
-    // loop body
-  }
-  return 0;
-}

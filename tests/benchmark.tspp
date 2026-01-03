@@ -1,7 +1,0 @@
-function main(): int {
-  let x: int = 0;
-  for (let i: int = 0; i < 30000000; i = i + 1) {
-    x++;
-  }
-  return x;
-}

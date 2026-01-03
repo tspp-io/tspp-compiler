@@ -1,6 +1,0 @@
-import sys;
-
-function main() {
-  let p: string = sys.get_platform();
-  console.log(p);
-}

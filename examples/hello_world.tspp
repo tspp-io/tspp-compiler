@@ -1,7 +1,0 @@
-// Hello World example for TSPP
-// This demonstrates basic function definition and output
-
-func main() {
-    println("Hello, World!");
-    println("Welcome to TSPP - TypeScript-like syntax with Go-style semantics!");
-}

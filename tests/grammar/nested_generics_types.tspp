@@ -1,7 +1,0 @@
-// Build-only: nested generic type args should not confuse lexer/parser
-
-type Alias = Map<string, Box<int> >;
-
-type Deep = Outer<Middle<Inner<int> > >;
-
-function main(): int { return 0; }

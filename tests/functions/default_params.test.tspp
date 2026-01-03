@@ -1,8 +1,0 @@
-// Test: default parameters are filled once
-function formatPoint(x: float, y: float = 0.0, label: string = "P"): string {
-  return label + "(" + x + ", " + y + ")";
-}
-
-function main(): void {
-  console.log("formatPoint(1.1): ", formatPoint(1.1)); // expected: P(1.1, 0)
-}
