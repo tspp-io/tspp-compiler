@@ -1,9 +1,0 @@
-import constants from "./constants.tspp";
-
-function add(a: int, b: int): int {
-    return a + b;
-}
-
-function get_sum_constants(): int {
-    return add(TEN, TWENTY);
-}

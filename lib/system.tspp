@@ -1,4 +1,3 @@
-
 // System library for TSPP
 
 const SYS_read = 0;
@@ -17,26 +16,20 @@ function read(fd: int, buf: string, len: int): int {
     return __builtin_syscall(SYS_read, fd, buf, len);
 }
 
+function strlen(s: string): int {
+    let len: int = 0;
+    let ptr: string = s;
+    #asm("xor %rax, %rax; mov $1, %rdi; cmp $$0, %rdi; je 2f; 1: cmpb $$0, (%rdi); je 2f; inc %rdi; inc %rax; jmp 1b; 2: mov %eax, $0" : "=r"(len) : "r"(ptr) : "rax", "rdi", "cc");
+    return len;
+}
+
 // Global buffer
 let _printf_buffer: string = "";
 const _BUFFER_SIZE = 1024;
 
 function _flush_buffer(): void {
     if (_printf_buffer != "") {
-        // Assuming length() is available or we can compute it
-        // For now, passing a large number or assuming string knows its length
-        // But write needs length.
-        // Let's assume we have a strlen or string.length
-        // If not, we can use inline asm to find length?
-        // Or just pass the string and let write handle it if it was C, but syscall needs length.
-        
-        // Let's assume string has a length property or method.
-        // Based on LLVMCodeGenerator, strings are pointers.
-        
-        // I'll use a helper to get length if needed, but for now I'll assume .length() works
-        // as seen in some examples (implied).
-        
-        write(1, _printf_buffer, _printf_buffer.length());
+        write(1, _printf_buffer, strlen(_printf_buffer));
         _printf_buffer = "";
     }
 }
@@ -44,35 +37,18 @@ function _flush_buffer(): void {
 function printf(s: string): void {
     _printf_buffer = _printf_buffer + s;
     
-    // Check if buffer is full
-    if (_printf_buffer.length() >= _BUFFER_SIZE) {
+    if (strlen(_printf_buffer) >= _BUFFER_SIZE) {
         _flush_buffer();
         return;
     }
     
     // Check for newline
-    // We can use inline asm to check for newline efficiently!
     let has_newline: int = 0;
     let ptr: string = s;
-    let len: int = s.length();
+    let len: int = strlen(s);
     
     #asm(
-        "xor %%rax, %%rax
-        mov %1, %%rdi
-        mov %2, %%rsi
-        mov $10, %%dl  // newline char
-    loop_start:
-        cmp $0, %%rsi
-        je loop_end
-        cmpb (%%rdi), %%dl
-        je found_newline
-        inc %%rdi
-        dec %%rsi
-        jmp loop_start
-    found_newline:
-        mov $1, %%rax
-    loop_end:
-        mov %%rax, %0"
+        "xor %rax, %rax; mov $1, %rdi; mov $2, %rsi; mov $$10, %dl; loop_start: cmp $$0, %rsi; je loop_end; cmpb (%rdi), %dl; je found_newline; inc %rdi; dec %rsi; jmp loop_start; found_newline: mov $$1, %rax; loop_end: mov %eax, $0"
         : "=r"(has_newline)
         : "r"(ptr), "r"(len)
         : "rax", "rdi", "rsi", "rdx", "cc"
