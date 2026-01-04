@@ -28,6 +28,23 @@ TSPP++ is an innovative programming language that brings together the familiar s
 🎯 **TypeScript Syntax**: Familiar syntax for web developers  
 🔄 **Go Semantics**: Goroutine-inspired concurrency model  
 
+## Project Structure
+
+The project is organized as follows:
+
+- `src/`: Source code for the compiler components.
+  - `lexer/`: Lexical analysis and tokenization.
+  - `parser/`: Parsing logic and AST construction.
+  - `ast/`: Abstract Syntax Tree node definitions.
+  - `codegen/`: LLVM IR code generation.
+  - `interpreter/`: JIT interpreter for REPL.
+  - `core/`: Common utilities and diagnostics.
+  - `tokens/`: Token definitions.
+  - `main.cpp`: Compiler entry point.
+- `docs/`: Documentation files.
+- `tests/`: Test suite.
+- `scripts/`: Helper scripts for installation and setup.
+
 ## Quick Start
 
 ### Prerequisites
@@ -177,7 +194,9 @@ flowchart TD
 ## Documentation
 
 - 📖 **[Language Specification](docs/language_spec.md)** - Complete language reference
+- 🏗️ **[Architecture](docs/architecture.md)** - High-level compiler architecture
 - 🔧 **[Compilation Pipeline](docs/pipeline.md)** - How TSPP++ works internally
+- 💻 **[Development Setup](docs/dev-setup.md)** - Setting up the dev environment
 - 📝 **[Grammar Reference](docs/grammar.md)** - EBNF grammar specification
 - 🎯 **[Examples](examples/)** - Sample programs and tutorials
 
