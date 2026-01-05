@@ -1,4 +1,4 @@
-# TSPP++ Language Tokens and Keywords
+# tspp Language Tokens and Keywords
 
 ## Keywords
 ```

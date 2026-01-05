@@ -6,7 +6,7 @@
 #include "TokenUtils.h"
 #include "token_type.h"
 /**
- * Token - Represents a lexical token in TSPP++.
+ * Token - Represents a lexical token in tspp.
  */
 namespace tokens {
 

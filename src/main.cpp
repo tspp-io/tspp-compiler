@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
   llvm::llvm_shutdown_obj shutdown_on_exit;
   if (argc < 2) {
     // REPL mode
-    std::cout << "TSPP++ REPL (JIT mode)\n";
+    std::cout << "tspp REPL (JIT mode)\n";
     interpreter::JITInterpreter repl;
     std::string line, codeBuffer;
     while (true) {

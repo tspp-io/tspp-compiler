@@ -1,4 +1,4 @@
-TSPP++ Grammar Stabilization — To‑Do (v0.9.1)
+tspp Grammar Stabilization — To‑Do (v0.9.1)
 
 Goal: lock a correct, minimal grammar; patch parser/lexer/semantics in small, auditable steps; add micro tests; prevent future drift.
 

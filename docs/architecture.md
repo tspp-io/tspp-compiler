@@ -1,10 +1,10 @@
-# TSPP++ Compiler Architecture
+# tspp Compiler Architecture
 
-This document provides a high-level overview of the TSPP++ compiler architecture and its compilation pipeline.
+This document provides a high-level overview of the tspp compiler architecture and its compilation pipeline.
 
 ## Overview
 
-The TSPP++ compiler is a modular system written in C++17 that compiles TSPP++ source code into LLVM IR, which is then compiled to native machine code using Clang/LLVM.
+The tspp compiler is a modular system written in C++17 that compiles tspp source code into LLVM IR, which is then compiled to native machine code using Clang/LLVM.
 
 ## Compilation Pipeline
 
@@ -49,7 +49,7 @@ The **Code Generator** (`codegen::LLVMCodeGenerator`) traverses the validated AS
 ### 5. Native Compilation
 
 The generated LLVM IR (`.ll` file) is passed to `llvm-as` to create a bitcode file (`.bc`), which is then linked and compiled by `clang` to produce the final executable.
--   **Runtime Library**: The compiler links against `libcore.a` (TSPP++ runtime) and `libgc` (Boehm GC).
+-   **Runtime Library**: The compiler links against `libcore.a` (tspp runtime) and `libgc` (Boehm GC).
 
 ## Project Structure
 

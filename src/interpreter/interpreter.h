@@ -14,7 +14,7 @@ class JITInterpreter {
   JITInterpreter();
   ~JITInterpreter();
 
-  // Execute a line of TSPP++ code, returns true if successful
+  // Execute a line of tspp code, returns true if successful
   bool executeLine(const std::string& code);
 
   // For REPL variable persistence

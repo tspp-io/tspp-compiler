@@ -1,6 +1,6 @@
-# Contributing to TSPP++
+# Contributing to tspp
 
-Thank you for your interest in contributing to TSPP++! This document provides guidelines and information about how to contribute to the project.
+Thank you for your interest in contributing to tspp! This document provides guidelines and information about how to contribute to the project.
 
 ## Table of Contents
 
@@ -129,7 +129,7 @@ clang-format -i src/**/*.cpp src/**/*.h
 
 ### Key Principles
 
-1. **Performance**: TSPP++ is designed for performance - consider the impact of your changes
+1. **Performance**: tspp is designed for performance - consider the impact of your changes
 2. **Safety**: Maintain memory safety and type safety
 3. **Clarity**: Write self-documenting code with meaningful names
 4. **Testing**: Include tests for new functionality
@@ -324,10 +324,10 @@ Contributors are recognized in several ways:
 
 ## Legal
 
-By contributing to TSPP++, you agree that your contributions will be licensed under the MIT License. You also confirm that you have the right to submit the work under this license and agree to the [Developer Certificate of Origin](https://developercertificate.org/).
+By contributing to tspp, you agree that your contributions will be licensed under the MIT License. You also confirm that you have the right to submit the work under this license and agree to the [Developer Certificate of Origin](https://developercertificate.org/).
 
 ---
 
-Thank you for contributing to TSPP++! 🚀
+Thank you for contributing to tspp! 🚀
 
 If you have questions about contributing, please don't hesitate to ask in our GitHub Discussions or create an issue.

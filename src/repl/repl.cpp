@@ -7,7 +7,7 @@
 int main() {
   interpreter::JITInterpreter repl;
   std::string line, codeBuffer;
-  std::cout << "TSPP++ REPL (JIT mode)\n";
+  std::cout << "tspp REPL (JIT mode)\n";
   while (true) {
     std::cout << ">>> ";
     if (!std::getline(std::cin, line)) break;

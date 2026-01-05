@@ -1,4 +1,4 @@
-# TSPP++ Language Specification
+# tspp Language Specification
 
 > **Note**: This specification covers currently implemented features. For planned Go semantics, concurrency primitives, and standard library features, see the [comprehensive TODO in README.md](../README.md#todo---roadmap-to-full-implementation).
 

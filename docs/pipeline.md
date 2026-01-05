@@ -1,4 +1,4 @@
-# TSPP++ Compilation and Interpretation Pipeline
+# tspp Compilation and Interpretation Pipeline
 
 ## 1. Lexical Analysis
 - Tokenize source code into identifiers, keywords, symbols, literals.

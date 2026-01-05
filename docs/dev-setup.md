@@ -1,6 +1,6 @@
 # Development environment setup
 
-This document contains quick instructions and scripts to set up a development environment for the TSPP++ compiler on common platforms.
+This document contains quick instructions and scripts to set up a development environment for the tspp compiler on common platforms.
 
 Scripts
 - `./scripts/install_deps_ubuntu.sh` — Debian/Ubuntu installer (adds apt.llvm.org entry and installs LLVM 17 + build tools). Run with `sudo`.

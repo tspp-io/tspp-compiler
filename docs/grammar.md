@@ -3,7 +3,7 @@ Here’s your grammar converted into a **well-structured markdown file** with he
 
 ---
 
-# TSPP++ Formal Grammar (EBNF)
+# tspp Formal Grammar (EBNF)
 
 ## Program Structure
 

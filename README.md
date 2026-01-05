@@ -1,8 +1,8 @@
-# TSPP++ Programming Language
+# tspp Programming Language
 
 <div align="center">
 
-![TSPP++ Logo](docs/logo.png)
+![tspp Logo](docs/logo.png)
 
 **A modern systems programming language combining TypeScript-like syntax with Go-style semantics**
 
@@ -15,7 +15,7 @@
 
 ## Overview
 
-TSPP++ is an innovative programming language that brings together the familiar syntax of TypeScript with the performance and concurrency model of Go. It compiles to LLVM IR, enabling high-performance native code generation while providing advanced memory management, explicit control over memory regions, smart pointers, and zero-cost abstractions.
+tspp is an innovative programming language that brings together the familiar syntax of TypeScript with the performance and concurrency model of Go. It compiles to LLVM IR, enabling high-performance native code generation while providing advanced memory management, explicit control over memory regions, smart pointers, and zero-cost abstractions.
 
 ### Key Features
 
@@ -78,13 +78,13 @@ cd tspp
 # The binary will be located at ./build/src/tspp
 ```
 
-### Your First TSPP++ Program
+### Your First tspp Program
 
 Create a file called `hello.tspp`:
 
 ```typescript
-// hello.tspp - A simple TSPP++ program
-#stack string message = "Hello, TSPP++ World!";
+// hello.tspp - A simple tspp program
+#stack string message = "Hello, tspp World!";
 
 function main(): void {
     console.log(message);
@@ -120,14 +120,14 @@ Compile and run:
 
 ```bash
 ./build/src/tspp hello.tspp
-# Output: Hello, TSPP++ World!
+# Output: Hello, tspp World!
 ```
 
 ## Language Features
 
 ### Memory Management
 
-TSPP++ provides explicit control over memory regions:
+tspp provides explicit control over memory regions:
 
 ```typescript
 #stack int localVar = 42;        // Stack allocation
@@ -169,7 +169,7 @@ Compile-time optimizations with zero runtime overhead:
 
 ## Architecture
 
-TSPP++ follows a modern compiler architecture:
+tspp follows a modern compiler architecture:
 
 ```mermaid
 flowchart TD
@@ -184,7 +184,7 @@ flowchart TD
 
 ### Components
 
-- **Lexer**: Tokenizes TSPP++ source code
+- **Lexer**: Tokenizes tspp source code
 - **Parser**: Builds Abstract Syntax Tree (AST)
 - **Type System**: Advanced type checking and inference
 - **Code Generator**: LLVM IR generation
@@ -195,7 +195,7 @@ flowchart TD
 
 - 📖 **[Language Specification](docs/language_spec.md)** - Complete language reference
 - 🏗️ **[Architecture](docs/architecture.md)** - High-level compiler architecture
-- 🔧 **[Compilation Pipeline](docs/pipeline.md)** - How TSPP++ works internally
+- 🔧 **[Compilation Pipeline](docs/pipeline.md)** - How tspp works internally
 - 💻 **[Development Setup](docs/dev-setup.md)** - Setting up the dev environment
 - 📝 **[Grammar Reference](docs/grammar.md)** - EBNF grammar specification
 - 🎯 **[Examples](examples/)** - Sample programs and tutorials
@@ -393,7 +393,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**Made with ❤️ by the TSPP++ community**
+**Made with ❤️ by the tspp community**
 
 [Website](https://tspp.dev) • [Documentation](https://docs.tspp.dev) • [Discord](https://discord.gg/tspp)
 
