@@ -29,3 +29,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+
+Resume this session with:
+claude --resume fc1735da-be91-4681-8b54-7d647ce021ef
+ ~/Pr/t/tspp-compiler  on master ?1 ▓▒░ 
