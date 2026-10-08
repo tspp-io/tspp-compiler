@@ -53,7 +53,8 @@ struct Options {
 
 void printUsage(llvm::raw_ostream& os) {
   os << "Usage: tspp [options] <file.tspp> [-- program-args...]\n"
-        "       tspp                 start the REPL\n"
+        "       tspp                 start the REPL (each input is compiled\n"
+        "                            and run as a separate program)\n"
         "\n"
         "Without -o or --emit-llvm, the program is compiled, linked and run;\n"
         "tspp exits with the program's exit status.\n"
@@ -384,21 +385,49 @@ int compileFile(const Options& opts, const std::string& exeSelf) {
   return runProgram(exePath, opts.programArgs);
 }
 
-// REPL: each complete chunk is compiled as a fresh program and run.
+// Net '{' minus '}' in `line`, ignoring braces inside string literals and
+// after a `//` comment.
+int braceBalance(const std::string& line) {
+  int depth = 0;
+  char quote = 0;
+  for (size_t i = 0; i < line.size(); ++i) {
+    char c = line[i];
+    if (quote) {
+      if (c == '\\') ++i;
+      else if (c == quote) quote = 0;
+    } else if (c == '"' || c == '\'' || c == '`') {
+      quote = c;
+    } else if (c == '/' && i + 1 < line.size() && line[i + 1] == '/') {
+      break;
+    } else if (c == '{') {
+      ++depth;
+    } else if (c == '}') {
+      --depth;
+    }
+  }
+  return depth;
+}
+
+// REPL. Not an interpreter: each chunk (a line, or several lines until the
+// braces balance) is compiled, linked and run as a separate program through
+// the same path as `tspp file.tspp`. Nothing carries over between chunks.
 int runRepl(const Options& opts, const std::string& exeSelf) {
   auto tc = findToolchain(exeSelf);
   if (!tc) return kExitFailure;
-  std::cout << "tspp REPL (each input is compiled and run as a new program)\n";
+  std::cout << "tspp REPL: each input is compiled and run as a separate "
+               "program; nothing carries over between inputs. Ctrl-D exits.\n";
   std::string line, codeBuffer;
+  int depth = 0;
   while (true) {
-    std::cout << ">>> " << std::flush;
+    std::cout << (codeBuffer.empty() ? ">>> " : "... ") << std::flush;
     if (!std::getline(std::cin, line)) break;
-    if (line.empty()) continue;
-    codeBuffer += line + "\n";
-    if (line.find('{') != std::string::npos &&
-        line.find('}') == std::string::npos) {
+    if (codeBuffer.empty() && line.find_first_not_of(" \t\r") ==
+                                  std::string::npos)
       continue;
-    }
+    codeBuffer += line + "\n";
+    depth += braceBalance(line);
+    if (depth > 0) continue;  // inside a block: keep reading
+    depth = 0;
     TempDir tmp(opts.keepTemps);
     if (tmp.ok()) {
       std::string irPath = tmp.file("program.ll");
@@ -411,6 +440,7 @@ int runRepl(const Options& opts, const std::string& exeSelf) {
     }
     codeBuffer.clear();
   }
+  std::cout << "\n";
   return 0;
 }
 

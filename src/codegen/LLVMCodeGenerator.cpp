@@ -29,30 +29,6 @@ static bool hasTerminator(const llvm::BasicBlock* bb) {
 }
 using namespace ast;
 
-std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
-    ast::BaseNode* root,
-    std::unordered_map<std::string, llvm::Value*>& globals) {
-  // Create a new LLVM module for each REPL line
-  auto replModule = std::make_unique<llvm::Module>("tspp_repl", context);
-  // Always emit a valid entry function for REPL
-  llvm::FunctionType* fnType =
-      llvm::FunctionType::get(llvm::Type::getVoidTy(context), false);
-  llvm::Function* entryFn =
-      llvm::Function::Create(fnType, llvm::Function::ExternalLinkage,
-                             "__repl_entry", replModule.get());
-  llvm::BasicBlock* bb = llvm::BasicBlock::Create(context, "entry", entryFn);
-  builder->SetInsertPoint(bb);
-
-  // Emit code for the AST node
-  this->module = std::move(replModule);
-  root->accept(*this);
-
-  // Always terminate with a valid void return
-  if (!hasTerminator(bb)) {
-    builder->CreateRetVoid();
-  }
-}
-
 // Visit ProgramNode: emit all declarations and statements in phases
 void LLVMCodeGenerator::visit(ast::ProgramNode& node) {
   // Phase 0: record top-level function return types so an untyped global
@@ -4654,47 +4630,7 @@ llvm::Constant* LLVMCodeGenerator::constantValueToLLVM(
   return nullptr;
 }
 
-// Constructor implementations
-LLVMCodeGenerator::LLVMCodeGenerator()
-    : builder(std::make_unique<llvm::IRBuilder<>>(context)),
-      module(std::make_unique<llvm::Module>("tspp", context)) {
-  // Register known runtime function return types for sys.* so that codegen
-  // can perform argument/return conversions correctly for these external
-  // functions.
-  functionReturnTypes["sys.get_platform"] = "string";
-  functionReturnTypes["sys.get_cpu_count"] = "int";
-  functionReturnTypes["sys.get_cwd"] = "string";
-  functionReturnTypes["sys.set_cwd"] = "int";
-  functionReturnTypes["sys.get_env"] = "string";
-  functionReturnTypes["sys.set_env"] = "int";
-  functionReturnTypes["sys.system_call"] = "string";
-  functionReturnTypes["sys.get_pid"] = "int";
-  functionReturnTypes["sys.exit_process"] = "void";
-  functionReturnTypes["sys.file_exists"] = "int";
-  functionReturnTypes["sys.read_file"] = "string";
-  functionReturnTypes["sys.write_file"] = "int";
-  functionReturnTypes["sys.delete_file"] = "int";
-  functionReturnTypes["sys.is_directory"] = "int";
-  // Network
-  functionReturnTypes["sys.http_get"] = "string";
-  functionReturnTypes["sys.tcp_connect"] = "int";
-  functionReturnTypes["sys.tcp_send"] = "int";
-  functionReturnTypes["sys.tcp_close"] = "int";
-  functionReturnTypes["sys.tcp_server_start"] = "int";
-  functionReturnTypes["sys.tcp_server_stop"] = "int";
-  functionReturnTypes["sys.tcp_server_accept"] = "int";
-  functionReturnTypes["sys.tcp_recv"] = "string";
-  functionReturnTypes["sys.tcp_recv_into"] = "int";
-  functionReturnTypes["sys.malloc"] = "ptr";
-  functionReturnTypes["sys.free"] = "void";
-  functionReturnTypes["sys.string_from_buffer"] = "string";
-  functionReturnTypes["sys.tcp_recv_into"] = "int";
-  // Graphics
-  functionReturnTypes["sys.create_canvas"] = "int";
-  functionReturnTypes["sys.draw_rect"] = "int";
-  functionReturnTypes["sys.present_canvas"] = "string";
-}
-
+// Constructor
 LLVMCodeGenerator::LLVMCodeGenerator(
     ast::SemanticAnalyzerVisitor* semanticAnalyzer)
     : builder(std::make_unique<llvm::IRBuilder<>>(context)),

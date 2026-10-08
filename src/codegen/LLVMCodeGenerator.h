@@ -17,15 +17,9 @@ namespace codegen {
 
 class LLVMCodeGenerator : public ast::ASTVisitor {
  public:
-  LLVMCodeGenerator();
-  LLVMCodeGenerator(ast::SemanticAnalyzerVisitor* semanticAnalyzer);
+  explicit LLVMCodeGenerator(ast::SemanticAnalyzerVisitor* semanticAnalyzer);
   void generate(ast::BaseNode* root);
   void generate(ast::BaseNode* root, const std::string& outFile);
-
-  // REPL support
-  std::unique_ptr<llvm::Module> generateModuleForREPL(
-      ast::BaseNode* root,
-      std::unordered_map<std::string, llvm::Value*>& globals);
 
   // AST node visit overrides
   void visit(ast::ProgramNode&) override;

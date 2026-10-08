@@ -8,9 +8,10 @@ control, compiled to native via LLVM. Safe by default, unsafe when you ask for i
 The driver emits LLVM IR into a private temp dir, checks it with `llvm-as`, links
 it with `clang` against the runtime (`libcore.a` next to the `tspp` binary), Boehm
 GC (`-lgc`) and libcurl, then runs the binary and exits with its status.
-It is **not an interpreter**. The REPL (`tspp` with no args) recompiles each chunk
-as a fresh program; the `JITInterpreter` it constructs is never used — it is not a
-working JIT. Docs say LLVM 17+; the local toolchain is **LLVM 23.1.1** (`/usr/bin`)
+It is **not an interpreter** and has no JIT. The REPL (`tspp` with no args,
+`runRepl` in `src/main.cpp`) compiles, links and runs each chunk (a line, or lines
+until braces balance) as a separate program through the normal driver path;
+nothing carries over between chunks (H2). Docs say LLVM 17+; the local toolchain is **LLVM 23.1.1** (`/usr/bin`)
 and must keep building. Status of features: `docs/KNOWLEDGE_TRANSFER.md` §1.2 and
 `docs/MISSING_FEATURES_REPORT.md` (accurate). Bug IDs (C1, H3, …): KNOWLEDGE_TRANSFER §9–10.
 The work plan is `docs/STABILIZATION_PLAN.md`.

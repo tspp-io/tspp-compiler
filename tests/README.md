@@ -77,7 +77,7 @@ wrong, and say so in the PR when you do.
 | `globals/` | Startup code (C2): global initializers, class static initializers/blocks, top-level statements, order across an import (`import_order_lib.tspp` is imported by `import_order.tspp` and also runs alone), `main` with parameters |
 | `regression/` | Known-bug pins from KNOWLEDGE_TRANSFER §8.3 (C1, C2, H1, H3, H4) |
 | `diagnostics/` | Negative tests, one or more per error class (lexer, parser, unsupported `enum`/`namespace`, semantic, imports, codegen, internal compiler error), each pinning `file:line:col` (H1, H6). `import_*_lib.tspp` are imported by their sibling and also run alone |
-| `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status, diagnostics format (warnings, error cap, no color when not a terminal), runtime ABI of `tspp_bool_to_string` |
+| `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status, diagnostics format (warnings, error cap, no color when not a terminal), runtime ABI of `tspp_bool_to_string`, the REPL (input piped into `tspp` with no arguments) |
 | `bench/` | Micro-benchmarks. **Not run** by `run.sh`. |
 
 Notes on specific restored tests:
