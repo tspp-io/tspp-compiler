@@ -26,7 +26,7 @@ Before contributing, ensure you have:
 
 - **C++ Compiler**: GCC 9+ or Clang 10+
 - **CMake**: Version 3.14 or higher
-- **LLVM**: Version 17 or higher
+- **LLVM**: 17 or newer, with development files, plus `clang` and `llvm-as` on `PATH`
 - **Boehm GC**: For garbage collection support
 - **libcurl** (with development headers): Used by the runtime's HTTP syscalls
 - **Git**: For version control
@@ -36,18 +36,14 @@ Before contributing, ensure you have:
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/tspp.git
-   cd tspp
+   git clone https://github.com/YOUR_USERNAME/tspp-compiler.git
+   cd tspp-compiler
    ```
 
-3. **Install dependencies**:
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install build-essential cmake llvm-17 llvm-17-dev clang-17 libgc-dev libcurl4-openssl-dev
-   
-   # macOS
-   brew install cmake llvm bdw-gc curl
-   ```
+3. **Install dependencies** with the script for your platform
+   (`scripts/install_deps_{ubuntu,fedora,arch,macos}.sh`), or with your
+   package manager: CMake, an LLVM ≥ 17 dev package and the matching clang,
+   Boehm GC and libcurl dev packages. See [docs/dev-setup.md](docs/dev-setup.md).
 
 4. **Build the project**:
    ```bash
@@ -56,9 +52,11 @@ Before contributing, ensure you have:
 
 5. **Run tests**:
    ```bash
-   cd tests
-   ./run_tests.sh  # If available
+   tests/run.sh
    ```
+
+6. **Read [CLAUDE.md](CLAUDE.md)** (working rules and known traps; written for
+   AI assistants, useful for humans too) and [tests/README.md](tests/README.md).
 
 ## How to Contribute
 
@@ -72,11 +70,11 @@ We welcome several types of contributions:
 - 🧪 **Tests and testing improvements**
 - 🔧 **Build system and tooling**
 - 🎨 **Examples and tutorials**
-- 🌐 **Translations**
 
 ### Areas Needing Help
 
-Check our [issues](https://github.com/theQuarky/tspp/issues) for areas where we need help:
+Check our [issues](https://github.com/tspp-io/tspp-compiler/issues) and the
+[roadmap](ROADMAP.md) (which lists open bugs with IDs) for areas where we need help:
 
 - Issues labeled `good first issue` for newcomers
 - Issues labeled `help wanted` for general contributions
@@ -87,19 +85,22 @@ Check our [issues](https://github.com/theQuarky/tspp/issues) for areas where we 
 ### Project Structure
 
 ```
-tspp/
-├── src/                    # Source code
-│   ├── ast/               # Abstract Syntax Tree
+tspp-compiler/
+├── src/
+│   ├── main.cpp           # Driver (CLI, toolchain invocation) and REPL
+│   ├── tokens/            # Token types; primitive_types.h (the type-name table)
 │   ├── lexer/             # Tokenization
-│   ├── parser/            # Parsing logic
-│   ├── types/             # Type system
-│   ├── codegen/           # LLVM code generation
-│   ├── core/              # Core utilities
-│   └── packages/          # Standard library
-├── tests/                 # Test files
-├── docs/                  # Documentation
-├── examples/              # Example programs
-└── tools/                 # Development tools
+│   ├── parser/            # AST nodes, builders (parser), semantic analysis, imports
+│   ├── codegen/           # LLVM IR generation
+│   ├── core/              # Diagnostics, utilities, and the runtime (core/syscall/)
+│   ├── ast/               # AST printers (not used by the build)
+│   └── types/             # Placeholder (not built)
+├── lib/system.tspp        # Experimental tspp-level stdlib (does not compile yet)
+├── tests/                 # Test suite: tests/run.sh, see tests/README.md
+├── scripts/               # Dependency installers, check_doc_samples.sh
+├── docs/                  # Language and compiler docs
+├── build.sh               # Configure + build (Debug or --release)
+└── test.sh                # Compile and run one file (wrapper around the driver)
 ```
 
 ### Building Components
@@ -119,8 +120,8 @@ cmake --build build -j$(nproc)
 # Test suite (TSPP=build-release/src/tspp to test the Release build)
 tests/run.sh
 
-# Run specific tests
-./test.sh examples/hello.tspp
+# One file: compile and run
+./build/src/tspp tests/examples/hello.tspp
 ```
 
 ## Coding Guidelines
@@ -136,8 +137,9 @@ clang-format -i src/**/*.cpp src/**/*.h
 
 ### Key Principles
 
-1. **Performance**: tspp is designed for performance - consider the impact of your changes
-2. **Safety**: Maintain memory safety and type safety
+1. **Correctness first**: the compiler must fail loudly (a located error, or
+   an internal compiler error) rather than emit wrong code
+2. **Diagnose before fixing**: find the root cause, with `file:line` evidence
 3. **Clarity**: Write self-documenting code with meaningful names
 4. **Testing**: Include tests for new functionality
 5. **Documentation**: Update documentation for user-facing changes
@@ -206,7 +208,7 @@ We follow the [Conventional Commits](https://www.conventionalcommits.org/) speci
 feat(parser): add support for union types
 fix(lexer): handle nested comments correctly
 docs(readme): update installation instructions
-test(codegen): add tests for SIMD operations
+test(codegen): add tests for compound assignment
 ```
 
 ## Pull Request Process
@@ -266,28 +268,21 @@ For feature requests, please provide:
 ### Running Tests
 
 ```bash
-# Build the project
 ./build.sh
-
-# Run example tests
-./test.sh tests/basic/variables.tspp
-./test.sh tests/advanced/generics.tspp
-
-# Run all tests (if test runner exists)
-cd tests && ./run_all.sh
+tests/run.sh                 # full suite; summary line PASS/FAIL/XFAIL/XPASS
+tests/run.sh regression      # only tests whose path contains "regression"
+scripts/check_doc_samples.sh # compile the ```tspp samples in the docs
 ```
 
 ### Writing Tests
 
-When adding new features, please include tests:
+Every fix and feature needs a test. A run test is `tests/<area>/<name>.tspp`
+plus `<name>.expected` (exact stdout). Parse-only and compile-error tests are
+marked with a header comment; a known bug is pinned with a `<name>.xfail`
+file whose first line names the bug ID. Details: [tests/README.md](tests/README.md).
 
-```bash
-# Create test file
-echo 'your test code here' > tests/feature/new_feature.tspp
-
-# Test it
-./test.sh tests/feature/new_feature.tspp
-```
+Never edit a `.expected` file to make a test pass unless the expectation is
+provably wrong, and say so in the PR.
 
 ## Documentation
 
@@ -310,7 +305,6 @@ echo 'your test code here' > tests/feature/new_feature.tspp
 
 - **GitHub Issues**: Bug reports and feature requests
 - **GitHub Discussions**: General questions and community discussion
-- **Discord**: Real-time chat (coming soon)
 
 ### Getting Help
 
@@ -319,7 +313,6 @@ If you need help:
 1. Check existing **issues** and **discussions**
 2. Review the **documentation**
 3. Ask questions in **GitHub Discussions**
-4. Join our **Discord server** (coming soon)
 
 ### Recognition
 
