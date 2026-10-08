@@ -24,7 +24,8 @@ pacman -Syu --noconfirm --needed \
   llvm \
   clang \
   lld \
-  bdw-gc
+  bdw-gc \
+  curl
 
 echo "Installed packages. Verify llvm-config is available: llvm-config --version"
 echo "If llvm-config shows a version >= 17 you're set; otherwise consider installing a specific LLVM release or using the distro package manager to upgrade."

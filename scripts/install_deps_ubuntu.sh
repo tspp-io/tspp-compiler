@@ -36,6 +36,7 @@ apt-get install -y --no-install-recommends \
   llvm-17-dev \
   libclang-17-dev \
   libgc-dev \
+  libcurl4-openssl-dev \
   ca-certificates
 
 echo "Installation complete. You may need to log out/in for PATH changes to take effect."

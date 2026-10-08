@@ -53,12 +53,4 @@ if [ -f "compile_commands.json" ]; then
     cp compile_commands.json .. || handle_error "Failed to copy compile_commands.json"
 fi
 
-
-
-# Run a test build with extended LeakSanitizer suppression
-echo -e "${YELLOW}Running test build...${NC}"
-cd .. || handle_error "Failed to return to project root"
-export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=0:exitcode=0"
-./build/src/tspp --version 2>&1 | grep -v 'LeakSanitizer' | grep -v 'SUMMARY: AddressSanitizer' | grep -v 'Direct leak' || echo -e "${YELLOW}Note: --version not implemented yet${NC}"
-
 echo -e "${GREEN}All done! Binary located at ./build/src/tspp${NC}"

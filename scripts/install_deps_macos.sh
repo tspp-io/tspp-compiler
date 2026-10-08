@@ -15,7 +15,7 @@ echo "Updating Homebrew..."
 brew update
 
 echo "Installing required packages via Homebrew..."
-brew install cmake llvm@17 bdw-gc ninja pkg-config git
+brew install cmake llvm@17 bdw-gc curl ninja pkg-config git
 
 echo "Homebrew installs LLVM keg-only. To use it, you may need to add it to your PATH and set LLVM_DIR:" \
      "\n  export PATH=$(brew --prefix llvm@17)/bin:$PATH" \
