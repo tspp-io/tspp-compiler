@@ -3,6 +3,36 @@
 > Drop this file into the repo as `docs/STABILIZATION_PLAN.md`. Every prompt below tells Claude Code to read it, so it always has the full picture.
 > Source of truth for bugs and IDs (C1, H3, …): `docs/KNOWLEDGE_TRANSFER.md` §9–10.
 
+## Status (2026-10-08): all phases done
+
+Every phase ran on its own branch, **stacked** on the previous one (each
+branch starts from the last phase's tip, not from `master`). Nothing is merged
+or pushed yet, so there are no PRs; merge them into `master` in this order.
+Phase 0 itself sits on `feat/parse-control-flow-and-update-exprs`
+(24d05a9, b3febde, f62c886: control-flow parsing and `++`/`--`/`op=`/`?:`
+lowering, done before the plan).
+
+| Phase | Branch | Commits | Result |
+|---|---|---|---|
+| 0 | `chore/claude-md` | 01c05f5 | `CLAUDE.md`; positioning decided (see Phase 0) |
+| 1 | `test/harness` | b46e49a, aa9bebe, 50c5758, e39be85 | `tests/run.sh` golden-output suite, xfail pins, CTest |
+| 2 | `ci/fix` | 0eba7d6 | CI gates PRs on `master` (C4, M7) |
+| 3 | `fix/safe-driver` | 887a687, d920727 | No shell, checked stages, temp dir, CLI (C3, C3b, L4) |
+| 4 | `fix/string-ownership` | 2ece020, 85f2759 | GC-owned runtime strings, GC init (C1, C1b) |
+| 5 | `fix/global-ctors` | 2b424a5, 77601c3 | Global initializers and top-level code run (C2, C2b, C2c) |
+| 6 | `fix/diagnostics` | 19a61b6 … 80c8bf0 (6 commits) | Located diagnostics, `verifyModule` (H1, H6) |
+| 7 | `fix/quick-wins` | 1e87fb9, 5d9d7ff, 785d307, ce1050a | Precedence, `boolean` = `bool`, REPL without JIT (H3, H4, H2) |
+| 9 | `build/cmake-options` | 231fd32 | Build types, sanitizer options, Release CI job (M1, M2) |
+| 8 | `docs/truth-pass` | this branch | Docs match the code (H7a–g, L3); `ROADMAP.md`; doc samples compiled by the suite |
+
+**Phase 9 ran before Phase 8**, so the docs pass could document the final
+build (`--release`, sanitizer options, generated `compile_commands.json`)
+instead of describing a build that was about to change.
+
+Bugs found along the way are in `KNOWLEDGE_TRANSFER.md` §9.7 (H8–H12, M8–M11,
+L5–L6) and in [`ROADMAP.md`](../ROADMAP.md), which also holds the
+"After Phase 9" feature order. The prompts below are kept as they were run.
+
 ---
 
 ## The rule of this plan

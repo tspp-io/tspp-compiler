@@ -12,9 +12,10 @@ It is **not an interpreter** and has no JIT. The REPL (`tspp` with no args,
 `runRepl` in `src/main.cpp`) compiles, links and runs each chunk (a line, or lines
 until braces balance) as a separate program through the normal driver path;
 nothing carries over between chunks (H2). Docs say LLVM 17+; the local toolchain is **LLVM 23.1.1** (`/usr/bin`)
-and must keep building. Status of features: `docs/KNOWLEDGE_TRANSFER.md` §1.2 and
-`docs/MISSING_FEATURES_REPORT.md` (accurate). Bug IDs (C1, H3, …): KNOWLEDGE_TRANSFER §9–10.
-The work plan is `docs/STABILIZATION_PLAN.md`.
+and must keep building. Status of features: README "Works today" (each row links a passing test),
+`docs/KNOWLEDGE_TRANSFER.md` §1.2. Bug IDs (C1, H3, …): KNOWLEDGE_TRANSFER §9
+(new ones in §9.7). What comes next: `ROADMAP.md`. The finished stabilization
+plan: `docs/STABILIZATION_PLAN.md`.
 
 ## Pipeline (where each stage lives)
 
@@ -128,5 +129,8 @@ run mode, the program's own status.
 - Operator precedence (H3 fixed) is the TS/C table, named levels in
   `ExpressionBuilder.h`; `docs/grammar.md` and
   `tests/regression/h3_precedence_table.tspp` follow it.
-- Many docs (README, `docs/architecture.md`, `docs/language_spec.md`) overstate
-  features (H7). Trust the code, `KNOWLEDGE_TRANSFER.md`, and `MISSING_FEATURES_REPORT.md`.
+- Docs were made truthful (H7 fixed). Keep them so: list a feature as working
+  only with a passing test; fence code samples ```` ```tspp ```` (compiled by
+  `scripts/check_doc_samples.sh`, run by the suite as `tests/driver/doc_samples.sh`)
+  or ```` ```tspp-planned ```` for syntax that doesn't work yet. When a fix lands,
+  update the README tables, `ROADMAP.md` and KNOWLEDGE_TRANSFER §9 status.
