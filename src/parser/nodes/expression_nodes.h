@@ -89,6 +89,33 @@ class ObjectLiteralExpr : public Expr {
   AST_ACCEPT_IMPL(ObjectLiteralExpr);
 };
 
+// Compound assignment: target op= value (+=, -=, *=, /=, %=, &=, |=, ^=)
+class CompoundAssignmentExpr : public Expr {
+ public:
+  Shared(Expr) target;
+  tokens::Token op;  // The compound operator token, e.g. PLUS_EQUALS
+  Shared(Expr) value;
+  AST_ACCEPT_IMPL(CompoundAssignmentExpr);
+};
+
+// Increment/decrement: ++x, --x, x++, x--
+class UpdateExpr : public Expr {
+ public:
+  tokens::Token op;  // PLUS_PLUS or MINUS_MINUS
+  Shared(Expr) operand;
+  bool isPrefix = false;
+  AST_ACCEPT_IMPL(UpdateExpr);
+};
+
+// Ternary conditional: condition ? thenExpr : elseExpr
+class ConditionalExpr : public Expr {
+ public:
+  Shared(Expr) condition;
+  Shared(Expr) thenExpr;
+  Shared(Expr) elseExpr;
+  AST_ACCEPT_IMPL(ConditionalExpr);
+};
+
 #undef AST_ACCEPT_IMPL
 
 }  // namespace ast

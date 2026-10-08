@@ -26,6 +26,9 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void visit(ObjectLiteralExpr&) override;
   void visit(IdentifierExpr&) override;
   void visit(AssignmentExpr&) override;
+  void visit(CompoundAssignmentExpr&) override;
+  void visit(UpdateExpr&) override;
+  void visit(ConditionalExpr&) override;
   void visit(CallExpr&) override;
   void visit(MemberAccessExpr&) override;
   void visit(BlockStmt&) override;
@@ -35,6 +38,13 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void visit(ForStmt&) override;
   void visit(AsmStmt&) override;
   void visit(ReturnStmt&) override;
+  void visit(DoWhileStmt&) override;
+  void visit(ForOfStmt&) override;
+  void visit(BreakStmt&) override;
+  void visit(ContinueStmt&) override;
+  void visit(SwitchStmt&) override;
+  void visit(ThrowStmt&) override;
+  void visit(TryStmt&) override;
   void visit(VarDecl&) override;
   void visit(Parameter&) override;
   void visit(FunctionDecl&) override;
@@ -77,6 +87,15 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
   void enterScope();
   void exitScope();
   void reportError(const std::string& message);
+  // Report a construct that parses and type-checks but that
+  // LLVMCodeGenerator does not lower yet, so it is not silently dropped.
+  void reportNotLowered(const std::string& construct);
+  // Validate the target of '++', '--' or a compound assignment
+  void checkMutableTarget(Expr* target, const std::string& opName);
+
+  // Nesting depth of loops and switches, for break/continue validation
+  int loopDepth_ = 0;
+  int switchDepth_ = 0;
 
   // Recursion guard: true when evaluating a default parameter expression
   bool inDefaultParamEval_ = false;

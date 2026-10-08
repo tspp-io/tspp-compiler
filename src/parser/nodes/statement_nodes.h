@@ -77,6 +77,65 @@ class ReturnStmt : public Stmt {
   AST_ACCEPT_IMPL(ReturnStmt);
 };
 
+// do stmt while (condition);
+class DoWhileStmt : public Stmt {
+ public:
+  Shared(Stmt) body;
+  Shared(Expr) condition;
+  AST_ACCEPT_IMPL(DoWhileStmt);
+};
+
+// for (let|const name[: Type] of iterable) stmt
+class ForOfStmt : public Stmt {
+ public:
+  // Loop variable declaration (a VarDecl without initializer)
+  Shared(Stmt) variable;
+  Shared(Expr) iterable;
+  Shared(Stmt) body;
+  AST_ACCEPT_IMPL(ForOfStmt);
+};
+
+class BreakStmt : public Stmt {
+ public:
+  AST_ACCEPT_IMPL(BreakStmt);
+};
+
+class ContinueStmt : public Stmt {
+ public:
+  AST_ACCEPT_IMPL(ContinueStmt);
+};
+
+// switch (discriminant) { case expr: stmt* ... default: stmt* }
+class SwitchStmt : public Stmt {
+ public:
+  struct Case {
+    Shared(Expr) test;  // nullptr for 'default'
+    std::vector<Shared(Stmt)> body;
+    core::Location location;
+  };
+  Shared(Expr) discriminant;
+  std::vector<Case> cases;
+  AST_ACCEPT_IMPL(SwitchStmt);
+};
+
+class ThrowStmt : public Stmt {
+ public:
+  Shared(Expr) value;
+  AST_ACCEPT_IMPL(ThrowStmt);
+};
+
+// try { ... } [catch [(name[: Type])] { ... }] [finally { ... }]
+class TryStmt : public Stmt {
+ public:
+  Shared(BlockStmt) tryBlock;
+  bool hasCatchParam = false;
+  tokens::Token catchParam;
+  Shared(TypeNode) catchType;      // optional
+  Shared(BlockStmt) catchBlock;    // nullptr when no catch clause
+  Shared(BlockStmt) finallyBlock;  // nullptr when no finally clause
+  AST_ACCEPT_IMPL(TryStmt);
+};
+
 #undef AST_ACCEPT_IMPL
 
 }  // namespace ast

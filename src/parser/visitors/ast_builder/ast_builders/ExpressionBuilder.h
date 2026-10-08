@@ -26,6 +26,13 @@ class ExpressionBuilder {
   static Shared(ast::Expr) buildPrimary(tokens::TokenStream& stream);
 
   /**
+   * @brief Build primary expression followed by postfix '++' / '--'
+   * @param stream Token stream to parse from
+   * @return Shared pointer to expression node, or nullptr on error
+   */
+  static Shared(ast::Expr) buildPostfix(tokens::TokenStream& stream);
+
+  /**
    * @brief Build binary expression with precedence
    * @param stream Token stream to parse from
    * @param minPrec Minimum precedence level
@@ -56,6 +63,13 @@ class ExpressionBuilder {
    * @return true if binary operator, false otherwise
    */
   static bool isBinaryOperator(tokens::TokenType type);
+
+  /**
+   * @brief Check if token is a compound assignment operator (+=, -=, ...)
+   * @param type Token type to check
+   * @return true if compound assignment operator, false otherwise
+   */
+  static bool isCompoundAssignmentOperator(tokens::TokenType type);
 };
 
 }  // namespace parser

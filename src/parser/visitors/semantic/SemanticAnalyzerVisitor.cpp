@@ -6,6 +6,7 @@
 #include <unordered_set>
 
 #include "core/common/macros.h"
+#include "parser/nodes/declaration_nodes.h"
 #include "parser/nodes/meta_nodes.h"
 #include "parser/nodes/misc_nodes.h"
 #include "parser/nodes/statement_sequence_node.h"  // Ensure StatementSequenceNode is a complete type
@@ -34,6 +35,28 @@ void SemanticAnalyzerVisitor::exitScope() {
 
 void SemanticAnalyzerVisitor::reportError(const std::string& message) {
   errors.push_back(message);
+}
+
+void SemanticAnalyzerVisitor::reportNotLowered(const std::string& construct) {
+  reportError("'" + construct +
+              "' is parsed but not yet supported by code generation");
+}
+
+void SemanticAnalyzerVisitor::checkMutableTarget(Expr* target,
+                                                 const std::string& opName) {
+  if (auto ident = dynamic_cast<IdentifierExpr*>(target)) {
+    std::string varName = ident->name.getLexeme();
+    auto sym = currentScope->lookup(varName);
+    if (sym && sym->isConst) {
+      reportError("Cannot apply '" + opName + "' to const variable '" +
+                  varName + "'");
+    }
+  } else if (!dynamic_cast<MemberAccessExpr*>(target) &&
+             !dynamic_cast<IndexAccessExpr*>(target)) {
+    reportError("Invalid operand for '" + opName + "'");
+  }
+  // Undeclared identifiers are reported when the target itself is visited
+  if (target) target->accept(*this);
 }
 
 const std::vector<std::string>& SemanticAnalyzerVisitor::getErrors() const {
@@ -202,7 +225,9 @@ void SemanticAnalyzerVisitor::visit(IfStmt& node) {
 
 void SemanticAnalyzerVisitor::visit(WhileStmt& node) {
   if (node.condition) node.condition->accept(*this);
+  ++loopDepth_;
   if (node.body) node.body->accept(*this);
+  --loopDepth_;
 }
 
 void SemanticAnalyzerVisitor::visit(ForStmt& node) {
@@ -225,7 +250,9 @@ void SemanticAnalyzerVisitor::visit(ForStmt& node) {
   }
   if (node.condition) node.condition->accept(*this);
   if (node.increment) node.increment->accept(*this);
+  ++loopDepth_;
   if (node.body) node.body->accept(*this);
+  --loopDepth_;
   exitScope();
 }
 
@@ -716,6 +743,102 @@ void SemanticAnalyzerVisitor::visit(AsmStmt& node) {
   for (auto& in : node.inputs) {
     if (in.expression) in.expression->accept(*this);
   }
+}
+
+void SemanticAnalyzerVisitor::visit(CompoundAssignmentExpr& node) {
+  std::string opName = node.op.getLexeme();
+  checkMutableTarget(node.target.get(), opName);
+  if (node.value) node.value->accept(*this);
+  reportNotLowered("compound assignment '" + opName + "'");
+}
+
+void SemanticAnalyzerVisitor::visit(UpdateExpr& node) {
+  std::string opName = node.op.getLexeme();
+  checkMutableTarget(node.operand.get(), opName);
+  reportNotLowered((node.isPrefix ? "prefix '" : "postfix '") + opName + "'");
+}
+
+void SemanticAnalyzerVisitor::visit(ConditionalExpr& node) {
+  if (node.condition) node.condition->accept(*this);
+  if (node.thenExpr) node.thenExpr->accept(*this);
+  if (node.elseExpr) node.elseExpr->accept(*this);
+  reportNotLowered("?: (ternary)");
+}
+
+void SemanticAnalyzerVisitor::visit(DoWhileStmt& node) {
+  ++loopDepth_;
+  if (node.body) node.body->accept(*this);
+  --loopDepth_;
+  if (node.condition) node.condition->accept(*this);
+  reportNotLowered("do-while");
+}
+
+void SemanticAnalyzerVisitor::visit(ForOfStmt& node) {
+  // The loop variable is scoped to the loop; the iterable is evaluated in
+  // the enclosing scope.
+  if (node.iterable) node.iterable->accept(*this);
+  enterScope();
+  if (node.variable) node.variable->accept(*this);
+  ++loopDepth_;
+  if (node.body) node.body->accept(*this);
+  --loopDepth_;
+  exitScope();
+  reportNotLowered("for..of");
+}
+
+void SemanticAnalyzerVisitor::visit(BreakStmt&) {
+  if (loopDepth_ == 0 && switchDepth_ == 0) {
+    reportError("'break' outside of a loop or switch");
+  }
+  reportNotLowered("break");
+}
+
+void SemanticAnalyzerVisitor::visit(ContinueStmt&) {
+  if (loopDepth_ == 0) {
+    reportError("'continue' outside of a loop");
+  }
+  reportNotLowered("continue");
+}
+
+void SemanticAnalyzerVisitor::visit(SwitchStmt& node) {
+  if (node.discriminant) node.discriminant->accept(*this);
+  bool seenDefault = false;
+  ++switchDepth_;
+  for (auto& c : node.cases) {
+    if (c.test) {
+      c.test->accept(*this);
+    } else if (seenDefault) {
+      reportError("Multiple 'default' clauses in switch");
+    } else {
+      seenDefault = true;
+    }
+    for (auto& stmt : c.body) {
+      if (stmt) stmt->accept(*this);
+    }
+  }
+  --switchDepth_;
+  reportNotLowered("switch");
+}
+
+void SemanticAnalyzerVisitor::visit(ThrowStmt& node) {
+  if (node.value) node.value->accept(*this);
+  reportNotLowered("throw");
+}
+
+void SemanticAnalyzerVisitor::visit(TryStmt& node) {
+  if (node.tryBlock) node.tryBlock->accept(*this);
+  if (node.catchBlock) {
+    enterScope();
+    if (node.hasCatchParam) {
+      std::string name = node.catchParam.getLexeme();
+      currentScope->insert(name, Symbol{name, resolveType(node.catchType.get()),
+                                        false, false, false, nullptr});
+    }
+    node.catchBlock->accept(*this);
+    exitScope();
+  }
+  if (node.finallyBlock) node.finallyBlock->accept(*this);
+  reportNotLowered("try/catch");
 }
 
 }  // namespace ast
