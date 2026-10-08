@@ -25,6 +25,7 @@ The work plan is `docs/STABILIZATION_PLAN.md`.
 | Semantic | `src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp` (+ `SemanticScope`) |
 | Codegen | `src/codegen/LLVMCodeGenerator.cpp` (~5k lines), `ConstantExpressionEvaluator.cpp` |
 | Driver | `src/main.cpp` (CLI; runs `llvm-as`, `clang`, the program via `llvm::sys::ExecuteAndWait`, no shell) |
+| Diagnostics | `src/core/diagnostics/error_reporter.*`: the single sink `core::diagnostics()` used by every stage (GCC-style `file:line:col: error: ...`); parser helpers in `ast_builders/ParseDiagnostics.h` |
 | Runtime | `src/core/syscall/syscall_wrapper.cpp` (`extern "C" tspp_*`), built into `libcore.a` |
 
 ## Build and run (verified)
@@ -105,9 +106,18 @@ run mode, the program's own status.
   (`GC_MALLOC_ATOMIC`; C1/C1b fixed). Never free it; `tspp_free_string` is a no-op.
   A string pointer stored only in non-GC memory (e.g. `sys.malloc`) is invisible to
   the collector.
-- The parser silently skips tokens it doesn't understand and lexer errors are
-  ignored (H1); codegen errors go to stderr but IR is still written and run, with no
-  `verifyModule` (H6). "Exit 0" proves little — check the output.
+- Diagnostics (H1/H6 fixed): lexer, parser, import, semantic and codegen errors
+  all go through `core::diagnostics()` with a location; the driver stops after
+  the first stage that reported an error and exits 1. The parser reports
+  "expected X, found Y" and resynchronizes at the next statement (`finishListItem`,
+  `synchronize`). Report new errors through the sink, never `std::cerr`.
+  After codegen `llvm::verifyModule` runs; invalid IR is an *internal compiler
+  error* (a codegen bug), never patched up. Each function must terminate its own
+  blocks (`finishFunction`). Codegen still has silent `lastValue = nullptr`
+  paths, so "exit 0" proves little — check the output.
+- The lexer inserts a `;` token (lexeme `"\n"`, see `isImplicitSemicolon`) at line
+  ends, except after a token that cannot end a statement (`,` `(` operators) and
+  before a line starting with `)` `]` `.` or a binary operator.
 - Operator precedence differs from `docs/grammar.md` (H3): `& | ^` bind like
   comparisons, shifts like `+ -`.
 - Many docs (README, `docs/architecture.md`, `docs/language_spec.md`) overstate

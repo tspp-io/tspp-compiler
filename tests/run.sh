@@ -12,8 +12,9 @@
 #     "// exit: <n>" header (default 0);
 #   - "// test: parse-only" header: `tspp --emit-llvm` exits 0 and the IR
 #     passes llvm-as (the program is not linked or run);
-#   - "// test: compile-error" header: `tspp -o <exe> <file>` exits non-zero;
-#     every "// error: <text>" header line must appear in stderr;
+#   - "// test: compile-error" header: `tspp -o <exe> <file>` exits 1 (a
+#     compile error, not a crash); every "// error: <text>" header line must
+#     appear in stderr (pin the location: "f.tspp:3:7: error: ...");
 #   - <name>.xfail marks a known failure (first line = reason). A failing xfail
 #     test is XFAIL; a passing one is XPASS and counts as a failure.
 # Only stdout is compared: ASan/LSan noise on stderr is ignored.
@@ -106,6 +107,10 @@ run_one() {
     compile-error)
       if [[ $rc -eq 0 ]]; then
         RESULT_MSG="expected a compile error, but the compiler exited 0"
+        return
+      fi
+      if [[ $rc -ne 1 ]]; then
+        RESULT_MSG="expected exit status 1 (compile error), got $rc; stderr: $(stderr_head "$work/.stderr")"
         return
       fi
       local want missing=""

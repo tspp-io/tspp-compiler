@@ -1,6 +1,7 @@
 #include "LLVMCodeGenerator.h"
 
 #include <gc.h>
+#include <llvm/IR/CFG.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/FileSystem.h>
