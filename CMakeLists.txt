@@ -19,3 +19,9 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
 
 # Add source directory
 add_subdirectory(src)
+
+# Golden-output test suite (tests/run.sh); run with `ctest` from the build dir.
+enable_testing()
+add_test(NAME tspp_golden_tests COMMAND ${CMAKE_SOURCE_DIR}/tests/run.sh)
+set_tests_properties(tspp_golden_tests PROPERTIES
+    ENVIRONMENT "TSPP=$<TARGET_FILE:tspp>;TSPP_BUILD_DIR=${CMAKE_BINARY_DIR}")

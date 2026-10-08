@@ -1,3 +1,4 @@
+// test: parse-only
 // Build-only: ensure the parser treats <...> as type arguments only when followed by (, ., or [
 
 function id<T>(x: T): T { return x; }

@@ -1,0 +1,1 @@
+if (int) emits 'br i32' (no int->i1 conversion): invalid IR, link fails silently (H6)

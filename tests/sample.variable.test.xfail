@@ -1,0 +1,1 @@
+Global union-typed initializer emits invalid IR (@h = global i32 @3), link fails (H6: no verifyModule; M3c unions); object-literal lines are aspirational

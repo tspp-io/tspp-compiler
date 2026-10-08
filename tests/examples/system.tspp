@@ -1,3 +1,4 @@
+// test: parse-only
 // System library for TSPP
 
 const SYS_read = 0;

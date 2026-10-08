@@ -1,3 +1,4 @@
+// test: parse-only
 #abstract class C1 {}
 #packed class C2 {}
 #pinned class C3 {}

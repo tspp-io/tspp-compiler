@@ -1,3 +1,9 @@
+// test: compile-error
+// error: Cannot assign to const variable 'j'
+// error: Assignment to undeclared variable 'i'
+// NOTE (test harness): originally build-only, but the program is invalid: the
+// second loop assigns the const 'j' and the third uses 'i' outside its for-scope.
+// Both semantic errors are correct, so this is kept as a negative test.
 // Build-only: for-init allows variable decl without trailing semicolon
 
 function main(): int {

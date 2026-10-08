@@ -1,3 +1,4 @@
+// test: parse-only
 import Utils from "std/utils";
 
 class A {

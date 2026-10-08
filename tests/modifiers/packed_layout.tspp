@@ -1,3 +1,4 @@
+// test: parse-only
 #packed class P1 {
   a: int;
   b: boolean;

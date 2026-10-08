@@ -1,3 +1,5 @@
+// test: compile-error
+// error: assignment target
 // EXPECT_COMPILE_ERROR: invalid assignment target
 
 function f(x: int): int { return x; }

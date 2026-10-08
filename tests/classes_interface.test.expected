@@ -1,0 +1,26 @@
+Static block in Animal executed
+dist: 3.5
+ident: 42
+flexible: ok
+p1: (1.5, 2.5)
+p1 moved: (2, 3)
+stringifyPoint(p1): Point(2, 3)
+useBoxString(sb): hi!
+a.speak(): Generic makes a sound
+Animal.kingdom(): Animalia
+d.speak(): Rex barks (Labrador)
+d.getBreed(): Labrador
+[INFO] printing...
+c.area(): 12.56
+ba.get(0): 42
+isEven(6): true
+sumTo(5): 15
+forVariants(): 223
+precedenceDemo(): 44
+memberAndIndexAccess(): 146
+x: 5
+y: 5
+logical: true
+1<<3: 8
+8>>1: 4
+~0: -1

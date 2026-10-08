@@ -1,3 +1,4 @@
+// test: parse-only
 // Build-only: nested generic type args should not confuse lexer/parser
 
 type Alias = Map<string, Box<int> >;

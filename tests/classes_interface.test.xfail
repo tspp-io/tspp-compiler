@@ -1,0 +1,1 @@
+FLOAT (untracked, KT §6.4 ABI drift): IR calls tspp_float_to_string(float) but runtime takes double, so floats print 0.000000; formatting is %f not shortest; static block never runs and static field initializers are dropped (C2 family: __tspp_gc_ctor never registered)

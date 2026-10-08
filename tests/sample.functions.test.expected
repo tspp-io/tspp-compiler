@@ -1,0 +1,9 @@
+add(2,3): 5
+greet(): Hello, World
+greet('Alice'): Hello, Alice
+multiply(2.5, 4.0): 10
+formatPoint(1.1): P(1.1, 0)
+formatPoint(2.2, 3.3,'Q'): Q(2.2, 3.3)
+square(5): 25
+increment(7): 8
+logMessage: This is a test log

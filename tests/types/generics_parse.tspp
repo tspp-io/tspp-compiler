@@ -1,3 +1,4 @@
+// test: parse-only
 # abstract class Box<T extends int> {}
 class Box<T extends int> {
   // no methods; parse-only generics capture on class
