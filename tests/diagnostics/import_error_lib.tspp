@@ -1,0 +1,8 @@
+// test: compile-error
+// error: import_error_lib.tspp:6:26: error: expected an expression, found ')'
+// Imported by import_error.tspp: the error must name this file.
+
+function helper(): int {
+  let broken: int = (1 + );
+  return broken;
+}

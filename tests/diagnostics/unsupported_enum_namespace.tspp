@@ -1,0 +1,14 @@
+// test: compile-error
+// error: unsupported_enum_namespace.tspp:8:1: error: 'enum' declarations are not supported yet
+// error: unsupported_enum_namespace.tspp:9:1: error: 'namespace' declarations are not supported yet
+// error: unsupported_enum_namespace.tspp:12:3: error: 'enum' declarations are not supported yet
+// enum and namespace were dropped token by token (H1); they are reported
+// once each and skipped as a whole.
+
+enum Color { Red, Green }
+namespace Geometry { let origin = 0; }
+
+function main(): int {
+  enum Local { A, B }
+  return 0;
+}

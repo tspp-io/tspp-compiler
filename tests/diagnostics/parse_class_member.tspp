@@ -1,0 +1,10 @@
+// test: compile-error
+// error: parse_class_member.tspp:7:3: error: expected a class member (field, method or constructor), found '42'
+// error: parse_class_member.tspp:8:23: error: expected '{' or ';' after method signature, found 'return'
+
+class Point {
+  x: int;
+  42;
+  function get(): int return 1;
+}
+
