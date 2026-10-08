@@ -1,0 +1,21 @@
+// test: compile-error
+// error: semantic_errors.tspp:13:3: error: cannot assign to const variable 'k'
+// error: semantic_errors.tspp:14:16: error: use of undeclared identifier 'missing'
+// error: semantic_errors.tspp:15:3: error: call to undeclared function 'nope'
+// error: semantic_errors.tspp:16:3: error: too many arguments in call to 'one': expected 1, got 2
+// error: semantic_errors.tspp:17:3: error: 'this' used outside of a class context
+// Semantic errors used to be printed without any location (H1).
+
+function one(a: int): int { return a; }
+
+function main(): int {
+  let x: int = 1;
+  k = 3;
+  let y: int = missing;
+  nope(1);
+  one(1, 2);
+  this;
+  return 0;
+}
+
+const k: int = 0;

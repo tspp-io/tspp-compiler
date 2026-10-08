@@ -1,5 +1,5 @@
 // test: compile-error
-// error: add
+// error: h1_too_few_args.tspp:6:24: error: missing argument for parameter 'b' (no default) in call to 'add'
 // H1 negative test: calling a function with too few arguments must fail.
 function add(a: int, b: int): int { return a + b; }
 function main(): int {

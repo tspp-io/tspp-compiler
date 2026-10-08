@@ -1,0 +1,8 @@
+// test: compile-error
+// error: import_semantic_lib.tspp:6:10: error: use of undeclared identifier 'notDefined'
+// A semantic error in an imported file is reported at its own path/line.
+import libValue from "./import_semantic_lib.tspp";
+
+function main(): int {
+  return libValue();
+}

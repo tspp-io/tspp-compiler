@@ -1,5 +1,5 @@
 // test: compile-error
-// error: add
+// error: h1_too_many_args.tspp:6:24: error: too many arguments in call to 'add': expected 2, got 3
 // H1 negative test: calling a function with too many arguments must fail.
 function add(a: int, b: int): int { return a + b; }
 function main(): int {

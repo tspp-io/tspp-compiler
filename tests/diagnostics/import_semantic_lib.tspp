@@ -1,0 +1,7 @@
+// test: compile-error
+// error: import_semantic_lib.tspp:6:10: error: use of undeclared identifier 'notDefined'
+// Imported by import_semantic.tspp: the error must name this file.
+
+function libValue(): int {
+  return notDefined;
+}
