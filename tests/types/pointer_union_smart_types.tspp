@@ -1,0 +1,2 @@
+function f(a: @unsafe int*, b: int**, c: #shared<int>, d: #weak<Map<string, int>>, e: int | string | boolean): void {
+}

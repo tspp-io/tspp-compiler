@@ -1,0 +1,8 @@
+// String concatenation microbenchmark
+function main(): int {
+  let s: string = "";
+  for (let i: int = 0; i < 100000; i = i + 1) {
+    s = string_util.concat(s, "x"); // using stdlib string_util.concat
+  }
+  return s.length;
+}

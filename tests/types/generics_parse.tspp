@@ -1,0 +1,11 @@
+# abstract class Box<T extends int> {}
+class Box<T extends int> {
+  // no methods; parse-only generics capture on class
+}
+
+interface Pair<K, V extends int> {
+  function first(): K;
+  function second(): V;
+}
+
+type Alias = Map<string, Box<int> | Box<int*> >;
