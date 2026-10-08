@@ -92,6 +92,9 @@ void LexerState::newLine() {
     return;
   }
 
+  // The implicit semicolon sits at the end of the line it terminates.
+  core::Location eol(line_, column_, fileName_);
+
   // Update line tracking
   line_++;
   column_ = 1;
@@ -103,15 +106,15 @@ void LexerState::newLine() {
     if (lastToken.getType() != tokens::TokenType::SEMICOLON &&
         lastToken.getType() != tokens::TokenType::LEFT_BRACE &&
         lastToken.getType() != tokens::TokenType::RIGHT_BRACE) {
-      addToken(tokens::Token(tokens::TokenType::SEMICOLON, ";",
-                             core::Location(line_ - 1, column_)));
+      addToken(tokens::Token(tokens::TokenType::SEMICOLON, ";", eol));
     }
   }
 }
 
 void LexerState::addToken(tokens::Token token) {
   ASSERT(token.getLocation().getLine() <= line_);
-  ASSERT(token.getLocation().getColumn() <= column_);
+  ASSERT(token.getLocation().getLine() < line_ ||
+         token.getLocation().getColumn() <= column_);
 
   tokens_.push_back(std::move(token));
 }

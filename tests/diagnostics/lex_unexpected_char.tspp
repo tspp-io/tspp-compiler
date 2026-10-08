@@ -1,0 +1,9 @@
+// test: compile-error
+// error: lex_unexpected_char.tspp:6:18: error: unexpected character '$'
+// error: lex_unexpected_char.tspp:7:18: error: unexpected character '`'
+// Both lexer errors are reported; compilation stops after lexing.
+function main(): int {
+  let a: int = 1 $ 2;
+  let b: int = 3 ` 4;
+  return 0;
+}

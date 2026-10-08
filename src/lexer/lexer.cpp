@@ -5,6 +5,10 @@
 
 #include "lexer.h"
 
+#include <cctype>
+
+#include "core/diagnostics/error_reporter.h"
+
 namespace lexer {
 
 Lexer::Lexer(std::string source, std::string filename)
@@ -32,11 +36,14 @@ std::vector<tokens::Token> Lexer::tokenize() {
 }
 
 void Lexer::addError(const tokens::Token &token) {
-  std::string error =
-      "Lexical error at line " + std::to_string(token.getLocation().getLine()) +
-      ", column " + std::to_string(token.getLocation().getColumn()) + ": " +
-      token.getErrorMessage().value_or("Unknown error");
-  errors_.push_back(error);
+  std::string message = token.getErrorMessage().value_or("invalid token");
+  // Scanner messages are capitalized sentences ("Invalid operator").
+  if (!message.empty()) message[0] = static_cast<char>(std::tolower(message[0]));
+  if (!token.getLexeme().empty() && message == "invalid operator") {
+    message = "unexpected character '" + token.getLexeme() + "'";
+  }
+  errors_.push_back(message);
+  core::diagnostics().error(token.getLocation(), message);
 }
 
 } // namespace lexer
