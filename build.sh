@@ -46,6 +46,7 @@ echo -e "${YELLOW}Building project using ${NUM_CORES} cores...${NC}"
 cmake --build . -- -j"${NUM_CORES}" || handle_error "Build failed"
 
 echo -e "${GREEN}Build completed successfully!${NC}"
+./src/tspp --version || handle_error "tspp --version failed"
 
 # Copy compile_commands.json to root for tools like clangd
 if [ -f "compile_commands.json" ]; then

@@ -87,6 +87,13 @@ target_link_libraries(parser PUBLIC core tokens)
 target_link_libraries(tspp_codegen PUBLIC core parser LLVM ${BOEHM_GC_LIB})
 
 
+# libcore.a doubles as the runtime linked into compiled tspp programs.
+# Programs are not ASan-instrumented by default (tspp --asan opts in), so the
+# runtime must not reference the ASan runtime, and it must be linkable into a
+# PIE executable.
+target_compile_options(core PRIVATE -fno-sanitize=address)
+set_target_properties(core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # Include directories
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(tokens PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -96,6 +103,13 @@ target_include_directories(tspp_codegen PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Main executable
 add_executable(tspp main.cpp)
+
+# Version and LLVM tool directory for the driver (--version, finding clang /
+# llvm-as when they are not on PATH).
+target_compile_definitions(tspp PRIVATE
+    TSPP_VERSION="${PROJECT_VERSION}"
+    TSPP_LLVM_TOOLS_DIR="${LLVM_TOOLS_BINARY_DIR}"
+)
 
 target_link_libraries(tspp
     PRIVATE

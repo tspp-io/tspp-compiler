@@ -12,26 +12,23 @@ cd build && ctest --output-on-failure   # same suite through CTest
 
 ## How a test is run
 
-Each `tests/**/*.tspp` (except `tests/bench/`) is compiled with the real driver
-(`build/src/tspp`) inside its own temp directory. The temp directory holds a copy of
-the test's directory and a `build` symlink, because the current driver writes
-`<file>.ll`, `temp.bc` and `temp_exec` into its CWD and links `./build/src/libcore.a`.
-Each test has a timeout (`TSPP_TEST_TIMEOUT`, default 20 s). Only **stdout** is
-compared, so ASan/LSan noise on stderr doesn't matter. The driver's `Output: ` banner
-line is removed before the comparison.
+Each `tests/**/*.tspp` (except `tests/bench/`) is compiled in place with the real
+driver (`build/src/tspp -o <tmp>/exe file.tspp`, or `--emit-llvm` for parse-only),
+with a fresh temp directory as the working directory; the executable is then run
+there. Compiling and running each have a timeout (`TSPP_TEST_TIMEOUT`, default 20 s).
+Only **stdout** is compared, so ASan/LSan noise on stderr doesn't matter.
 
-The harness goes through the driver, not `test.sh`. `test.sh` wraps a `void main`
-in an `i32 main`, but the driver links a `void main` anyway (it only prints
-`[ERROR] User main() must return i32.`), so no test needs that patching. New tests
+Codegen wraps a `main(): void` in an `i32 main()` that returns 0, but new tests
 should declare `function main(): int`.
 
 ## Test kinds
 
 | Kind | How to declare | Passes when |
 |---|---|---|
-| run (default) | sibling `<name>.expected` | compiler exits 0, `temp_exec` was linked, stdout == `.expected` |
-| parse-only | `// test: parse-only` in the first 20 lines | compiler exits 0 and the emitted `.ll` passes `llvm-as` |
-| compile-error | `// test: compile-error`, plus optional `// error: <text>` lines | compiler exits non-zero and each `<text>` appears in stderr |
+| run (default) | sibling `<name>.expected`; optional `// exit: <n>` | `tspp -o` exits 0, stdout == `.expected`, exit status == `<n>` (default 0) |
+| parse-only | `// test: parse-only` in the first 20 lines | `tspp --emit-llvm` exits 0 and the IR passes `llvm-as` (not linked or run) |
+| compile-error | `// test: compile-error`, plus optional `// error: <text>` lines | `tspp -o` exits non-zero and each `<text>` appears in stderr |
+| driver | `tests/driver/<name>.sh` | the script exits 0 (it gets `TSPP` and a private `TMPDIR`) |
 
 `<name>` is the file name without `.tspp`, e.g. `sample.test.tspp` → `sample.test.expected`.
 
@@ -66,6 +63,7 @@ wrong, and say so in the PR when you do.
 | `examples/system.tspp` | Restored `examples/system.tspp` (same as `lib/system.tspp`), parse-only |
 | `basics/` | Passing smoke tests for the parts of `final.tspp` that work today |
 | `regression/` | Known-bug pins from KNOWLEDGE_TRANSFER §8.3 (C1, C2, H1, H3, H4) |
+| `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status |
 | `bench/` | Micro-benchmarks. **Not run** by `run.sh`. |
 
 Notes on specific restored tests:
