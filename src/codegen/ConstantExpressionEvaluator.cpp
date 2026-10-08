@@ -328,7 +328,13 @@ void ConstantExpressionEvaluator::visit(UnaryExpr& node) {
   TokenType op = node.op.getType();
 
   try {
-    if (operandResult->type == ConstantValue::INT && op == TokenType::MINUS) {
+    if ((operandResult->type == ConstantValue::INT ||
+         operandResult->type == ConstantValue::FLOAT) &&
+        op == TokenType::PLUS) {
+      result = std::move(operandResult);
+      evaluationSucceeded = true;
+    } else if (operandResult->type == ConstantValue::INT &&
+               op == TokenType::MINUS) {
       result = std::make_unique<ConstantValue>(-operandResult->asInt());
       evaluationSucceeded = true;
     } else if (operandResult->type == ConstantValue::FLOAT &&

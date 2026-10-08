@@ -338,6 +338,7 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       // Handle unary operators: -expr, !expr, @expr (address-of), *expr
       // (dereference)
     case tokens::TokenType::MINUS:
+    case tokens::TokenType::PLUS:    // Unary plus (numeric identity)
     case tokens::TokenType::EXCLAIM:
     case tokens::TokenType::TILDE:   // Bitwise NOT (~)
     case tokens::TokenType::AT:      // Address-of operator (@)
@@ -410,7 +411,8 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
       if (!expect(stream, tokens::TokenType::COLON,
                   "':' in conditional expression"))
         return nullptr;
-      cond->elseExpr = buildBinary(stream, prec);
+      // Like TS, each branch is an assignment expression.
+      cond->elseExpr = buildBinary(stream, kPrecAssignment);
       if (!cond->elseExpr) return nullptr;
       cond->location = q.getLocation();
       left = cond;
@@ -522,38 +524,44 @@ Shared(ast::CallExpr) ExpressionBuilder::buildCall(tokens::TokenStream& stream,
   return call;
 }
 
-// Operator precedence: higher number = higher precedence
+// Binary operator precedence, higher number = binds tighter. Matches
+// TypeScript/C (docs/grammar.md, "Operator precedence"):
+//   * / %  >  + -  >  << >>  >  < <= > >=  >  == !=  >  &  >  ^  >  |
+//   >  &&  >  ||  >  ?:  >  = op=
+// Unary operators (- + ! ~ @ * ++ --) bind tighter than all of these: they
+// are parsed in buildPrimary. Assignment and '?:' are right-associative.
 int ExpressionBuilder::getOperatorPrecedence(tokens::TokenType type) {
   switch (type) {
     case tokens::TokenType::STAR:
     case tokens::TokenType::SLASH:
     case tokens::TokenType::PERCENT:
-      return 6;  // Multiplicative
+      return kPrecMultiplicative;
     case tokens::TokenType::PLUS:
     case tokens::TokenType::MINUS:
-      return 5;  // Additive
-    case tokens::TokenType::EQUALS_EQUALS:
-    case tokens::TokenType::EXCLAIM_EQUALS:
+      return kPrecAdditive;
+    case tokens::TokenType::LEFT_SHIFT:
+    case tokens::TokenType::RIGHT_SHIFT:
+      return kPrecShift;
     case tokens::TokenType::LESS:
     case tokens::TokenType::LESS_EQUALS:
     case tokens::TokenType::GREATER:
     case tokens::TokenType::GREATER_EQUALS:
-      return 4;  // Comparison
-    case tokens::TokenType::AMPERSAND_AMPERSAND:
-      return 3;  // Logical AND
-    case tokens::TokenType::PIPE_PIPE:
-      return 2;  // Logical OR
-    case tokens::TokenType::PIPE:
-      return 4;  // Bitwise OR (below comparison, above logical)
-    case tokens::TokenType::CARET:
-      return 4;  // Bitwise XOR
+      return kPrecRelational;
+    case tokens::TokenType::EQUALS_EQUALS:
+    case tokens::TokenType::EXCLAIM_EQUALS:
+      return kPrecEquality;
     case tokens::TokenType::AMPERSAND:
-      return 4;  // Bitwise AND
-    case tokens::TokenType::LEFT_SHIFT:
-    case tokens::TokenType::RIGHT_SHIFT:
-      return 5;  // Shift (between additive and comparison per docs)
+      return kPrecBitAnd;
+    case tokens::TokenType::CARET:
+      return kPrecBitXor;
+    case tokens::TokenType::PIPE:
+      return kPrecBitOr;
+    case tokens::TokenType::AMPERSAND_AMPERSAND:
+      return kPrecLogicalAnd;
+    case tokens::TokenType::PIPE_PIPE:
+      return kPrecLogicalOr;
     case tokens::TokenType::QUESTION:
-      return 1;  // Ternary conditional (right-associative)
+      return kPrecConditional;
     case tokens::TokenType::EQUALS:
     case tokens::TokenType::PLUS_EQUALS:
     case tokens::TokenType::MINUS_EQUALS:
@@ -563,7 +571,7 @@ int ExpressionBuilder::getOperatorPrecedence(tokens::TokenType type) {
     case tokens::TokenType::AMPERSAND_EQUALS:
     case tokens::TokenType::PIPE_EQUALS:
     case tokens::TokenType::CARET_EQUALS:
-      return 1;  // Assignment
+      return kPrecAssignment;
     default:
       return 0;
   }

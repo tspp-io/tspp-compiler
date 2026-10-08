@@ -6,7 +6,8 @@ function main(): int {
   let b: int = 3;
   let c: int = 3;
   // a & (b == c) -> 1 & 1 -> nonzero; (a & b) == c -> 1 == 3 -> false
-  if (a & b == c) {
+  // ('!= 0' because an int condition still emits 'br i32', a separate bug)
+  if ((a & b == c) != 0) {
     console.log("bitand-vs-eq: ok");
   } else {
     console.log("bitand-vs-eq: wrong");

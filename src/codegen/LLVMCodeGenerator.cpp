@@ -3753,7 +3753,14 @@ void LLVMCodeGenerator::visit(ast::UnaryExpr& node) {
       return;
     }
 
-    if (op == "-") {
+    if (op == "+") {
+      // Unary plus: numeric identity; a boolean becomes 0/1 like in TS.
+      if (operandValue->getType()->isIntegerTy(1))
+        lastValue = builder->CreateZExt(
+            operandValue, llvm::Type::getInt32Ty(context), "pos");
+      else
+        lastValue = operandValue;
+    } else if (op == "-") {
       if (operandValue->getType()->isIntegerTy()) {
         lastValue = builder->CreateNeg(operandValue, "neg");
       } else if (operandValue->getType()->isFloatingPointTy()) {

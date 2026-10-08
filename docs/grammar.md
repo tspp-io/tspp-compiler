@@ -148,8 +148,17 @@ ReturnStatement    ::= 'return' [ Expression ] ';'
 
 Expression         ::= Assignment
 
-Assignment         ::= LogicalOr
-                    | Assignable '=' Assignment
+/* Loosest to tightest (TypeScript/C order; ExpressionBuilder::getOperatorPrecedence):
+     = op=  <  ?:  <  ||  <  &&  <  |  <  ^  <  &  <  == !=  <  < <= > >=
+            <  << >>  <  + -  <  * / %  <  unary
+   Assignment and ?: are right-associative; all other binary operators are
+   left-associative. Tested by tests/regression/h3_precedence_table.tspp. */
+
+Assignment         ::= Conditional
+                    | Assignable AssignOp Assignment
+AssignOp           ::= '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^='
+
+Conditional        ::= LogicalOr [ '?' Assignment ':' Assignment ]
 
 Assignable         ::= Identifier
                     | MemberAccess
@@ -169,7 +178,8 @@ Shift              ::= Additive   { ('<<' | '>>') Additive }
 Additive           ::= Multiplicative { ('+' | '-') Multiplicative }
 Multiplicative     ::= Unary      { ('*' | '/' | '%') Unary }
 
-Unary              ::= { ('!' | '+' | '-' | '~') } Postfix
+Unary              ::= ('!' | '+' | '-' | '~' | '@' | '*' | '++' | '--') Unary
+                    | Postfix
 
 Postfix            ::= Primary { PostfixOp }
 PostfixOp          ::= CallArgs

@@ -1,0 +1,28 @@
+unary-minus: 1
+unary-plus: 6
+unary-tilde: 5
+double-minus: 3
+unary-not: 1
+mul-add: 14
+div-sub: 7
+mod-add: 9
+sub-left: 3
+div-left: 2
+mul-mod-left: 2
+add-shl: 32
+sub-shr: 16
+shl-lt: 1
+shr-ge: 1
+lt-eq: 1
+gt-ne: 1
+eq-bitand: 1
+bitand-xor: 7
+xor-bitor: 5
+bitor-and: 1
+and-or: 1
+or-and: 1
+or-cond: 1
+cond-right: 2
+assign-cond: 2
+assign-right: 5 5
+compound-right: 9 4
