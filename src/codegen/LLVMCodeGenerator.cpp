@@ -2631,6 +2631,20 @@ void LLVMCodeGenerator::visit(ast::CallExpr& node) {
       if (litArg->value.getType() == TokenType::STRING_LITERAL) {
         semanticTypeName = "string";
       }
+    } else if (auto condArg = dynamic_cast<ConditionalExpr*>(arg.get())) {
+      // cond ? a : b is a string if either arm is a string literal or a
+      // string-typed variable (both arms share the result type)
+      for (auto* armExpr : {condArg->thenExpr.get(), condArg->elseExpr.get()}) {
+        if (auto lit = dynamic_cast<LiteralExpr*>(armExpr)) {
+          if (lit->value.getType() == tokens::TokenType::STRING_LITERAL)
+            semanticTypeName = "string";
+        } else if (auto id = dynamic_cast<IdentifierExpr*>(armExpr)) {
+          auto itSym = symbolTable.find(id->name.getLexeme());
+          if (itSym != symbolTable.end() &&
+              itSym->second.typeName == std::string("string"))
+            semanticTypeName = "string";
+        }
+      }
     }
 
     if (isConsole) {
@@ -3466,6 +3480,161 @@ void LLVMCodeGenerator::visit(ast::AssignmentExpr& node) {
     lastValue = val;
     return;
   }
+}
+
+void LLVMCodeGenerator::emitReadModifyWrite(const Shared(ast::Expr) & target,
+                                            const std::string& op,
+                                            const Shared(ast::Expr) & value) {
+  // Note: the target expression is evaluated twice (once to read, once to
+  // write), so side effects inside it, e.g. a[f()] += 1, run twice.
+  auto binary = std::make_shared<ast::BinaryExpr>();
+  binary->left = target;
+  binary->op = tokens::Token(tokens::TokenType::IDENTIFIER, op,
+                             target ? target->location : core::Location());
+  binary->right = value;
+  binary->location = binary->op.getLocation();
+  ast::AssignmentExpr assign;
+  assign.target = target;
+  assign.value = binary;
+  assign.location = binary->location;
+  visit(assign);
+}
+
+llvm::Value* LLVMCodeGenerator::toBool(llvm::Value* v) {
+  if (!v) return nullptr;
+  llvm::Type* ty = v->getType();
+  if (ty->isIntegerTy(1)) return v;
+  if (ty->isIntegerTy())
+    return builder->CreateICmpNE(v, llvm::ConstantInt::get(ty, 0), "tobool");
+  if (ty->isFloatingPointTy())
+    return builder->CreateFCmpONE(v, llvm::ConstantFP::get(ty, 0.0), "tobool");
+  if (ty->isPointerTy()) return builder->CreateIsNotNull(v, "tobool");
+  return nullptr;
+}
+
+// Visit CompoundAssignmentExpr: a op= b  ->  a = a op b
+void LLVMCodeGenerator::visit(ast::CompoundAssignmentExpr& node) {
+  if (!currentFunction || !node.target || !node.value) {
+    lastValue = nullptr;
+    return;
+  }
+  std::string op = node.op.getLexeme();
+  if (op.size() < 2 || op.back() != '=') {
+    lastValue = nullptr;
+    return;
+  }
+  op.pop_back();  // "+=" -> "+"
+  emitReadModifyWrite(node.target, op, node.value);
+}
+
+// Visit UpdateExpr: ++x / x++ / --x / x--  ->  x = x +/- 1
+void LLVMCodeGenerator::visit(ast::UpdateExpr& node) {
+  if (!currentFunction || !node.operand) {
+    lastValue = nullptr;
+    return;
+  }
+  // Postfix yields the value from before the update
+  llvm::Value* oldValue = nullptr;
+  if (!node.isPrefix) {
+    node.operand->accept(*this);
+    oldValue = lastValue;
+  }
+  auto one = std::make_shared<ast::LiteralExpr>();
+  one->value = tokens::Token(tokens::TokenType::NUMBER, "1", node.location);
+  one->location = node.location;
+  emitReadModifyWrite(
+      node.operand,
+      node.op.getType() == tokens::TokenType::PLUS_PLUS ? "+" : "-", one);
+  if (!node.isPrefix && lastValue) lastValue = oldValue;
+}
+
+// Visit ConditionalExpr: cond ? a : b, evaluating only the taken branch
+void LLVMCodeGenerator::visit(ast::ConditionalExpr& node) {
+  if (!currentFunction || !node.condition || !node.thenExpr || !node.elseExpr) {
+    lastValue = nullptr;
+    return;
+  }
+  node.condition->accept(*this);
+  llvm::Value* cond = toBool(lastValue);
+  if (!cond) {
+    lastValue = nullptr;
+    return;
+  }
+
+  llvm::BasicBlock* thenBB =
+      llvm::BasicBlock::Create(context, "cond.then", currentFunction);
+  llvm::BasicBlock* elseBB =
+      llvm::BasicBlock::Create(context, "cond.else", currentFunction);
+  llvm::BasicBlock* endBB =
+      llvm::BasicBlock::Create(context, "cond.end", currentFunction);
+  builder->CreateCondBr(cond, thenBB, elseBB);
+
+  // Emit both arms without their final branch, so that casts to the common
+  // result type can still be appended to each arm.
+  builder->SetInsertPoint(thenBB);
+  node.thenExpr->accept(*this);
+  llvm::Value* thenV = lastValue;
+  llvm::BasicBlock* thenEnd = builder->GetInsertBlock();
+
+  builder->SetInsertPoint(elseBB);
+  node.elseExpr->accept(*this);
+  llvm::Value* elseV = lastValue;
+  llvm::BasicBlock* elseEnd = builder->GetInsertBlock();
+
+  // Pick the common type: double/float beats integers, wider int beats
+  // narrower, pointers must match pointers.
+  llvm::Type* resultTy = nullptr;
+  if (thenV && elseV) {
+    llvm::Type* a = thenV->getType();
+    llvm::Type* b = elseV->getType();
+    if (a == b) {
+      resultTy = a;
+    } else if (a->isFloatingPointTy() || b->isFloatingPointTy()) {
+      if ((a->isFloatingPointTy() || a->isIntegerTy()) &&
+          (b->isFloatingPointTy() || b->isIntegerTy())) {
+        resultTy = (a->isDoubleTy() || b->isDoubleTy() ||
+                    !a->isFloatingPointTy() || !b->isFloatingPointTy())
+                       ? llvm::Type::getDoubleTy(context)
+                       : llvm::Type::getFloatTy(context);
+      }
+    } else if (a->isIntegerTy() && b->isIntegerTy()) {
+      resultTy = a->getIntegerBitWidth() >= b->getIntegerBitWidth() ? a : b;
+    } else if (a->isPointerTy() && b->isPointerTy()) {
+      resultTy = a;
+    }
+  }
+
+  auto coerce = [&](llvm::Value* v) -> llvm::Value* {
+    llvm::Type* ty = v->getType();
+    if (ty == resultTy) return v;
+    if (ty->isIntegerTy() && resultTy->isIntegerTy())
+      return builder->CreateIntCast(v, resultTy, !ty->isIntegerTy(1));
+    if (ty->isIntegerTy() && resultTy->isFloatingPointTy())
+      return ty->isIntegerTy(1) ? builder->CreateUIToFP(v, resultTy)
+                                : builder->CreateSIToFP(v, resultTy);
+    if (ty->isFloatingPointTy() && resultTy->isFloatingPointTy())
+      return builder->CreateFPCast(v, resultTy);
+    if (ty->isPointerTy() && resultTy->isPointerTy())
+      return builder->CreatePointerCast(v, resultTy);
+    return v;
+  };
+
+  builder->SetInsertPoint(thenEnd);
+  if (resultTy) thenV = coerce(thenV);
+  builder->CreateBr(endBB);
+  builder->SetInsertPoint(elseEnd);
+  if (resultTy) elseV = coerce(elseV);
+  builder->CreateBr(endBB);
+
+  builder->SetInsertPoint(endBB);
+  if (!resultTy) {
+    lastValue = nullptr;
+    return;
+  }
+  llvm::PHINode* phi = builder->CreatePHI(resultTy, 2, "cond");
+  phi->addIncoming(thenV, thenEnd);
+  phi->addIncoming(elseV, elseEnd);
+  lastValue = phi;
 }
 
 // Visit UnaryExpr: handle unary operators

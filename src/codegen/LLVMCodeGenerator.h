@@ -35,6 +35,9 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   void visit(ast::BinaryExpr&) override;
   void visit(ast::UnaryExpr&) override;
   void visit(ast::AssignmentExpr&) override;
+  void visit(ast::CompoundAssignmentExpr&) override;
+  void visit(ast::UpdateExpr&) override;
+  void visit(ast::ConditionalExpr&) override;
   void visit(ast::FunctionDecl&) override;
   void visit(ast::ConstructorDecl&) override;
   void visit(ast::ReturnStmt&) override;
@@ -134,6 +137,13 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   llvm::PointerType* getPointerTy();
   llvm::Value* emitSizeOfClass(const std::string& className);
   llvm::Value* ensureBitcast(llvm::Value* value, llvm::Type* toTy);
+  // Lower 'target = target <op> value' through the BinaryExpr and
+  // AssignmentExpr paths; used by compound assignment and ++/--
+  void emitReadModifyWrite(const Shared(ast::Expr) & target,
+                           const std::string& op,
+                           const Shared(ast::Expr) & value);
+  // Convert a scalar to i1 (non-zero / non-null is true)
+  llvm::Value* toBool(llvm::Value* v);
   llvm::Value* emitFieldPtr(llvm::Value* objPtr, const std::string& className,
                             const std::string& fieldName);
 

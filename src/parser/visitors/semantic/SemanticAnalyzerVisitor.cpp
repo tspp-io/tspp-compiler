@@ -749,20 +749,17 @@ void SemanticAnalyzerVisitor::visit(CompoundAssignmentExpr& node) {
   std::string opName = node.op.getLexeme();
   checkMutableTarget(node.target.get(), opName);
   if (node.value) node.value->accept(*this);
-  reportNotLowered("compound assignment '" + opName + "'");
 }
 
 void SemanticAnalyzerVisitor::visit(UpdateExpr& node) {
   std::string opName = node.op.getLexeme();
   checkMutableTarget(node.operand.get(), opName);
-  reportNotLowered((node.isPrefix ? "prefix '" : "postfix '") + opName + "'");
 }
 
 void SemanticAnalyzerVisitor::visit(ConditionalExpr& node) {
   if (node.condition) node.condition->accept(*this);
   if (node.thenExpr) node.thenExpr->accept(*this);
   if (node.elseExpr) node.elseExpr->accept(*this);
-  reportNotLowered("?: (ternary)");
 }
 
 void SemanticAnalyzerVisitor::visit(DoWhileStmt& node) {
