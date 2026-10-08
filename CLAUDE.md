@@ -118,7 +118,8 @@ run mode, the program's own status.
 - The lexer inserts a `;` token (lexeme `"\n"`, see `isImplicitSemicolon`) at line
   ends, except after a token that cannot end a statement (`,` `(` operators) and
   before a line starting with `)` `]` `.` or a binary operator.
-- Operator precedence differs from `docs/grammar.md` (H3): `& | ^` bind like
-  comparisons, shifts like `+ -`.
+- Operator precedence (H3 fixed) is the TS/C table, named levels in
+  `ExpressionBuilder.h`; `docs/grammar.md` and
+  `tests/regression/h3_precedence_table.tspp` follow it.
 - Many docs (README, `docs/architecture.md`, `docs/language_spec.md`) overstate
   features (H7). Trust the code, `KNOWLEDGE_TRANSFER.md`, and `MISSING_FEATURES_REPORT.md`.
