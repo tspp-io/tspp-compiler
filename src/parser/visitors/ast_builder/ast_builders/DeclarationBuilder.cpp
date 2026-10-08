@@ -33,6 +33,16 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
       break;
   }
 
+  // Method attributes (#inline, #virtual, #override) mean nothing on a free
+  // function; they are accepted and ignored, with a warning.
+  while (tokens::isMethodAttribute(stream.peek().getType())) {
+    core::diagnostics().warning(
+        stream.peek().getLocation(),
+        "'" + stream.peek().getLexeme() +
+            "' has no effect outside a class; ignored");
+    stream.advance();
+  }
+
   // Optional function modifier (applies only when followed by 'function')
   ast::FunctionModifier functionModifier = ast::FunctionModifier::None;
   if (tokens::isFunctionModifier(stream.peek().getType()) &&
@@ -1183,11 +1193,19 @@ Shared(ast::InterfaceDecl)
       continue;
     }
 
-    // Method signature: 'function' Identifier '(' [params] ')' [':' Type] ';'
-    if (stream.peek().getType() == tokens::TokenType::FUNCTION) {
+    // Method signature: ['function'] Identifier '(' [params] ')' [':' Type]
+    // ';' (TypeScript writes it without 'function').
+    auto memberTok = stream.peek().getType();
+    bool tsStyleMethod =
+        (memberTok == tokens::TokenType::IDENTIFIER ||
+         memberTok == tokens::TokenType::GET ||
+         memberTok == tokens::TokenType::SET) &&
+        stream.peekNext().getType() == tokens::TokenType::LEFT_PAREN;
+    if (stream.peek().getType() == tokens::TokenType::FUNCTION ||
+        tsStyleMethod) {
       auto funcDecl = std::make_shared<ast::FunctionDecl>();
       funcDecl->modifier = ast::FunctionModifier::None;
-      stream.advance();  // consume 'function'
+      if (!tsStyleMethod) stream.advance();  // consume 'function'
       auto nameTokType = stream.peek().getType();
       if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
             nameTokType == tokens::TokenType::GET ||

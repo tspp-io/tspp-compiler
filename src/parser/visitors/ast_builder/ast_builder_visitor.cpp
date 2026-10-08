@@ -90,6 +90,8 @@ bool ASTBuilderVisitor::isDeclarationStart() const {
   if (tokens::isClassModifier(stream_.peek().getType())) {
     return true;
   }
+  // #inline / #virtual / #override (ignored on free functions)
+  if (tokens::isMethodAttribute(stream_.peek().getType())) return true;
   // Function modifiers (#constexpr, #simd, #pinned, ...) before 'function',
   // and #pinned before 'class'
   if (tokens::isFunctionModifier(stream_.peek().getType()) &&

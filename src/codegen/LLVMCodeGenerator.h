@@ -160,6 +160,8 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   llvm::Function* moduleInitFn = nullptr;  // __tspp_global_ctors, if any
   core::Location mainLocation_;            // where the user's main is declared
   void emitModuleInit(ast::ProgramNode& program);
+  void finishFunction(llvm::Function* fn, const core::Location& loc,
+                      const std::string& name, bool declaredReturnType);
   void emitDeferredInit(const ast::VarDecl& decl, llvm::GlobalVariable* gvar);
   llvm::Type* resolveFunctionReturnType(ast::FunctionDecl& node,
                                         std::string& resolvedRetType);

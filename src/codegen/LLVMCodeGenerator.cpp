@@ -2,6 +2,7 @@
 
 #include <gc.h>
 #include <llvm/IR/InlineAsm.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -1966,27 +1967,8 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
   }
 
   if (node.body) node.body->accept(*this);
-
-  // If no explicit return, emit default value for the return type
-  if (!hasTerminator(entry)) {
-    if (retType->isIntegerTy(1)) {
-      builder->CreateRet(llvm::ConstantInt::getFalse(context));
-    } else if (retType->isIntegerTy()) {
-      builder->CreateRet(llvm::ConstantInt::get(retType, 0));
-    } else if (retType->isFloatTy()) {
-      builder->CreateRet(llvm::ConstantFP::get(retType, 0.0));
-    } else if (retType->isDoubleTy()) {
-      builder->CreateRet(llvm::ConstantFP::get(retType, 0.0));
-    } else if (retType->isPointerTy()) {
-      builder->CreateRet(llvm::ConstantPointerNull::get(
-          llvm::cast<llvm::PointerType>(retType)));
-    } else if (retType->isVoidTy()) {
-      builder->CreateRetVoid();
-    } else {
-      // Default to zero for unknown types
-      builder->CreateRet(llvm::Constant::getNullValue(retType));
-    }
-  }
+  finishFunction(func, node.location, node.name.getLexeme(),
+                 node.returnType != nullptr);
 
   currentFunction = prevFunction;
   // Restore outer scope symbols after finishing the function.
@@ -3174,7 +3156,9 @@ void LLVMCodeGenerator::visit(ast::IfStmt& node) {
   llvm::Value* condValue = lastValue;
 
   if (!condValue) {
-    return;  // Invalid condition
+    core::diagnostics().error(node.condition->location,
+                              "cannot generate code for this condition");
+    return;
   }
 
   // Create basic blocks for then, else, and merge
@@ -3247,7 +3231,8 @@ void LLVMCodeGenerator::visit(ast::WhileStmt& node) {
       // Create conditional branch: if true goto body, else goto merge
       builder->CreateCondBr(condValue, bodyBB, mergeBB);
     } else {
-      // Invalid condition, exit loop
+      core::diagnostics().error(node.condition->location,
+                                "cannot generate code for this condition");
       builder->CreateBr(mergeBB);
     }
   } else {
@@ -3306,7 +3291,8 @@ void LLVMCodeGenerator::visit(ast::ForStmt& node) {
       // Create conditional branch: if true goto body, else goto merge
       builder->CreateCondBr(condValue, bodyBB, mergeBB);
     } else {
-      // Invalid condition, exit loop
+      core::diagnostics().error(node.condition->location,
+                                "cannot generate code for this condition");
       builder->CreateBr(mergeBB);
     }
   } else {
@@ -3931,7 +3917,7 @@ void LLVMCodeGenerator::visit(ast::ConstructorDecl& node) {
   }
 
   if (node.body) node.body->accept(*this);
-  if (!hasTerminator(entry)) builder->CreateRetVoid();
+  finishFunction(func, node.location, "constructor", false);
   currentFunction = prevFunction;
 }
 
@@ -4230,19 +4216,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
       idx++;
     }
     if (m->body) m->body->accept(*this);
-    if (!hasTerminator(entry)) {
-      if (retTy->isVoidTy())
-        builder->CreateRetVoid();
-      else if (retTy->isIntegerTy())
-        builder->CreateRet(llvm::ConstantInt::get(retTy, 0));
-      else if (retTy->isFloatingPointTy())
-        builder->CreateRet(llvm::ConstantFP::get(retTy, 0.0));
-      else if (retTy->isPointerTy())
-        builder->CreateRet(llvm::ConstantPointerNull::get(
-            llvm::cast<llvm::PointerType>(retTy)));
-      else
-        builder->CreateRet(llvm::Constant::getNullValue(retTy));
-    }
+    finishFunction(func, m->location, fnName, m->returnType != nullptr);
     currentFunction = prevFunction;
   }
   classNameStack.pop_back();
@@ -4761,77 +4735,46 @@ LLVMCodeGenerator::LLVMCodeGenerator(
 
 // Generate method implementations
 void LLVMCodeGenerator::generate(ast::BaseNode* root) {
-  if (root) {
-    root->accept(*this);
-    emitEntryPoint();
-    // Ensure all functions have a valid terminator on their last basic block.
-    for (auto& F : module->functions()) {
-      if (F.isDeclaration()) continue;
-      if (F.empty()) continue;
-      llvm::BasicBlock* lastBB = &F.back();
-      if (hasTerminator(lastBB)) continue;
-      builder->SetInsertPoint(lastBB);
-      llvm::Type* retTy = F.getReturnType();
-      if (retTy->isVoidTy()) {
-        builder->CreateRetVoid();
-      } else if (retTy->isIntegerTy(1)) {
-        builder->CreateRet(llvm::ConstantInt::getFalse(context));
-      } else if (retTy->isIntegerTy()) {
-        builder->CreateRet(llvm::ConstantInt::get(retTy, 0));
-      } else if (retTy->isFloatTy() || retTy->isDoubleTy()) {
-        builder->CreateRet(llvm::ConstantFP::get(retTy, 0.0));
-      } else if (retTy->isPointerTy()) {
-        builder->CreateRet(llvm::ConstantPointerNull::get(
-            llvm::cast<llvm::PointerType>(retTy)));
-      } else {
-        builder->CreateRet(llvm::Constant::getNullValue(retTy));
-      }
-    }
-    // Also ensure no intermediate basic block is left unterminated. If a
-    // basic block has no terminator, branch to the next block in function
-    // order. This handles cases where codegen emitted empty fall-through
-    // blocks (e.g., empty `if`/`else` branches) which cause llvm-as to
-    // reject the IR.
-    for (auto& F : module->functions()) {
-      if (F.isDeclaration()) continue;
-      for (auto& BB : F) {
-        if (hasTerminator(&BB)) continue;
-        // Find next basic block in function
-        llvm::BasicBlock* next = BB.getNextNode();
-        builder->SetInsertPoint(&BB);
-        if (next) {
-          builder->CreateBr(next);
-        } else {
-          // No successor; emit a default return matching function type
-          llvm::Type* retTy = F.getReturnType();
-          if (retTy->isVoidTy()) {
-            builder->CreateRetVoid();
-          } else if (retTy->isIntegerTy(1)) {
-            builder->CreateRet(llvm::ConstantInt::getFalse(context));
-          } else if (retTy->isIntegerTy()) {
-            builder->CreateRet(llvm::ConstantInt::get(retTy, 0));
-          } else if (retTy->isFloatTy() || retTy->isDoubleTy()) {
-            builder->CreateRet(llvm::ConstantFP::get(retTy, 0.0));
-          } else if (retTy->isPointerTy()) {
-            builder->CreateRet(llvm::ConstantPointerNull::get(
-                llvm::cast<llvm::PointerType>(retTy)));
-          } else {
-            builder->CreateRet(llvm::Constant::getNullValue(retTy));
-          }
-        }
-      }
-    }
-  }
+  if (!root) return;
+  root->accept(*this);
+  emitEntryPoint();
 }
 
+// Writes the module to `outFile` if it is valid IR. Invalid IR is a bug in
+// the compiler: it is reported as an internal compiler error with the
+// verifier's explanation, and nothing is written (H6). Unterminated blocks
+// are not patched up here; each function's code generation is responsible
+// for terminating its own blocks.
 void LLVMCodeGenerator::generate(ast::BaseNode* root,
                                  const std::string& outFile) {
   generate(root);
+  if (core::diagnostics().hasErrors()) return;
 
-  // Write LLVM IR to file
+  std::string verifierOutput;
+  llvm::raw_string_ostream verifierStream(verifierOutput);
+  if (llvm::verifyModule(*module, &verifierStream)) {
+    verifierStream.flush();
+    // Keep the report short: the verifier prints each offending
+    // instruction after its message.
+    std::string firstLines;
+    int lines = 0;
+    for (size_t pos = 0; pos < verifierOutput.size() && lines < 12;) {
+      size_t nl = verifierOutput.find('\n', pos);
+      if (nl == std::string::npos) nl = verifierOutput.size();
+      firstLines += "\n  " + verifierOutput.substr(pos, nl - pos);
+      pos = nl + 1;
+      ++lines;
+    }
+    core::diagnostics().internalError(
+        "generated LLVM IR is invalid (this is a compiler bug):" + firstLines);
+    return;
+  }
+
   std::error_code EC;
   llvm::raw_fd_ostream dest(outFile, EC, llvm::sys::fs::OF_None);
   if (EC) {
+    core::diagnostics().error(core::Location(), "cannot write '" + outFile +
+                                                    "': " + EC.message());
     return;
   }
   module->print(dest, nullptr);
@@ -4871,6 +4814,37 @@ void LLVMCodeGenerator::visit(ast::ExprStmt& node) {
   if (node.expression) {
     node.expression->accept(*this);
   }
+}
+
+// End of a function body: terminate the block where code generation
+// stopped. (generate() used to patch every unterminated block in the module
+// after the fact, which hid codegen bugs; H6.)
+//  - a block nothing branches to (e.g. after an if/else whose branches both
+//    return) gets `unreachable`;
+//  - a void function returns;
+//  - a non-void function that can fall off its end returns a zero value, as
+//    before, with a warning if it declares a return type.
+void LLVMCodeGenerator::finishFunction(llvm::Function* fn,
+                                       const core::Location& loc,
+                                       const std::string& name,
+                                       bool declaredReturnType) {
+  llvm::BasicBlock* bb = builder->GetInsertBlock();
+  if (!fn || !bb || bb->getParent() != fn || hasTerminator(bb)) return;
+  if (bb != &fn->getEntryBlock() && llvm::pred_empty(bb)) {
+    builder->CreateUnreachable();
+    return;
+  }
+  llvm::Type* retTy = fn->getReturnType();
+  if (retTy->isVoidTy()) {
+    builder->CreateRetVoid();
+    return;
+  }
+  if (declaredReturnType) {
+    core::diagnostics().warning(
+        loc, "control can reach the end of non-void function '" + name +
+                 "'; it returns 0 there");
+  }
+  builder->CreateRet(llvm::Constant::getNullValue(retTy));
 }
 
 // Emit the C entry point `i32 main()`. It always starts with a call to the
@@ -5036,7 +5010,8 @@ void LLVMCodeGenerator::emitModuleInit(ast::ProgramNode& program) {
           llvm::BasicBlock::Create(context, "after", moduleInitFn));
     }
   }
-  if (!hasTerminator(builder->GetInsertBlock())) builder->CreateRetVoid();
+  finishFunction(moduleInitFn, core::Location(), "__tspp_global_ctors",
+                 false);
 
   currentFunction = savedFunction;
   symbolTable = std::move(savedSymbols);

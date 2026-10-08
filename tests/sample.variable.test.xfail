@@ -1,1 +1,1 @@
-Global union-typed initializer emits invalid IR (@h = global i32 @3), link fails (H6: no verifyModule; M3c unions); object-literal lines are aspirational
+H1 (parser): smart-pointer types (#shared<int>, #unique<...>) are not parsed (see types/pointer_union_smart_types), now located parse errors at 33:8-35:8; behind that, a union-typed global with a string initializer is invalid IR (verifier: 'Global variable initializer type does not match'); object-literal lines are aspirational
