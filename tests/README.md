@@ -5,6 +5,8 @@
 tests/run.sh               # run everything (except tests/bench/)
 tests/run.sh regression    # only tests whose path contains "regression"
 cd build && ctest --output-on-failure   # same suite through CTest
+TSPP=build-release/src/tspp tests/run.sh # against ./build.sh --release
+TSPP_LEAK_CHECK=1 tests/run.sh           # also fail on compiler leaks (ASan build)
 ```
 
 `run.sh` prints one line per test and a summary

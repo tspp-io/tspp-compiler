@@ -26,21 +26,31 @@
 #   LLVM_AS         llvm-as binary           (default: llvm-as)
 #   TSPP_TEST_TIMEOUT seconds per step       (default: 20)
 #   KEEP_TMP=1      keep per-test temp dirs and print their paths
+#   TSPP_LEAK_CHECK=1 fail if the (ASan-built) compiler leaks; see below
 # The driver finds clang, llvm-as and libcore.a itself (see `tspp --help`).
 set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$TESTS_DIR")"
 TSPP="${TSPP:-$ROOT/build/src/tspp}"
+# Tests run in temp directories: make a relative TSPP (e.g. the Release build,
+# TSPP=build-release/src/tspp) absolute.
+[[ "$TSPP" == */* && "$TSPP" != /* ]] && TSPP="$PWD/$TSPP"
 LLVM_AS="${LLVM_AS:-llvm-as}"
 TIMEOUT="${TSPP_TEST_TIMEOUT:-20}"
 KEEP_TMP="${KEEP_TMP:-0}"
 export TSPP TSPP_TEST_TIMEOUT="$TIMEOUT"
 
-# The compiler is an ASan build. Keep leak reports from changing exit codes;
-# stderr is not compared anyway.
-export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}"
-export LSAN_OPTIONS="${LSAN_OPTIONS:-suppressions=$ROOT/lsan.supp:report_objects=0:exitcode=0}"
+# A Debug compiler is an ASan build. By default leak detection is off (stderr
+# is not compared, and leak reports must not change exit codes).
+# TSPP_LEAK_CHECK=1 turns LeakSanitizer on for the compiler: reports (minus
+# lsan.supp) go to log files instead of stderr, exit codes are unchanged, and
+# any report from the tspp executable fails the run. Needs an ASan build.
+LEAK_CHECK="${TSPP_LEAK_CHECK:-0}"
+if [[ "$LEAK_CHECK" != 1 ]]; then
+  export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}"
+  export LSAN_OPTIONS="${LSAN_OPTIONS:-suppressions=$ROOT/lsan.supp:report_objects=0:exitcode=0}"
+fi
 
 if [[ ! -x "$TSPP" ]]; then
   echo "error: compiler not found at $TSPP (run ./build.sh first)" >&2
@@ -52,6 +62,20 @@ command -v timeout >/dev/null || { echo "error: timeout(1) not found" >&2; exit 
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/tspp-tests.XXXXXX")"
 cleanup() { [[ "$KEEP_TMP" == 1 ]] || rm -rf "$TMP_ROOT"; }
 trap cleanup EXIT
+
+if [[ "$LEAK_CHECK" == 1 ]]; then
+  # (grep -c, not grep -q: an early-exiting grep would SIGPIPE nm under pipefail)
+  [[ $(nm "$TSPP" 2>/dev/null | grep -c __asan_init) -gt 0 ]] || {
+    echo "error: TSPP_LEAK_CHECK=1 needs an ASan build of the compiler ($TSPP is not one)" >&2
+    exit 2
+  }
+  LEAK_DIR="$TMP_ROOT/lsan"
+  mkdir -p "$LEAK_DIR"
+  # log_exe_name: files are named report.<exe>.<pid>, so leaks of programs
+  # built with `tspp --asan` (tests/driver/cli.sh) can be told apart.
+  export ASAN_OPTIONS="detect_leaks=1:log_path=$LEAK_DIR/report:log_exe_name=1"
+  export LSAN_OPTIONS="suppressions=$ROOT/lsan.supp:print_suppressions=0:exitcode=0"
+fi
 
 pass=0 fail=0 xfail=0 xpass=0
 failed_tests=()
@@ -204,8 +228,24 @@ for rel in "${all_tests[@]}"; do
   fi
 done
 
+leaks=0
+if [[ "$LEAK_CHECK" == 1 ]]; then
+  shopt -s nullglob
+  leak_reports=("$LEAK_DIR"/report.tspp.*)
+  shopt -u nullglob
+  if [[ ${#leak_reports[@]} -gt 0 ]]; then
+    leaks=${#leak_reports[@]}
+    echo
+    echo "LEAK  the compiler leaked in $leaks run(s); first report:"
+    sed -n '1,40p' "${leak_reports[0]}"
+    for f in "${leak_reports[@]}"; do grep -h '^SUMMARY' "$f"; done | sort | uniq -c
+    failed_tests+=("leak check ($leaks report(s); KEEP_TMP=1 keeps $LEAK_DIR)")
+  fi
+fi
+
 echo
 echo "Summary: $pass PASS, $fail FAIL, $xfail XFAIL, $xpass XPASS"
+[[ "$LEAK_CHECK" == 1 ]] && echo "Leak check: $leaks compiler run(s) with leaks"
 if [[ ${#failed_tests[@]} -gt 0 ]]; then
   printf '  failed: %s\n' "${failed_tests[@]}"
   exit 1

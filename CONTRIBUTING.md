@@ -105,13 +105,19 @@ tspp/
 ### Building Components
 
 ```bash
-# Full build
+# Debug build (compiler built with ASan) in build/
 ./build.sh
 
-# Debug build
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-make -j$(nproc)
+# Release build (no sanitizers) in build-release/
+./build.sh --release
+
+# Plain CMake; options: TSPP_ENABLE_ASAN (default ON for Debug),
+# TSPP_ENABLE_UBSAN (default OFF)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+
+# Test suite (TSPP=build-release/src/tspp to test the Release build)
+tests/run.sh
 
 # Run specific tests
 ./test.sh examples/hello.tspp

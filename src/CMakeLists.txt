@@ -4,9 +4,10 @@ add_library(diagnostics
     core/diagnostics/error_reporter.cpp
 )
 
+# core: file/string utilities used by the compiler, plus the runtime
+# (syscall_wrapper.cpp). Depends on no other tspp library.
 add_library(core
     core/utils/file_utils.cpp
-    core/utils/log_utils.cpp
     core/utils/string_utils.cpp
     core/syscall/syscall_wrapper.cpp
 )
@@ -77,21 +78,24 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
 # Link dependencies
-target_link_libraries(core PUBLIC tokens)
 target_link_libraries(core PUBLIC CURL::libcurl)
 # Runtime strings are allocated with Boehm GC (GC_MALLOC_ATOMIC).
 target_link_libraries(core PUBLIC ${BOEHM_GC_LIB})
-target_link_libraries(tokens PUBLIC core)
+# tokens uses only the header core/common/common_types.h (via the shared src/
+# include directory), not the core library.
 target_link_libraries(lexer PUBLIC core tokens diagnostics)
 target_link_libraries(parser PUBLIC core tokens diagnostics)
 target_link_libraries(tspp_codegen PUBLIC core parser diagnostics LLVM ${BOEHM_GC_LIB})
 
 
 # libcore.a doubles as the runtime linked into compiled tspp programs.
-# Programs are not ASan-instrumented by default (tspp --asan opts in), so the
-# runtime must not reference the ASan runtime, and it must be linkable into a
-# PIE executable.
-target_compile_options(core PRIVATE -fno-sanitize=address)
+# Programs are not sanitizer-instrumented by default (tspp --asan opts in), so
+# the runtime must not reference any sanitizer runtime (TSPP_ENABLE_ASAN /
+# TSPP_ENABLE_UBSAN apply to the compiler only), and it must be linkable into
+# a PIE executable.
+if(NOT MSVC)
+    target_compile_options(core PRIVATE -fno-sanitize=all)
+endif()
 set_target_properties(core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Include directories
