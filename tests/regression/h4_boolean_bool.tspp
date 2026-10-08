@@ -1,0 +1,50 @@
+// H4: `boolean` and `bool` are the same type (i1) everywhere a type is
+// written: locals, globals, parameters, return types, class fields.
+let gReady: boolean = true;
+let gDone: bool = false;
+
+function isEven(n: int): boolean {
+  return n % 2 == 0;
+}
+
+function both(a: boolean, b: bool): bool {
+  return a && b;
+}
+
+class Flag {
+  let on: boolean;
+  constructor(v: boolean) {
+    this.on = v;
+  }
+  function isOn(): boolean {
+    return this.on;
+  }
+}
+
+function main(): int {
+  let e: boolean = isEven(4);
+  let o: bool = isEven(3);
+  console.log("isEven(4): " + e);
+  console.log("isEven(3): " + o);
+  console.log("both(true, true): " + both(true, true));
+  console.log("both(true, false): " + both(e, o));
+  console.log("not: " + !e);
+  let mixed: bool = e;
+  let back: boolean = mixed;
+  console.log("mixed: " + back);
+  console.log("globals: " + gReady + " " + gDone);
+  let f: Flag = new Flag(true);
+  console.log("field: " + f.isOn());
+  if (f.isOn() && !gDone) {
+    console.log("branch: taken");
+  }
+  let n: int = 0;
+  while (!gDone) {
+    n = n + 1;
+    if (n == 3) {
+      gDone = true;
+    }
+  }
+  console.log("loop: " + n);
+  return 0;
+}

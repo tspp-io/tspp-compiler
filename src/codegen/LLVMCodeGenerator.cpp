@@ -17,6 +17,7 @@
 #include "parser/nodes/misc_nodes.h"
 #include "parser/nodes/statement_nodes.h"
 #include "parser/nodes/type_nodes.h"
+#include "tokens/primitive_types.h"
 
 namespace codegen {
 
@@ -1831,10 +1832,6 @@ llvm::Type* LLVMCodeGenerator::resolveFunctionReturnType(
       // If unresolved or mapped to i32 but declared via basic/generic type
       // and not primitive, treat as i8* and mark as string for downstream
       // formatting.
-      auto isPrimitiveName = [&](const std::string& t) {
-        return (t == "int" || t == "float" || t == "double" || t == "bool" ||
-                t == "boolean" || t == "void" || t == "string");
-      };
       bool looksUnresolved = (resolvedRetType.empty() ||
                               retType == llvm::Type::getInt32Ty(context));
       bool isBasic =
@@ -1842,7 +1839,7 @@ llvm::Type* LLVMCodeGenerator::resolveFunctionReturnType(
       bool isGeneric =
           dynamic_cast<ast::GenericTypeNode*>(node.returnType.get()) != nullptr;
       if ((isBasic || isGeneric) && looksUnresolved &&
-          !isPrimitiveName(resolvedRetType)) {
+          !tokens::isPrimitiveTypeName(resolvedRetType)) {
         // Treat unresolved/basic generic returns as opaque pointer at
         // runtime, but do NOT label them as string (to avoid accidental raw
         // char* use). Mark as "ptr" so downstream formatting stringifies via
@@ -1871,10 +1868,6 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
       paramType = getLLVMType(paramTypeName);
       // If unresolved or maps to default int but isn't a known primitive,
       // treat as a generic pointer (interfaces/classes)
-      auto isPrimitiveName = [&](const std::string& t) {
-        return (t == "int" || t == "float" || t == "double" || t == "bool" ||
-                t == "boolean" || t == "string");
-      };
       bool looksUnresolved = (paramTypeName.empty() ||
                               paramType == llvm::Type::getInt32Ty(context));
       bool isBasic =
@@ -1882,7 +1875,7 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
       bool isGeneric =
           dynamic_cast<ast::GenericTypeNode*>(param->type.get()) != nullptr;
       if ((isBasic || isGeneric) && looksUnresolved &&
-          !isPrimitiveName(paramTypeName)) {
+          !tokens::isPrimitiveTypeName(paramTypeName)) {
         // Heuristic: generic/interface/custom types become i8*
         paramType = getPointerTy();
       }
@@ -1956,7 +1949,7 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
       // If unresolved, try to recover a readable name from the AST type node
       if (paramResolvedName.empty()) {
         if (auto* bt = dynamic_cast<ast::BasicTypeNode*>(param->type.get())) {
-          paramResolvedName = bt->name.getLexeme();
+          paramResolvedName = tokens::canonicalTypeName(bt->name.getLexeme());
         } else if (auto* gt =
                        dynamic_cast<ast::GenericTypeNode*>(param->type.get())) {
           paramResolvedName = gt->name.getLexeme();
@@ -3880,8 +3873,7 @@ void LLVMCodeGenerator::visit(ast::ConstructorDecl& node) {
       // (string-like)
       if ((t.empty() || pty == llvm::Type::getInt32Ty(context)) &&
           dynamic_cast<ast::BasicTypeNode*>(p->type.get()) != nullptr) {
-        if (t != "int" && t != "float" && t != "double" && t != "bool" &&
-            t != "boolean" && t != "string") {
+        if (!tokens::isPrimitiveTypeName(t)) {
           // Unresolved/basic non-primitive generic return: use opaque pointer
           // and mark as "ptr" to avoid misclassification.
           pty = getPointerTy();
@@ -3994,8 +3986,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     if ((tname.empty() || fty == llvm::Type::getInt32Ty(context))) {
       if (f->type &&
           dynamic_cast<ast::BasicTypeNode*>(f->type.get()) != nullptr) {
-        if (tname != "int" && tname != "float" && tname != "double" &&
-            tname != "bool" && tname != "boolean" && tname != "string") {
+        if (!tokens::isPrimitiveTypeName(tname)) {
           fty = getPointerTy();
         }
       }
@@ -4110,8 +4101,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
       // (string-like)
       if ((retName.empty() || retTy == llvm::Type::getInt32Ty(context)) &&
           dynamic_cast<ast::BasicTypeNode*>(m->returnType.get()) != nullptr) {
-        if (retName != "int" && retName != "float" && retName != "double" &&
-            retName != "bool" && retName != "boolean" && retName != "void") {
+        if (!tokens::isPrimitiveTypeName(retName)) {
           // Unresolved/basic non-primitive generic return: use opaque pointer
           // and mark as "ptr" to avoid misclassification.
           retTy = getPointerTy();
@@ -4140,8 +4130,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
         // Heuristic: unresolved/basic non-primitive generic params become i8*
         if ((t.empty() || pty == llvm::Type::getInt32Ty(context)) &&
             dynamic_cast<ast::BasicTypeNode*>(p->type.get()) != nullptr) {
-          if (t != "int" && t != "float" && t != "double" && t != "bool" &&
-              t != "boolean" && t != "string") {
+          if (!tokens::isPrimitiveTypeName(t)) {
             pty = getPointerTy();
           }
         }
@@ -4211,7 +4200,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
           if (paramResolved.empty()) {
             if (auto* bt = dynamic_cast<ast::BasicTypeNode*>(
                     m->params[paramIndex]->type.get())) {
-              paramResolved = bt->name.getLexeme();
+              paramResolved = tokens::canonicalTypeName(bt->name.getLexeme());
             } else if (auto* gt = dynamic_cast<ast::GenericTypeNode*>(
                            m->params[paramIndex]->type.get())) {
               paramResolved = gt->name.getLexeme();
@@ -4505,8 +4494,7 @@ void LLVMCodeGenerator::visit(ast::NewExpr& node) {
   std::string className = node.className.getLexeme();
   // Primitive array form: new int[size] etc. Treat as GC_malloc of N * elemSz
   auto isBasic = [&](const std::string& n) {
-    return n == "int" || n == "int32" || n == "float" || n == "double" ||
-           n == "bool" || n == "boolean" || n == "string";
+    return n == "int32" || tokens::isPrimitiveTypeName(n);
   };
   if (node.arguments.size() == 1 && isBasic(className)) {
     // Resolve element LLVM type and size
@@ -4746,6 +4734,10 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
   if (!root) return;
   root->accept(*this);
   emitEntryPoint();
+  // tspp_bool_to_string takes a C int; an i1 argument must reach it
+  // zero-extended (without `zeroext` the upper bits are undefined on x86-64).
+  if (llvm::Function* f = module->getFunction("tspp_bool_to_string"))
+    f->addParamAttr(0, llvm::Attribute::ZExt);
 }
 
 // Writes the module to `outFile` if it is valid IR. Invalid IR is a bug in
@@ -4790,19 +4782,32 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root,
 
 // getLLVMType implementation
 llvm::Type* LLVMCodeGenerator::getLLVMType(const std::string& typeName) {
-  if (typeName == "int" || typeName == "i32") {
+  if (const tokens::PrimitiveType* prim = tokens::findPrimitiveType(typeName)) {
+    switch (prim->kind) {
+      case tokens::PrimitiveKind::Int:
+        return llvm::Type::getInt32Ty(context);
+      case tokens::PrimitiveKind::Float:
+        return llvm::Type::getFloatTy(context);
+      case tokens::PrimitiveKind::Double:
+        return llvm::Type::getDoubleTy(context);
+      case tokens::PrimitiveKind::Bool:  // boolean and bool
+        return llvm::Type::getInt1Ty(context);
+      case tokens::PrimitiveKind::String:
+        return getPointerTy();
+      case tokens::PrimitiveKind::Void:
+        return llvm::Type::getVoidTy(context);
+    }
+  }
+  // LLVM-style spellings used internally
+  if (typeName == "i32") {
     return llvm::Type::getInt32Ty(context);
-  } else if (typeName == "float" || typeName == "f32") {
+  } else if (typeName == "f32") {
     return llvm::Type::getFloatTy(context);
-  } else if (typeName == "double" || typeName == "f64") {
+  } else if (typeName == "f64") {
     return llvm::Type::getDoubleTy(context);
-  } else if (typeName == "bool") {
-    return llvm::Type::getInt1Ty(context);
-  } else if (typeName == "string" || typeName == "i8*") {
+  } else if (typeName == "i8*") {
     return getPointerTy();
-  } else if (typeName == "void") {
-    return llvm::Type::getVoidTy(context);
-  } else if (typeName.back() == '*') {
+  } else if (!typeName.empty() && typeName.back() == '*') {
     // Pointer type - strip the * and get the base type
     std::string baseType = typeName.substr(0, typeName.length() - 1);
     return getPointerTy();

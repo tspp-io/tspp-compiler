@@ -1,1 +1,0 @@
-H4: 'boolean' falls back to ptr in getLLVMType; 'br ptr' is invalid IR: now an internal compiler error from llvm::verifyModule ('Branch condition is not 'i1' type')

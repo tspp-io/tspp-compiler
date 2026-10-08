@@ -13,6 +13,7 @@
 #include "parser/nodes/statement_sequence_node.h"  // Ensure StatementSequenceNode is a complete type
 #include "parser/nodes/type_nodes.h"
 #include "parser/visitors/semantic/Symbol.h"
+#include "tokens/primitive_types.h"
 
 namespace ast {
 
@@ -83,8 +84,9 @@ std::string SemanticAnalyzerVisitor::resolveType(TypeNode* type) {
       return resolveType(it->second.get());
     }
 
-    // Built-in type or unresolved custom type
-    return typeName;
+    // Built-in type (canonical name: `boolean` -> "bool", see
+    // tokens/primitive_types.h) or unresolved custom type
+    return tokens::canonicalTypeName(typeName);
   }
 
   // Handle PointerTypeNode

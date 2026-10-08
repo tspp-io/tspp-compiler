@@ -84,7 +84,9 @@ run mode, the program's own status.
 
 - **Types are inferred by string-matching names in codegen** (`"string"`,
   `"ClassName.method"`, `Symbol::typeName` strings). Changes ripple unpredictably.
-  `boolean` is not mapped in `getLLVMType` and falls back to `ptr` (H4); `bool` works.
+  Primitive type names live in one table, `src/tokens/primitive_types.h`
+  (lexer keywords, semantic `resolveType`, `getLLVMType`); `boolean` and `bool`
+  are both i1 and canonicalize to `"bool"` (H4 fixed).
 - Codegen (`emitEntryPoint`) renames a parameterless user `main` to
   `__tspp_user_main` and emits an `i32 main()` that calls `tspp_runtime_init()`
   (GC_INIT), then `__tspp_global_ctors()` (if there is startup code), then the
