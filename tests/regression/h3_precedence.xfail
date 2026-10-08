@@ -1,0 +1,1 @@
+H3: '& | ^' share precedence with comparisons and shifts with '+ -' (ExpressionBuilder getOperatorPrecedence)

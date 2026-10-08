@@ -1,0 +1,8 @@
+// C1: a string produced by `+` must survive later string operations.
+function main(): int {
+  let a = "x" + 1;
+  let b = "y" + 2;
+  console.log(a);
+  console.log(b);
+  return 0;
+}

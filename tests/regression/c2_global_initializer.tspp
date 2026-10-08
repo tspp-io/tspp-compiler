@@ -1,0 +1,7 @@
+// C2: a non-constant global initializer must run before main.
+function compute(): int { return 6 * 7; }
+let g: int = compute();
+function main(): int {
+  console.log("g = " + g);
+  return 0;
+}

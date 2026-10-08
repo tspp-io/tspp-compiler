@@ -1,0 +1,15 @@
+isEven(6): true
+isEven(7): false
+sumTo(5): 15
+forVariants(): 223
+2 + 3 * 4 = 14
+(1 + 1) << 3 = 16
+5 & 3 = 1
+5 | 3 = 7
+5 ^ 3 = 6
+~0 = -1
+17 % 5 = 2
+x, y: 5, 5
+logical: true
+n: 25
+ternary: big
