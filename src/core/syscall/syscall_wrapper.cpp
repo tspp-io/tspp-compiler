@@ -1,12 +1,14 @@
 #include "syscall_wrapper.h"
 
 #include <curl/curl.h>
+#include <gc.h>
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -620,11 +622,52 @@ std::string present_canvas(int canvasHandle, const std::string& path) {
 // C Bindings for LLVM Codegen (extern "C" so TSPP can call them)
 // ============================================================================
 
+// ============================================================================
+// String ownership
+// ============================================================================
+//
+// Every `const char*` the runtime hands to tspp code is a fresh, NUL-terminated
+// copy in memory owned by the Boehm GC (GC_MALLOC_ATOMIC: the GC does not scan
+// it for pointers). The collector frees it once nothing references it, so
+// callers never free it and no call can overwrite the result of an earlier
+// one. (Previously these functions returned shared static buffers; bug C1/C1b.)
+
+namespace {
+
+const char* gc_copy(const char* data, size_t len) {
+  char* out = static_cast<char*>(GC_MALLOC_ATOMIC(len + 1));
+  if (!out) {
+    std::fputs("tspp runtime: out of memory\n", stderr);
+    std::abort();
+  }
+  if (len > 0) std::memcpy(out, data, len);
+  out[len] = '\0';
+  return out;
+}
+
+const char* gc_string(const std::string& s) {
+  return gc_copy(s.data(), s.size());
+}
+
+}  // namespace
+
 extern "C" {
 
+// ============================================================================
+// Runtime lifecycle
+// ============================================================================
+
+// Called once by the generated `main` before any user code (and, from
+// Phase 5 on, before the module's global initializers). Idempotent.
+void tspp_runtime_init(void) {
+  static bool initialized = false;
+  if (initialized) return;
+  initialized = true;
+  GC_INIT();
+}
+
 const char* tspp_sys_get_platform() {
-  static std::string result = tspp::core::syscall::get_platform();
-  return result.c_str();
+  return gc_string(tspp::core::syscall::get_platform());
 }
 
 int tspp_sys_get_cpu_count() {
@@ -632,8 +675,7 @@ int tspp_sys_get_cpu_count() {
 }
 
 const char* tspp_sys_get_cwd() {
-  static std::string result = tspp::core::syscall::get_cwd();
-  return result.c_str();
+  return gc_string(tspp::core::syscall::get_cwd());
 }
 
 int tspp_sys_set_cwd(const char* path) {
@@ -641,13 +683,8 @@ int tspp_sys_set_cwd(const char* path) {
 }
 
 const char* tspp_sys_system_call(const char* command) {
-  static thread_local std::string result;
-  if (!command) {
-    result.clear();
-    return result.c_str();
-  }
-  result = tspp::core::syscall::system_call(command);
-  return result.c_str();
+  if (!command) return gc_copy("", 0);
+  return gc_string(tspp::core::syscall::system_call(command));
 }
 
 int tspp_sys_get_pid() {
@@ -663,14 +700,12 @@ int tspp_sys_file_exists(const char* path) {
 }
 
 const char* tspp_sys_read_file(const char* path) {
-  static std::string result = tspp::core::syscall::read_file(path);
-  return result.c_str();
+  if (!path) return gc_copy("", 0);
+  return gc_string(tspp::core::syscall::read_file(path));
 }
 
 const char* tspp_sys_get_env(const char* name) {
-  static thread_local std::string result;
-  result = tspp::core::syscall::get_env(name ? name : "");
-  return result.c_str();
+  return gc_string(tspp::core::syscall::get_env(name ? name : ""));
 }
 
 int tspp_sys_set_env(const char* name, const char* value) {
@@ -695,13 +730,8 @@ int tspp_sys_is_directory(const char* path) {
 // ============================================================================
 
 const char* tspp_sys_http_get(const char* url) {
-  static thread_local std::string result;
-  if (!url) {
-    result.clear();
-    return result.c_str();
-  }
-  result = tspp::core::syscall::http_get(url);
-  return result.c_str();
+  if (!url) return gc_copy("", 0);
+  return gc_string(tspp::core::syscall::http_get(url));
 }
 
 int tspp_sys_tcp_connect(const char* host, int port) {
@@ -728,9 +758,7 @@ int tspp_sys_tcp_server_accept(int handle, int timeout_ms) {
   return tspp::core::syscall::tcp_server_accept(handle, timeout_ms);
 }
 const char* tspp_sys_tcp_recv(int sockfd, int maxlen) {
-  static thread_local std::string result;
-  result = tspp::core::syscall::tcp_recv(sockfd, maxlen);
-  return result.c_str();
+  return gc_string(tspp::core::syscall::tcp_recv(sockfd, maxlen));
 }
 int tspp_sys_tcp_recv_into(int sockfd, char* buf, int maxlen) {
   return tspp::core::syscall::tcp_recv_into(sockfd, buf, maxlen);
@@ -742,13 +770,8 @@ void tspp_sys_free(void* p) {
   std::free(p);
 }
 const char* tspp_sys_string_from_buffer(const char* buf, int len) {
-  static thread_local std::string result;
-  if (!buf || len <= 0) {
-    result.clear();
-    return result.c_str();
-  }
-  result.assign(buf, (size_t)len);
-  return result.c_str();
+  if (!buf || len <= 0) return gc_copy("", 0);
+  return gc_copy(buf, (size_t)len);
 }
 
 // ============================================================================
@@ -765,10 +788,8 @@ int tspp_sys_draw_rect(int canvasHandle, int x, int y, int w, int h, int r,
 }
 
 const char* tspp_sys_present_canvas(int canvasHandle, const char* path) {
-  static thread_local std::string result;
   std::string p = path ? path : std::string();
-  result = tspp::core::syscall::present_canvas(canvasHandle, p);
-  return result.c_str();
+  return gc_string(tspp::core::syscall::present_canvas(canvasHandle, p));
 }
 
 // ============================================================================
@@ -778,9 +799,17 @@ const char* tspp_sys_present_canvas(int canvasHandle, const char* path) {
 const char* tspp_string_concat(const char* a, const char* b) {
   if (!a) a = "";
   if (!b) b = "";
-  static std::string result;
-  result = std::string(a) + std::string(b);
-  return result.c_str();
+  size_t la = std::strlen(a);
+  size_t lb = std::strlen(b);
+  char* out = static_cast<char*>(GC_MALLOC_ATOMIC(la + lb + 1));
+  if (!out) {
+    std::fputs("tspp runtime: out of memory\n", stderr);
+    std::abort();
+  }
+  std::memcpy(out, a, la);
+  std::memcpy(out + la, b, lb);
+  out[la + lb] = '\0';
+  return out;
 }
 
 // Compatibility shim: some codegen paths emit calls to
@@ -792,29 +821,21 @@ int tspp_sys_int_to_string(int v) {
 }
 
 const char* tspp_int_to_string(int val) {
-  static std::string result;
-  result = std::to_string(val);
-  return result.c_str();
+  return gc_string(std::to_string(val));
 }
 
 const char* tspp_bool_to_string(int val) {
-  static std::string result;
-  result = val ? "true" : "false";
-  return result.c_str();
+  return val ? gc_copy("true", 4) : gc_copy("false", 5);
 }
 
 const char* tspp_float_to_string(double val) {
-  static std::string result;
-  result = std::to_string(val);
-  return result.c_str();
+  return gc_string(std::to_string(val));
 }
 
 const char* tspp_ptr_to_string(void* ptr) {
-  static std::string result;
   std::stringstream ss;
   ss << "0x" << std::hex << reinterpret_cast<uintptr_t>(ptr);
-  result = ss.str();
-  return result.c_str();
+  return gc_string(ss.str());
 }
 
 void tspp_console_log(const char* msg) {
@@ -830,9 +851,9 @@ void tspp_console_warn(const char* msg) {
 }
 
 void tspp_free_string(void* p) {
-  // No-op: strings returned by runtime helpers are static buffers and should
-  // not be freed here. Provide a no-op implementation for compatibility
-  // with earlier stdlib string freeing semantics.
+  // No-op: runtime strings are GC-owned (see gc_copy) and string literals are
+  // constants, so nothing here may be freed explicitly. Codegen still emits
+  // calls to this after console.log; kept for ABI compatibility.
   (void)p;
 }
 

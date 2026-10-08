@@ -1,0 +1,20 @@
+// C1: the lib/system.tspp printf pattern -- a global string buffer that is
+// appended to (`buf = buf + s`) while other strings are being built.
+let buffer: string = "";
+
+function append(s: string): void {
+  buffer = buffer + s;
+}
+
+function main(): int {
+  append("hello ");
+  append("world");
+  let n = "n=" + 42;
+  let m = "m=" + 7;
+  append(" ");
+  append(n);
+  append(" ");
+  append(m);
+  console.log(buffer);
+  return 0;
+}

@@ -1,0 +1,19 @@
+// C1b: sys.read_file reads the file on every call (it used to cache the
+// first file's contents forever). The files are created in the test's
+// working directory.
+import sys;
+
+function main(): int {
+  sys.write_file("c1b_a.txt", "first", 0);
+  sys.write_file("c1b_b.txt", "second", 0);
+  let a: string = sys.read_file("c1b_a.txt");
+  let b: string = sys.read_file("c1b_b.txt");
+  sys.write_file("c1b_a.txt", "third", 0);
+  let c: string = sys.read_file("c1b_a.txt");
+  console.log(a);
+  console.log(b);
+  console.log(c);
+  sys.delete_file("c1b_a.txt");
+  sys.delete_file("c1b_b.txt");
+  return 0;
+}

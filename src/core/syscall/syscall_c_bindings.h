@@ -5,18 +5,21 @@
 extern "C" {
 #endif
 
-// Returns a pointer to a (possibly static) C string representation.
-// Many bindings currently return `const char*` to point into a static
-// buffer; callers should *not* free these. `tspp_free_string` is provided
-// for future ownership models and currently is a no-op.
+// Ownership: every `const char*` returned by the runtime is a fresh,
+// NUL-terminated buffer owned by the Boehm GC. Callers never free it; it stays
+// valid while referenced. `tspp_free_string` is a no-op kept for ABI
+// compatibility.
+
+// Runtime initialization (Boehm GC). The generated `main` calls it first.
+void tspp_runtime_init(void);
+
 const char* tspp_sys_get_platform();
 
-// Execute a system command. Current implementation returns captured stdout
-// as a C string (const char*). Caller must not free the returned pointer.
+// Execute a system command; returns captured stdout (GC-owned).
 const char* tspp_sys_system_call(const char* cmd);
 
-// Read entire file; returns pointer to data (const char*) or NULL on
-// failure. Caller must not free the returned pointer.
+// Read an entire file on every call; returns its contents (GC-owned), or ""
+// on failure.
 const char* tspp_sys_read_file(const char* path);
 
 // Write buffer to file; returns 0 on success, non-zero on error.
@@ -26,8 +29,7 @@ int tspp_sys_write_file(const char* path, const char* buf, int append);
 const char* tspp_sys_get_env(const char* name);
 int tspp_sys_set_env(const char* name, const char* value);
 
-// Free a string allocated by the runtime. Current implementation accepts
-// void* and is a no-op; signature kept generic for future changes.
+// No-op: runtime strings are GC-owned. Kept for ABI compatibility.
 void tspp_free_string(void* s);
 
 // Additional helpers provided by the runtime (string conversions,
@@ -49,6 +51,12 @@ void tspp_console_warn(const char* msg);
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// ============================================================================
+// Runtime lifecycle
+// ============================================================================
+
+void tspp_runtime_init(void);
 
 // ============================================================================
 // System Information

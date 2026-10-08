@@ -1,0 +1,13 @@
+// C1b: sys.get_cwd reflects sys.set_cwd (it used to cache the first result).
+import sys;
+
+function main(): int {
+  let start: string = sys.get_cwd();
+  sys.set_cwd("/");
+  let root: string = sys.get_cwd();
+  sys.set_cwd("/usr");
+  let usr: string = sys.get_cwd();
+  console.log(root);
+  console.log(usr);
+  return 0;
+}

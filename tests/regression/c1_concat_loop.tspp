@@ -1,0 +1,23 @@
+// C1: a string built by 1000 concatenations keeps its content, and survives
+// later string operations and garbage collections (runtime strings are
+// GC-owned; nothing but the string's own references keeps them alive).
+function main(): int {
+  let s: string = "";
+  let i: int = 0;
+  while (i < 1000) {
+    s = s + "x";
+    i = i + 1;
+  }
+  let early = "early" + 1;
+  // Allocate enough garbage to force several GC cycles.
+  let j: int = 0;
+  let junk: string = "";
+  while (j < 100000) {
+    junk = "junk" + j;
+    j = j + 1;
+  }
+  console.log(s);
+  console.log(early);
+  console.log(junk);
+  return 0;
+}
