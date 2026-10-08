@@ -16,6 +16,13 @@
 #include "parser/nodes/type_nodes.h"
 
 namespace codegen {
+
+// True if the block ends in a terminator. LLVM 23+ asserts in
+// BasicBlock::getTerminator() on unterminated blocks instead of returning
+// nullptr, so it can no longer be used as a check.
+static bool hasTerminator(const llvm::BasicBlock* bb) {
+  return !bb->empty() && bb->back().isTerminator();
+}
 using namespace ast;
 
 std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
@@ -37,7 +44,7 @@ std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
   root->accept(*this);
 
   // Always terminate with a valid void return
-  if (!bb->getTerminator()) {
+  if (!hasTerminator(bb)) {
     builder->CreateRetVoid();
   }
 }
@@ -1922,7 +1929,7 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
   if (node.body) node.body->accept(*this);
 
   // If no explicit return, emit default value for the return type
-  if (!entry->getTerminator()) {
+  if (!hasTerminator(entry)) {
     if (retType->isIntegerTy(1)) {
       builder->CreateRet(llvm::ConstantInt::getFalse(context));
     } else if (retType->isIntegerTy()) {
@@ -1949,7 +1956,7 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
 // Visit ReturnStmt: emit return
 void LLVMCodeGenerator::visit(ast::ReturnStmt& node) {
   llvm::BasicBlock* bb = builder->GetInsertBlock();
-  if (!bb || bb->getTerminator()) return;
+  if (!bb || hasTerminator(bb)) return;
 
   llvm::Value* valueToReturn = nullptr;
   if (node.value) {
@@ -2011,7 +2018,7 @@ void LLVMCodeGenerator::visit(ast::BlockStmt& node) {
   // run through each statement, but stop after emitting a terminator
   for (auto& stmt : node.statements) {
     auto* bb = builder->GetInsertBlock();
-    if (bb && bb->getTerminator()) break;
+    if (bb && hasTerminator(bb)) break;
     if (stmt) stmt->accept(*this);
   }
 }
@@ -3141,7 +3148,7 @@ void LLVMCodeGenerator::visit(ast::IfStmt& node) {
     node.thenBranch->accept(*this);
   }
   // Only create branch if block doesn't already have a terminator
-  if (!thenBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(mergeBB);
   }
 
@@ -3150,7 +3157,7 @@ void LLVMCodeGenerator::visit(ast::IfStmt& node) {
     builder->SetInsertPoint(elseBB);
     node.elseBranch->accept(*this);
     // Only create branch if block doesn't already have a terminator
-    if (!elseBB->getTerminator()) {
+    if (!hasTerminator(builder->GetInsertBlock())) {
       builder->CreateBr(mergeBB);
     }
   }
@@ -3202,7 +3209,7 @@ void LLVMCodeGenerator::visit(ast::WhileStmt& node) {
   }
 
   // After body, branch back to condition (if no terminator exists)
-  if (!bodyBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(condBB);
   }
 
@@ -3261,7 +3268,7 @@ void LLVMCodeGenerator::visit(ast::ForStmt& node) {
   }
 
   // After body, branch to increment (if no terminator exists)
-  if (!bodyBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(incBB);
   }
 
@@ -3272,7 +3279,7 @@ void LLVMCodeGenerator::visit(ast::ForStmt& node) {
   }
 
   // After increment, branch back to condition
-  if (!incBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(condBB);
   }
 
@@ -3716,7 +3723,7 @@ void LLVMCodeGenerator::visit(ast::ConstructorDecl& node) {
   }
 
   if (node.body) node.body->accept(*this);
-  if (!entry->getTerminator()) builder->CreateRetVoid();
+  if (!hasTerminator(entry)) builder->CreateRetVoid();
   currentFunction = prevFunction;
 }
 
@@ -3880,7 +3887,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     }
     // Insert before the final return
     auto& lastBB = ctor->back();
-    if (lastBB.getTerminator()) lastBB.getTerminator()->eraseFromParent();
+    if (hasTerminator(&lastBB)) lastBB.getTerminator()->eraseFromParent();
     auto* savedFunc = currentFunction;
     currentFunction = ctor;
     builder->SetInsertPoint(&lastBB);
@@ -4024,7 +4031,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
       idx++;
     }
     if (m->body) m->body->accept(*this);
-    if (!entry->getTerminator()) {
+    if (!hasTerminator(entry)) {
       if (retTy->isVoidTy())
         builder->CreateRetVoid();
       else if (retTy->isIntegerTy())
@@ -4581,7 +4588,7 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
       if (F.isDeclaration()) continue;
       if (F.empty()) continue;
       llvm::BasicBlock* lastBB = &F.back();
-      if (lastBB->getTerminator()) continue;
+      if (hasTerminator(lastBB)) continue;
       builder->SetInsertPoint(lastBB);
       llvm::Type* retTy = F.getReturnType();
       if (retTy->isVoidTy()) {
@@ -4607,7 +4614,7 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
     for (auto& F : module->functions()) {
       if (F.isDeclaration()) continue;
       for (auto& BB : F) {
-        if (BB.getTerminator()) continue;
+        if (hasTerminator(&BB)) continue;
         // Find next basic block in function
         llvm::BasicBlock* next = BB.getNextNode();
         builder->SetInsertPoint(&BB);
