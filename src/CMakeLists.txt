@@ -5,8 +5,13 @@ add_library(interpreter
 )
 target_link_libraries(interpreter PUBLIC tspp_codegen core parser tokens lexer)
 target_include_directories(interpreter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-add_library(core
+# Diagnostics sink of the compiler (not part of the runtime; built with the
+# compiler's sanitizers, unlike libcore).
+add_library(diagnostics
     core/diagnostics/error_reporter.cpp
+)
+
+add_library(core
     core/utils/file_utils.cpp
     core/utils/log_utils.cpp
     core/utils/string_utils.cpp
@@ -84,9 +89,9 @@ target_link_libraries(core PUBLIC CURL::libcurl)
 # Runtime strings are allocated with Boehm GC (GC_MALLOC_ATOMIC).
 target_link_libraries(core PUBLIC ${BOEHM_GC_LIB})
 target_link_libraries(tokens PUBLIC core)
-target_link_libraries(lexer PUBLIC core tokens)
-target_link_libraries(parser PUBLIC core tokens)
-target_link_libraries(tspp_codegen PUBLIC core parser LLVM ${BOEHM_GC_LIB})
+target_link_libraries(lexer PUBLIC core tokens diagnostics)
+target_link_libraries(parser PUBLIC core tokens diagnostics)
+target_link_libraries(tspp_codegen PUBLIC core parser diagnostics LLVM ${BOEHM_GC_LIB})
 
 
 # libcore.a doubles as the runtime linked into compiled tspp programs.
@@ -98,6 +103,7 @@ set_target_properties(core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Include directories
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(diagnostics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(tokens PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(lexer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(parser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -116,6 +122,7 @@ target_compile_definitions(tspp PRIVATE
 target_link_libraries(tspp
     PRIVATE
         core
+        diagnostics
         tokens
         lexer
         parser

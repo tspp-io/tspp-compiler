@@ -7,6 +7,7 @@
 
 // Ensure full definitions of AST node types are available for dynamic_cast
 // and member access (forward declarations from ast_visitor.h are insufficient)
+#include "core/diagnostics/error_reporter.h"
 #include "parser/nodes/base_node.h"
 #include "parser/nodes/declaration_nodes.h"
 #include "parser/nodes/expression_nodes.h"
@@ -1857,6 +1858,7 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
   llvm::Type* retType = resolveFunctionReturnType(node, resolvedRetType);
   // Record function return type for later call-site conversions
   functionReturnTypes[node.name.getLexeme()] = resolvedRetType;
+  if (node.name.getLexeme() == "main") mainLocation_ = node.location;
 
   std::vector<llvm::Type*> argTypes;
   for (auto& param : node.params) {
@@ -2070,8 +2072,8 @@ void LLVMCodeGenerator::visit(ast::CallExpr& node) {
   }
   // Re-entrancy guard: prevent accidental recursion on same AST node
   if (activeCallExprs.find(&node) != activeCallExprs.end()) {
-    llvm::errs() << "[ERROR] Re-entrant codegen for CallExpr detected. "
-                    "Aborting call emission.\n";
+    core::diagnostics().internalError(
+        "re-entrant code generation for a call expression");
     lastValue = nullptr;
     return;
   }
@@ -4901,7 +4903,8 @@ void LLVMCodeGenerator::emitEntryPoint() {
       initBuilder.CreateCall(runtimeInit);
       if (moduleInitFn) initBuilder.CreateCall(moduleInitFn);
       if (!retTy->isIntegerTy(32)) {
-        llvm::errs() << "[ERROR] User main() must return i32.\n";
+        core::diagnostics().error(mainLocation_,
+                                  "'main' with parameters must return int");
       }
       return;
     }
@@ -4961,8 +4964,9 @@ void LLVMCodeGenerator::emitDeferredInit(const ast::VarDecl& decl,
   decl.initializer->accept(*this);
   llvm::Value* v = lastValue;
   if (!v) {
-    llvm::errs() << "[ERROR] Could not generate the initializer of global '"
-                 << decl.name.getLexeme() << "'\n";
+    core::diagnostics().error(decl.location,
+                              "cannot generate code for the initializer of "
+                              "global '" + decl.name.getLexeme() + "'");
     return;
   }
   llvm::Type* ty = gvar->getValueType();
@@ -5140,12 +5144,14 @@ void LLVMCodeGenerator::visit(ast::AsmStmt& node) {
         outputPtrs.push_back(it->second.value);
         outputTypes.push_back(getLLVMType(it->second.typeName));
       } else {
-        llvm::errs() << "Error: Asm output identifier not found: "
-                     << id->name.getLexeme() << "\n";
+        core::diagnostics().error(id->location,
+                                  "#asm output '" + id->name.getLexeme() +
+                                      "' is not a declared variable");
         return;
       }
     } else {
-      llvm::errs() << "Error: Asm output must be an identifier\n";
+      core::diagnostics().error(node.location,
+                                "#asm output must be a variable name");
       return;
     }
   }

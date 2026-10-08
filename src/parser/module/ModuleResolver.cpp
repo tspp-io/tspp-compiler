@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 
+#include "core/diagnostics/error_reporter.h"
 #include "core/utils/file_utils.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
@@ -51,12 +52,14 @@ std::string ModuleResolver::resolvePath(const std::string& spec,
   return fs::weakly_canonical(p).string();
 }
 
-bool ModuleResolver::checkCircular(const std::string& path) {
+bool ModuleResolver::checkCircular(const std::string& path,
+                                   const core::Location& where) {
   for (const auto& p : dependencyStack_) {
     if (p == path) {
-      std::cerr << "Circular dependency detected: ";
-      for (const auto& x : dependencyStack_) std::cerr << x << " -> ";
-      std::cerr << path << std::endl;
+      std::string chain;
+      for (const auto& x : dependencyStack_) chain += x + " -> ";
+      core::diagnostics().error(where,
+                                "circular import: " + chain + path);
       return true;
     }
   }
@@ -72,18 +75,24 @@ void ModuleResolver::exit(const std::string& path) {
 }
 
 std::shared_ptr<ast::ProgramNode> ModuleResolver::parseModuleFile(
-    const std::string& absPath) {
+    const std::string& absPath, const core::Location& where) {
   auto it = moduleCache_.find(absPath);
   if (it != moduleCache_.end()) return it->second;
 
   auto contentOpt = core::utils::FileUtils::readFile(absPath);
   if (!contentOpt) {
-    std::cerr << "Failed to read module: " << absPath << std::endl;
+    core::diagnostics().error(where, "cannot read imported file '" + absPath +
+                                         "'");
     return nullptr;
   }
+  // Diagnostics in the imported file name that file.
+  core::diagnostics().registerSource(absPath, *contentOpt);
+  int errorsBefore = core::diagnostics().errorCount();
   lexer::Lexer lx(*contentOpt, absPath);
   auto toks = lx.tokenize();
+  if (core::diagnostics().errorCount() != errorsBefore) return nullptr;
   auto program = parser::buildAST(toks);
+  if (core::diagnostics().errorCount() != errorsBefore) return nullptr;
   moduleCache_[absPath] = program;
   return program;
 }
@@ -169,25 +178,20 @@ bool ModuleResolver::resolveAndMerge(ast::ProgramNode* root,
         // file load
         continue;
       }
-      // Relative but not found: warn and continue
-      std::cerr << "Warning: import not found: '" << spec << "' from "
-                << currentFile << "\n";
+      core::diagnostics().error(decl->location,
+                                "imported file '" + spec + "' not found");
       continue;
     }
 
     const std::string absPath = *absOpt;
 
-    if (checkCircular(absPath)) {
+    if (checkCircular(absPath, decl->location)) {
       return false;
     }
     enter(absPath);
-    auto mod = parseModuleFile(absPath);
+    auto mod = parseModuleFile(absPath, decl->location);
     exit(absPath);
-    if (!mod) {
-      std::cerr << "Warning: failed to parse imported module: " << absPath
-                << "\n";
-      continue;
-    }
+    if (!mod) return false;  // the errors were reported
 
     // Merge module into root
     mergeInto(root, absPath, mod);

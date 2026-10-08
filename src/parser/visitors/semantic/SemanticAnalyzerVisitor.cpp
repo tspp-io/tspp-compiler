@@ -6,6 +6,7 @@
 #include <unordered_set>
 
 #include "core/common/macros.h"
+#include "core/diagnostics/error_reporter.h"
 #include "parser/nodes/declaration_nodes.h"
 #include "parser/nodes/meta_nodes.h"
 #include "parser/nodes/misc_nodes.h"
@@ -35,6 +36,7 @@ void SemanticAnalyzerVisitor::exitScope() {
 
 void SemanticAnalyzerVisitor::reportError(const std::string& message) {
   errors.push_back(message);
+  core::diagnostics().error(core::Location(), message);
 }
 
 void SemanticAnalyzerVisitor::reportNotLowered(const std::string& construct) {
