@@ -573,11 +573,12 @@ The real "external contract" is a set of `extern "C"` functions in `src/core/sys
 
 | Group | Functions | Ownership of returned `const char*` |
 |---|---|---|
-| Strings | `tspp_string_concat`, `tspp_int_to_string`, `tspp_bool_to_string`, `tspp_float_to_string`, `tspp_ptr_to_string`, `tspp_free_string` (no-op) | **Single function-level `static std::string` shared across calls.** Invalidated by the next call. |
+| Lifecycle | `tspp_runtime_init` (GC_INIT; called first by the generated `main`) | n/a |
+| Strings | `tspp_string_concat`, `tspp_int_to_string`, `tspp_bool_to_string`, `tspp_float_to_string`, `tspp_ptr_to_string`, `tspp_free_string` (no-op) | Fresh GC-owned copy per call (`GC_MALLOC_ATOMIC`). Was a shared static (C1, fixed). |
 | Console | `tspp_console_log/error/warn` | n/a |
-| System | `tspp_sys_get_platform`, `get_cpu_count`, `get_cwd`, `set_cwd`, `system_call` (popen), `get_pid`, `exit_process`, `get_env`, `set_env` | `get_platform`/`get_cwd`: static, **computed once on first call** |
-| Files | `tspp_sys_file_exists`, `read_file`, `write_file`, `delete_file`, `is_directory` | `read_file`: static, **computed once on first call** |
-| Network | `tspp_sys_http_get` (libcurl, follows redirects), `tcp_connect/send/close/recv/recv_into`, `tcp_server_start/stop/accept` | `thread_local` static |
+| System | `tspp_sys_get_platform`, `get_cpu_count`, `get_cwd`, `set_cwd`, `system_call` (popen), `get_pid`, `exit_process`, `get_env`, `set_env` | Fresh GC-owned copy, computed on every call (was cached once, C1b, fixed) |
+| Files | `tspp_sys_file_exists`, `read_file`, `write_file`, `delete_file`, `is_directory` | `read_file`: fresh GC-owned copy, read on every call (C1b, fixed) |
+| Network | `tspp_sys_http_get` (libcurl, follows redirects), `tcp_connect/send/close/recv/recv_into`, `tcp_server_start/stop/accept` | Fresh GC-owned copy (was `thread_local` static) |
 | Memory | `tspp_sys_malloc`, `tspp_sys_free`, `tspp_sys_string_from_buffer` | |
 | Graphics | `tspp_sys_create_canvas`, `draw_rect`, `present_canvas` | |
 
