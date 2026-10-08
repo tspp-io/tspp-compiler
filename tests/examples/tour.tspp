@@ -1,0 +1,39 @@
+// The README's language tour: one passing program per "Works today" item
+// that has no other test. Keep it in sync with README.md.
+typedef Score = int;
+const LIMIT: int = 3;
+
+interface Shape {
+  area(): int;
+}
+
+class Square implements Shape {
+  side: int;
+  constructor(side: int) { this.side = side; }
+  function area(): int { return this.side * this.side; }
+}
+
+function scaled(x: int, factor: int = 10): int {
+  return x * factor;
+}
+
+function fact(n: int): int {
+  if (n <= 1) {
+    return 1;
+  }
+  return n * fact(n - 1);
+}
+
+function main(): int {
+  let best: Score = 0;
+  for (let i: int = 1; i <= LIMIT; i++) {
+    let sq: Square = new Square(i);
+    if (sq.area() > best) {
+      best = sq.area();
+    }
+  }
+  console.log("best area: " + best);
+  console.log("scaled: " + scaled(4) + ", " + scaled(4, 2));
+  console.log("5! = " + fact(5));
+  return 0;
+}

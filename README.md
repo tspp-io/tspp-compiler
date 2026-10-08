@@ -1,401 +1,267 @@
-# tspp Programming Language
+# tspp
 
 <div align="center">
 
 ![tspp Logo](docs/logo.png)
 
-**A modern systems programming language combining TypeScript-like syntax with Go-style semantics**
+**TypeScript syntax with C++-level memory control, compiled to native via LLVM.
+Safe by default, unsafe when you ask for it.**
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Build Status](https://github.com/theQuarky/tspp/workflows/CI/badge.svg)](https://github.com/theQuarky/tspp/actions)
-[![Language](https://img.shields.io/badge/language-C++-blue.svg)](https://isocpp.org/)
-[![LLVM](https://img.shields.io/badge/powered%20by-LLVM-brightgreen.svg)](https://llvm.org/)
+[![CI](https://github.com/tspp-io/tspp-compiler/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/tspp-io/tspp-compiler/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
 
-## Overview
+tspp is an experimental compiler. It takes a TypeScript-like language, checks it,
+lowers it to LLVM IR with the LLVM C++ API, and links it with `clang` against a
+small C++ runtime and the Boehm garbage collector. The output is a native
+executable. There is no interpreter and no JIT.
 
-tspp is an innovative programming language that brings together the familiar syntax of TypeScript with the performance and concurrency model of Go. It compiles to LLVM IR, enabling high-performance native code generation while providing advanced memory management, explicit control over memory regions, smart pointers, and zero-cost abstractions.
+**Status: early prototype (v0.1.0).** The core of the language (functions,
+integers, strings, classes, control flow, globals, imports) compiles and runs.
+The parts that make tspp *tspp* — explicit memory regions, smart pointers,
+`@unsafe` pointers — are parsed but have no semantics yet. This README lists
+only features that have a passing test; everything else is under
+[Planned](#planned) or [Known limitations](#known-limitations).
 
-### Key Features
+## Hello, world
 
-🚀 **Performance-First**: Compiles to optimized LLVM IR  
-🔒 **Memory Safety**: Explicit memory region control (`#stack`, `#heap`, `#static`)  
-🧠 **Smart Pointers**: Built-in support for `#shared<T>`, `#unique<T>`, `#weak<T>`  
-⚡ **SIMD Operations**: Native vectorization with `#simd`  
-🔧 **Zero-Cost Abstractions**: `#zerocast` for compile-time optimizations  
-🛡️ **Safety Controls**: `@unsafe` annotations for explicit unsafe operations  
-🎯 **TypeScript Syntax**: Familiar syntax for web developers  
-🔄 **Go Semantics**: Goroutine-inspired concurrency model  
-
-## Project Structure
-
-The project is organized as follows:
-
-- `src/`: Source code for the compiler components.
-  - `lexer/`: Lexical analysis and tokenization.
-  - `parser/`: Parsing logic and AST construction.
-  - `ast/`: Abstract Syntax Tree node definitions.
-  - `codegen/`: LLVM IR code generation.
-  - `interpreter/`: JIT interpreter for REPL.
-  - `core/`: Common utilities and diagnostics.
-  - `tokens/`: Token definitions.
-  - `main.cpp`: Compiler entry point.
-- `docs/`: Documentation files.
-- `tests/`: Test suite.
-- `scripts/`: Helper scripts for installation and setup.
-
-## Quick Start
-
-### Prerequisites
-
-- **C++ Compiler**: GCC 9+ or Clang 10+
-- **CMake**: Version 3.14 or higher
-- **LLVM**: Version 17 or higher
-- **Boehm GC**: For garbage collection support
-- **libcurl** (with development headers): Used by the runtime's HTTP syscalls
-
-#### Ubuntu/Debian
-```bash
-sudo apt-get update
-sudo apt-get install build-essential cmake llvm-17 llvm-17-dev clang-17 libgc-dev libcurl4-openssl-dev
+```tspp
+function main(): int {
+  console.log("Hello, tspp!");
+  return 0;
+}
 ```
 
-#### macOS
 ```bash
-brew install cmake llvm bdw-gc curl
+./build/src/tspp hello.tspp        # compile, link and run
+# Hello, tspp!
+./build/src/tspp -o hello hello.tspp && ./hello   # build only, then run
 ```
 
-### Building from Source
+This program is [`tests/examples/hello.tspp`](tests/examples/hello.tspp).
 
-```bash
-# Clone the repository
-git clone https://github.com/theQuarky/tspp.git
-cd tspp
+## Works today
 
-# Build the project
-./build.sh
+Each item links the test that proves it. The suite (`tests/run.sh`) runs on
+every push in CI.
 
-# The binary will be located at ./build/src/tspp
-```
+| Feature | Test |
+|---|---|
+| Functions: parameters, return types, recursion, default arguments | [`examples/tour.tspp`](tests/examples/tour.tspp), [`basics/ints_control_flow.tspp`](tests/basics/ints_control_flow.tspp) |
+| `let` / `const`, typed or inferred; `typedef` aliases | [`examples/tour.tspp`](tests/examples/tour.tspp) |
+| `int` arithmetic, bitwise and shift operators, comparisons, `&&`/`\|\|` short-circuit, `+=` and friends, `++`/`--`, `?:`, with TypeScript/C operator precedence | [`basics/ints_control_flow.tspp`](tests/basics/ints_control_flow.tspp), [`regression/h3_precedence_table.tspp`](tests/regression/h3_precedence_table.tspp) |
+| `boolean` (and its alias `bool`) | [`regression/h4_boolean.tspp`](tests/regression/h4_boolean.tspp), [`regression/h4_boolean_bool.tspp`](tests/regression/h4_boolean_bool.tspp) |
+| `if`/`else`, `while`, C-style `for` (all header forms); statements spanning lines without `;` | [`basics/ints_control_flow.tspp`](tests/basics/ints_control_flow.tspp), [`basics/multiline_statements.tspp`](tests/basics/multiline_statements.tspp), [`basics/function_ends.tspp`](tests/basics/function_ends.tspp) |
+| Strings: literals, `+` with strings, ints and booleans; garbage-collected | [`regression/c1_strings_survive.tspp`](tests/regression/c1_strings_survive.tspp), [`regression/c1_concat_loop.tspp`](tests/regression/c1_concat_loop.tspp) |
+| Classes: fields, constructors, methods, `extends` + `super`, `#override`, `implements`, generic classes (`Box<T>`) | [`basics/classes_strings.tspp`](tests/basics/classes_strings.tspp), [`examples/tour.tspp`](tests/examples/tour.tspp) |
+| `int` arrays: literals, indexing, element assignment | [`basics/classes_strings.tspp`](tests/basics/classes_strings.tspp) |
+| Globals with any initializer, class `#static` fields and `static {}` blocks, top-level statements: all run once, in source order, before `main` | [`globals/`](tests/globals) |
+| `import X from "./file"` (textual merge; the imported file's startup code runs first) | [`globals/import_order.tspp`](tests/globals/import_order.tspp) |
+| `console.log`; runtime calls `sys.get_platform`, `sys.read_file`/`write_file`/`delete_file`, `sys.get_cwd`/`set_cwd` | [`sys_test.tspp`](tests/sys_test.tspp), [`regression/c1b_read_file.tspp`](tests/regression/c1b_read_file.tspp), [`regression/c1b_get_cwd.tspp`](tests/regression/c1b_get_cwd.tspp) |
+| Errors with `file:line:col` for lexer, parser, import and semantic errors; invalid generated IR is caught (`llvm::verifyModule`) instead of miscompiled | [`diagnostics/`](tests/diagnostics) |
+| Driver: compile and run, `-o`, `--emit-llvm`, `--keep-temps`, `--asan`, `--version`; works from any directory; never invokes a shell | [`driver/cli.sh`](tests/driver/cli.sh), [`driver/run_from_other_dir.sh`](tests/driver/run_from_other_dir.sh), [`driver/shell_injection.sh`](tests/driver/shell_injection.sh) |
+| REPL (`tspp` with no arguments): each input is compiled and run as its own program | [`driver/repl.sh`](tests/driver/repl.sh) |
 
-### Your First tspp Program
+**Parsed, no behavior yet** (parse-only tests): class and member modifiers
+such as `#packed`, `#abstract`, `#final`, `#inline`, `#virtual`, `#readonly`,
+`#atomic` ([`modifiers/`](tests/modifiers)); generic constraints
+(`<T extends int>`) and union types in type aliases
+([`types/generics_parse.tspp`](tests/types/generics_parse.tspp)).
 
-Create a file called `hello.tspp`:
+### A short tour
 
-```typescript
-// hello.tspp - A simple tspp program
-#stack string message = "Hello, tspp World!";
+This is [`tests/examples/tour.tspp`](tests/examples/tour.tspp):
 
-function main(): void {
-    console.log(message);
-    
-    // Demonstrate memory regions
-    #heap int* numbers = new int[10];
-    #stack int counter = 0;
-    
-    // SIMD operations
-    #simd float[4] vector = [1.0, 2.0, 3.0, 4.0];
-    
-    // Smart pointer usage
-    #shared<MyClass> obj = make_shared<MyClass>();
-    
-    // Compile-time constants
-    #const int BUFFER_SIZE = 1024;
+```tspp
+typedef Score = int;
+const LIMIT: int = 3;
+
+interface Shape {
+  area(): int;
 }
 
-class MyClass {
-    #private int value;
-    
-    constructor(val: int) {
-        this.value = val;
+class Square implements Shape {
+  side: int;
+  constructor(side: int) { this.side = side; }
+  function area(): int { return this.side * this.side; }
+}
+
+function scaled(x: int, factor: int = 10): int {
+  return x * factor;
+}
+
+function fact(n: int): int {
+  if (n <= 1) {
+    return 1;
+  }
+  return n * fact(n - 1);
+}
+
+function main(): int {
+  let best: Score = 0;
+  for (let i: int = 1; i <= LIMIT; i++) {
+    let sq: Square = new Square(i);
+    if (sq.area() > best) {
+      best = sq.area();
     }
-    
-    #public getValue(): int {
-        return this.value;
-    }
+  }
+  console.log("best area: " + best);
+  console.log("scaled: " + scaled(4) + ", " + scaled(4, 2));
+  console.log("5! = " + fact(5));
+  return 0;
 }
 ```
 
-Compile and run:
+Output:
+
+```text
+best area: 9
+scaled: 40, 8
+5! = 120
+```
+
+## Known limitations
+
+These are bugs or gaps in things that otherwise look supported. The full list,
+with IDs, is in [`docs/KNOWLEDGE_TRANSFER.md` §9](docs/KNOWLEDGE_TRANSFER.md#9-known-issues-and-technical-debt).
+
+- **Floats print wrong.** `float` values print as `0.000000` (the IR and the
+  runtime disagree on `float` vs `double`). Float arithmetic itself compiles.
+- **Integer conditions** (`if (n)`, `while (n)`) are not converted to booleans;
+  the compiler stops with an internal compiler error. Write `if (n != 0)`.
+- **Strings:** escape sequences (`"\n"`) are not processed; `==`/`!=` on strings
+  compare pointers, not contents.
+- **Arrays** hold `int` elements only and are not bounds-checked.
+- **Smart-pointer types** (`#shared<T>`, `#unique<T>`, `#weak<T>`) do not parse
+  yet, and `>>` closing nested generics (`A<B<int>>`) is read as a shift.
+- `switch`, `do`/`while`, `for..of`, `try`/`catch`/`throw`, `break`/`continue`
+  parse but are rejected by code generation with a clear error.
+- `enum` and `namespace` are rejected ("not supported yet").
+- Imports have no namespaces (`import {x} from` is not supported); a missing
+  import is only a warning.
+- Some untyped or mixed-type string expressions print an address instead of
+  the string (string-typed `?:` inside `+`, `let w = "v" + f()` without a type
+  annotation, static string members).
+- The REPL keeps no state between inputs.
+
+## Planned
+
+The roadmap is [`ROADMAP.md`](ROADMAP.md). In order:
+
+1. Typed arrays with bounds checks.
+2. Split the code generator into maintainable pieces.
+3. Real `#heap` allocation (today `#stack`/`#heap`/`#static` are parsed;
+   `#heap` is ignored).
+4. `#unique<T>`, then `#shared<T>` / `#weak<T>`.
+5. `@unsafe` / `@aligned` raw-pointer semantics.
+
+What the memory model is meant to look like (**planned, does not compile today**):
+
+```tspp-planned
+class Buffer {
+  constructor(size: int) {}
+}
+
+function fill(): void {
+  #heap let big: Buffer = new Buffer(4096);       // explicit heap allocation
+  let owner: #unique<Buffer> = new Buffer(64);    // freed when owner goes out of scope
+  let shared: #shared<Buffer> = new Buffer(64);   // reference counted
+}
+```
+
+`#simd`, `#zerocast`, `#prefetch`, `#atomic`, `#pinned`, `#const` and
+`#constexpr` are accepted by the parser and recorded as attributes, but have
+no effect. They are planned after the memory model.
+
+### Future ideas
+
+Not planned yet: Go-style concurrency (goroutines, channels, `select`,
+`defer`), a standard library beyond the `sys.*` runtime calls, and an
+optimization pipeline of our own (today `clang -O3` optimizes the IR).
+
+## Building
+
+You need:
+
+- a C++17 compiler (GCC or Clang) and CMake 3.14+
+- **LLVM 17 or newer** with development files (`LLVMConfig.cmake`, shared
+  `libLLVM`), plus `clang` and `llvm-as` on `PATH`. Tested with LLVM 17, 18, 22
+  and 23.
+- Boehm GC (`libgc`) and libcurl, both with development headers
+
+Install scripts (read them first; the Ubuntu one adds apt.llvm.org):
 
 ```bash
-./build/src/tspp hello.tspp
-# Output: Hello, tspp World!
+sudo ./scripts/install_deps_ubuntu.sh   # Debian/Ubuntu
+sudo ./scripts/install_deps_fedora.sh   # Fedora/RHEL
+sudo ./scripts/install_deps_arch.sh     # Arch
+./scripts/install_deps_macos.sh         # macOS (Homebrew)
 ```
 
-## Language Features
+Or with your package manager: install `cmake`, an LLVM ≥ 17 dev package and
+the matching `clang`, Boehm GC (`libgc-dev` / `gc-devel` / `bdw-gc`) and
+libcurl (`libcurl4-openssl-dev` / `libcurl-devel` / `curl`). If CMake does not
+find LLVM, point it at it: `./build.sh -- -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm`.
+See [`docs/dev-setup.md`](docs/dev-setup.md).
 
-### Memory Management
+Build and test:
 
-tspp provides explicit control over memory regions:
-
-```typescript
-#stack int localVar = 42;        // Stack allocation
-#heap int* dynamicVar = new int(42);  // Heap allocation  
-#static int globalVar = 42;      // Static/global allocation
+```bash
+git clone https://github.com/tspp-io/tspp-compiler.git
+cd tspp-compiler
+./build.sh               # Debug build (compiler built with ASan) in build/
+./build.sh --release     # Release build in build-release/
+tests/run.sh             # full test suite
+./build/src/tspp --help
 ```
 
-### Smart Pointers
+The compiler is `build/src/tspp`. It finds its runtime (`libcore.a`) next to
+itself, so it works from any directory.
 
-Built-in smart pointer support for safe memory management:
-
-```typescript
-#shared<Resource> resource = make_shared<Resource>();
-#unique<Buffer> buffer = make_unique<Buffer>(1024);
-#weak<Resource> weakRef = resource.weak_from_this();
-```
-
-### SIMD and Performance
-
-Native SIMD support for high-performance computing:
-
-```typescript
-#simd float[4] vector1 = [1.0, 2.0, 3.0, 4.0];
-#simd float[4] vector2 = [5.0, 6.0, 7.0, 8.0];
-#simd float[4] result = vector1 + vector2;  // Vectorized addition
-```
-
-### Zero-Cost Abstractions
-
-Compile-time optimizations with zero runtime overhead:
-
-```typescript
-#zerocast function<T> max(a: T, b: T): T {
-    return a > b ? a : b;
-}
-
-#const int result = max(10, 20);  // Resolved at compile time
-```
-
-## Architecture
-
-tspp follows a modern compiler architecture:
+## How it works
 
 ```mermaid
-flowchart TD
-    A[Source Code] --> B[Lexer]
+flowchart LR
+    A[".tspp source"] --> B[Lexer]
     B --> C[Parser]
-    C --> D[AST]
-    D --> E[Type Checker]
-    E --> F[LLVM IR Generator]
-    F --> G[Optimization]
-    G --> H[Native Code]
+    C --> D[Import resolver]
+    D --> E[Semantic analysis]
+    E --> F[LLVM IR codegen]
+    F --> G["llvm-as (check)"]
+    G --> H["clang: link with libcore.a, libgc, libcurl"]
+    H --> I[native executable]
 ```
 
-### Components
-
-- **Lexer**: Tokenizes tspp source code
-- **Parser**: Builds Abstract Syntax Tree (AST)
-- **Type System**: Advanced type checking and inference
-- **Code Generator**: LLVM IR generation
-- **Runtime**: Garbage collection and memory management
-- **Standard Library**: Core functionality and utilities
+See [`docs/architecture.md`](docs/architecture.md) for where each stage lives,
+and [`docs/KNOWLEDGE_TRANSFER.md`](docs/KNOWLEDGE_TRANSFER.md) for the long
+version.
 
 ## Documentation
 
-- 📖 **[Language Specification](docs/language_spec.md)** - Complete language reference
-- 🏗️ **[Architecture](docs/architecture.md)** - High-level compiler architecture
-- 🔧 **[Compilation Pipeline](docs/pipeline.md)** - How tspp works internally
-- 💻 **[Development Setup](docs/dev-setup.md)** - Setting up the dev environment
-- 📝 **[Grammar Reference](docs/grammar.md)** - EBNF grammar specification
-- 🎯 **[Examples](examples/)** - Sample programs and tutorials
+- [Language overview](docs/language_spec.md): what the language accepts today,
+  and program startup order
+- [Grammar](docs/grammar.md): EBNF, including operator precedence
+- [Architecture](docs/architecture.md) and [pipeline](docs/pipeline.md)
+- [Development setup](docs/dev-setup.md)
+- [Tests](tests/README.md): how the suite works and how to add a test
+- [Roadmap](ROADMAP.md)
+
+Code samples in these docs are compiled by `scripts/check_doc_samples.sh`,
+which the test suite runs.
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Quick Links
-
-- 🐛 [Report a Bug](https://github.com/theQuarky/tspp/issues/new?template=bug_report.md)
-- ✨ [Request a Feature](https://github.com/theQuarky/tspp/issues/new?template=feature_request.md)
-- 💬 [Join Discussions](https://github.com/theQuarky/tspp/discussions)
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and feature requests:
+[GitHub issues](https://github.com/tspp-io/tspp-compiler/issues). Security
+issues: see [SECURITY.md](SECURITY.md) (please don't open a public issue).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## TODO - Roadmap to Full Implementation
-
-### 🔄 Go Semantics Implementation
-
-#### Concurrency Primitives
-- [ ] **Goroutines**: Implement `go` keyword for lightweight thread creation
-- [ ] **Channels**: Typed channels with buffered/unbuffered variants (`chan T`, `chan<- T`, `<-chan T`)
-- [ ] **Select Statement**: Multi-way communication with timeout support
-- [ ] **WaitGroups**: Synchronization primitives for goroutine coordination
-- [ ] **Mutexes**: Read/write mutexes for shared memory protection
-
-#### Built-in Functions
-- [ ] **`mark_shared<T>()`**: Memory sharing annotation for concurrent access
-- [ ] **`make()`**: Dynamic allocation for slices, maps, channels
-- [ ] **`new()`**: Zero-value allocation for any type
-- [ ] **`len()`**: Length function for collections (arrays, slices, maps, strings, channels)
-- [ ] **`cap()`**: Capacity function for slices and channels
-- [ ] **`close()`**: Channel closing mechanism
-- [ ] **`copy()`**: Slice copying with overlap handling
-- [ ] **`append()`**: Slice append with automatic growth
-- [ ] **`delete()`**: Map key deletion
-- [ ] **`panic()` / `recover()`**: Error handling mechanism
-
-#### Type System Extensions
-- [ ] **Interfaces**: Method set definitions and dynamic dispatch
-- [ ] **Type Assertions**: Runtime type checking (`x.(T)`, `x.(type)`)
-- [ ] **Type Switches**: Pattern matching on interface types
-- [ ] **Slices**: Dynamic arrays with length/capacity (`[]T`)
-- [ ] **Maps**: Hash table implementation (`map[K]V`)
-- [ ] **Method Sets**: Interface satisfaction checking
-
-#### Control Flow
-- [ ] **Defer Statements**: Deferred execution with LIFO ordering
-- [ ] **Range Iteration**: For-range over slices, maps, channels, strings
-- [ ] **Labeled Breaks/Continues**: Multi-level loop control
-
-### 📚 Standard Library Implementation
-
-#### Core Packages
-- [ ] **`context`**: Cancellation and deadline propagation
-- [ ] **`errors`**: Error creation and handling utilities
-- [ ] **`fmt`**: Formatted I/O (Printf, Sprintf, etc.)
-- [ ] **`io`**: I/O primitives (Reader, Writer, Closer interfaces)
-- [ ] **`sort`**: Sorting algorithms and interfaces
-- [ ] **`strings`**: String manipulation utilities
-- [ ] **`strconv`**: String conversions (Atoi, Itoa, etc.)
-- [ ] **`time`**: Time and date handling with timezones
-
-#### Network Programming
-- [ ] **`net`**: TCP/UDP socket programming
-  - [ ] TCP server/client implementation
-  - [ ] UDP socket support
-  - [ ] Unix domain sockets
-  - [ ] IP address parsing and manipulation
-- [ ] **`net/http`**: HTTP client and server
-  - [ ] HTTP/1.1 and HTTP/2 support
-  - [ ] Middleware system
-  - [ ] WebSocket support
-  - [ ] TLS integration
-- [ ] **`net/url`**: URL parsing and manipulation
-- [ ] **`net/smtp`**: SMTP client implementation
-
-#### Operating System Interface
-- [ ] **`os`**: Operating system interface
-  - [ ] File operations (create, open, read, write, delete)
-  - [ ] Directory operations (mkdir, readdir, walk)
-  - [ ] Process management (exec, fork, wait)
-  - [ ] Environment variables
-  - [ ] Signal handling
-  - [ ] User and group information
-- [ ] **`os/exec`**: External command execution
-- [ ] **`path/filepath`**: File path manipulation
-- [ ] **`syscall`**: Low-level system calls
-
-#### Data Encoding/Decoding
-- [ ] **`encoding/json`**: JSON marshaling/unmarshaling
-- [ ] **`encoding/xml`**: XML processing
-- [ ] **`encoding/base64`**: Base64 encoding/decoding
-- [ ] **`encoding/hex`**: Hexadecimal encoding
-- [ ] **`encoding/csv`**: CSV file processing
-- [ ] **`compress/gzip`**: GZIP compression/decompression
-
-#### Cryptography & Security
-- [ ] **`crypto`**: Cryptographic primitives
-- [ ] **`crypto/rand`**: Cryptographically secure random numbers
-- [ ] **`crypto/md5`**: MD5 hashing (deprecated but needed)
-- [ ] **`crypto/sha1`**: SHA-1 hashing
-- [ ] **`crypto/sha256`**: SHA-256 hashing
-- [ ] **`crypto/aes`**: AES encryption/decryption
-- [ ] **`crypto/rsa`**: RSA public key cryptography
-- [ ] **`crypto/tls`**: TLS/SSL implementation
-
-#### Mathematics
-- [ ] **`math`**: Mathematical functions (sin, cos, sqrt, etc.)
-- [ ] **`math/big`**: Arbitrary precision arithmetic
-- [ ] **`math/rand`**: Pseudo-random number generation
-
-#### Concurrency Support
-- [ ] **`sync`**: Synchronization primitives
-  - [ ] Mutex, RWMutex implementations
-  - [ ] WaitGroup for goroutine synchronization
-  - [ ] Once for one-time initialization
-  - [ ] Pool for object reuse
-  - [ ] Atomic operations
-- [ ] **`sync/atomic`**: Low-level atomic memory primitives
-
-#### Development & Testing
-- [ ] **`testing`**: Unit testing framework
-- [ ] **`log`**: Logging utilities with different levels
-- [ ] **`flag`**: Command-line flag parsing
-- [ ] **`runtime`**: Runtime reflection and control
-  - [ ] Garbage collector interface
-  - [ ] Memory statistics
-  - [ ] Goroutine inspection
-
-### 🏗️ Language Infrastructure
-
-#### Memory Management
-- [ ] **Garbage Collector**: Enhance Boehm GC integration
-- [ ] **Memory Regions**: Implement `#stack`, `#heap`, `#static` annotations
-- [ ] **Smart Pointers**: Complete implementation of `#shared<T>`, `#unique<T>`, `#weak<T>`
-- [ ] **Memory Safety**: Bounds checking for arrays and slices
-
-#### Compiler Features
-- [ ] **Package System**: Import/export mechanism with visibility rules
-- [ ] **Generic Programming**: Type parameters and constraints
-- [ ] **Reflection**: Runtime type information and method calling
-- [ ] **Build System**: Package compilation and dependency management
-- [ ] **Cross-compilation**: Multiple target architectures
-
-#### IR Code Optimization Passes
-- [ ] **Post-IR Generation Optimizations**: LLVM-based optimization pipeline
-  - [ ] **Escape Analysis**: Stack vs heap allocation decisions
-  - [ ] **Inlining**: Function call optimization
-  - [ ] **Dead Code Elimination**: Unused code removal
-  - [ ] **Constant Folding**: Compile-time constant evaluation
-  - [ ] **Loop Optimizations**: Loop unrolling and vectorization
-  - [ ] **SIMD Optimizations**: Vector operation enhancements
-  - [ ] **Register Allocation**: Optimal register usage
-  - [ ] **Instruction Scheduling**: CPU pipeline optimization
-
-### 🎯 Priority Implementation Order
-
-1. **Phase 1: Core Go Semantics**
-   - Built-in functions (`make`, `new`, `len`, `cap`)
-   - Slices and maps basic implementation
-   - Interfaces and method sets
-
-2. **Phase 2: Concurrency Foundation**
-   - Goroutines and channel basics
-   - Select statements
-   - Defer implementation
-
-3. **Phase 3: Essential Standard Library**
-   - `fmt` package for formatted I/O
-   - `os` package for file operations
-   - `net` package for basic networking
-
-4. **Phase 4: Advanced Features**
-   - HTTP server/client
-   - JSON marshaling
-   - Testing framework
-
-5. **Phase 5: Performance & Polish**
-   - IR code optimization passes (post-IR generation)
-   - Memory management refinements
-   - Documentation and examples
+MIT, see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- **LLVM Project** - For the excellent compiler infrastructure
-- **Boehm GC** - For garbage collection support
-- **TypeScript Team** - For syntax inspiration
-- **Go Team** - For semantic design inspiration
-
----
-
-<div align="center">
-
-**Made with ❤️ by the tspp community**
-
-[Website](https://tspp.dev) • [Documentation](https://docs.tspp.dev) • [Discord](https://discord.gg/tspp)
-
-</div>
+The [LLVM project](https://llvm.org/), the
+[Boehm-Demers-Weiser garbage collector](https://www.hboehm.info/gc/), and
+TypeScript, for the syntax.
