@@ -40,6 +40,19 @@ shared `libLLVM`), `clang` + `llvm-as` on `PATH`, Boehm GC (`libgc`), libcurl de
 git checkout compile_commands.json # build.sh overwrites the committed copy; don't commit it
 ```
 
+Tests (see `tests/README.md`):
+
+```bash
+tests/run.sh                       # full suite; prints PASS/FAIL/XFAIL/XPASS summary,
+                                   # exits non-zero on FAIL or XPASS
+tests/run.sh regression            # only tests whose path contains "regression"
+(cd build && ctest --output-on-failure)  # same suite via CTest
+```
+
+A test is `<name>.tspp` + `<name>.expected` (stdout), or has a `// test: parse-only`
+/ `// test: compile-error` header. `<name>.xfail` (reason + bug ID) marks a known
+bug; when your fix makes it pass (XPASS), delete the `.xfail` file.
+
 Silence leak noise from the ASan-built compiler/programs:
 `export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=0:exitcode=0"`
 
@@ -58,7 +71,7 @@ even if linking or the program fails (until Phase 3 of the plan fixes it).
 - `LLVMCodeGenerator.cpp` is ~5k lines (`visit(BinaryExpr&)` and `visit(CallExpr&)`
   are ~1.1k each): `grep -n` for the function, read only that range, keep diffs minimal.
 - Every fix needs a test under `tests/` that fails before and passes after.
-- Run the full test suite before declaring done.
+- Run the full test suite (`tests/run.sh`) before declaring done.
 - Don't commit build artifacts (`build/`, `*.ll`, `temp.bc`, `temp_exec`).
 
 ## Known traps
