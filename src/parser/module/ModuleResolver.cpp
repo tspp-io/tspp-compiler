@@ -102,6 +102,8 @@ void ModuleResolver::mergeInto(
                             module->declarations.end());
   root->statements.insert(root->statements.begin(), module->statements.begin(),
                           module->statements.end());
+  root->topLevel.insert(root->topLevel.begin(), module->topLevel.begin(),
+                        module->topLevel.end());
 }
 
 bool ModuleResolver::resolveAndMerge(ast::ProgramNode* root,

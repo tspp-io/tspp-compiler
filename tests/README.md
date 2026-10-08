@@ -52,7 +52,7 @@ wrong, and say so in the PR when you do.
   are the author's intent and aren't pinned down by any spec yet. Revisit them when
   object literals get real support.
 - `sys_test*.expected` (`linux`): checked by hand against the source.
-- `basics/` and `regression/` are new tests. Their expected output was derived by hand
+- `basics/`, `globals/` and `regression/` are new tests. Their expected output was derived by hand
   from the source semantics, not snapshotted.
 
 ## Layout
@@ -62,6 +62,7 @@ wrong, and say so in the PR when you do.
 | `*.tspp` (top level), `functions/`, `grammar/`, `loops/`, `modifiers/`, `types/` | Restored from `761708e^` (`git ls-tree -r 761708e^ -- tests`) |
 | `examples/system.tspp` | Restored `examples/system.tspp` (same as `lib/system.tspp`), parse-only |
 | `basics/` | Passing smoke tests for the parts of `final.tspp` that work today |
+| `globals/` | Startup code (C2): global initializers, class static initializers/blocks, top-level statements, order across an import (`import_order_lib.tspp` is imported by `import_order.tspp` and also runs alone), `main` with parameters |
 | `regression/` | Known-bug pins from KNOWLEDGE_TRANSFER §8.3 (C1, C2, H1, H3, H4) |
 | `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status |
 | `bench/` | Micro-benchmarks. **Not run** by `run.sh`. |

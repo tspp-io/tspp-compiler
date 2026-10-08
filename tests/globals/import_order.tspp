@@ -1,0 +1,9 @@
+// C2: imports are merged textually; the imported module's globals and
+// top-level statements run first, then this file's, then main.
+import Lib from "./import_order_lib";
+console.log("main file top-level");
+let mine: int = libGlobal + 1;
+function main(): int {
+  console.log("mine=" + mine);
+  return 0;
+}

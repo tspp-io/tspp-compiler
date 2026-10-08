@@ -20,6 +20,11 @@ class ProgramNode : public BaseNode {
   std::vector<Shared(ImportDecl)> imports;
   std::vector<Shared(Decl)> declarations;
   std::vector<Shared(Stmt)> statements;
+  // Every entry of `declarations` and `statements`, in source order (imported
+  // modules' items first; see ModuleResolver::mergeInto). Codegen walks this
+  // to run global initializers, class static initializers and top-level
+  // statements in source order inside __tspp_global_ctors.
+  std::vector<Shared(BaseNode)> topLevel;
   AST_ACCEPT_IMPL(ProgramNode);
 };
 

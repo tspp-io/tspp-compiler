@@ -1,0 +1,4 @@
+lib init
+lib top-level
+main file top-level
+mine=8

@@ -1,0 +1,9 @@
+// A main with parameters stays the C entry point; runtime init and the global
+// initializers are inserted at the top of its entry block.
+function compute(): int { return 40; }
+let g: int = compute() + 2;
+console.log("top-level ran");
+function main(argc: int): int {
+  console.log("argc=" + argc + " g=" + g);
+  return 0;
+}

@@ -22,6 +22,7 @@ class ASTBuilderVisitor : public BaseVisitor {
   // Helper methods for parsing different constructs
   bool isDeclarationStart() const;
   bool isStatementStart() const;
+  bool isExpressionStatementStart() const;
 
   void parseTopLevel(ast::ProgramNode& program);
 };
