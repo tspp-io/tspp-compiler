@@ -1,0 +1,17 @@
+// H3: precedence must follow docs/grammar.md:
+//   a & b == c   parses as a & (b == c)
+//   1 << 2 + 3   parses as 1 << (2 + 3)
+function main(): int {
+  let a: int = 1;
+  let b: int = 3;
+  let c: int = 3;
+  // a & (b == c) -> 1 & 1 -> nonzero; (a & b) == c -> 1 == 3 -> false
+  if (a & b == c) {
+    console.log("bitand-vs-eq: ok");
+  } else {
+    console.log("bitand-vs-eq: wrong");
+  }
+  let s: int = 1 << 2 + 3;
+  console.log("1 << 2 + 3 = " + s);
+  return 0;
+}

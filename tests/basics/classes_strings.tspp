@@ -1,0 +1,55 @@
+// Passing smoke test: classes, inheritance, generics with string payloads.
+// Sections taken from tests/final.tspp, whose float/static parts are xfail.
+class Animal {
+  protected let name: string;
+  constructor(name: string) { this.name = name; }
+  function speak(): string { return this.name + " makes a sound"; }
+}
+
+class Dog extends Animal {
+  private let breed: string;
+  constructor(name: string, breed: string) {
+    super(name);
+    this.breed = breed;
+  }
+  public #override function speak(): string {
+    return this.name + " barks (" + this.breed + ")";
+  }
+  function getBreed(): string { return this.breed; }
+}
+
+class SBox<T> {
+  public let value: T;
+  constructor(v: T) { this.value = v; }
+  function get(): T { return this.value; }
+  function set(v: T): void { this.value = v; }
+}
+
+class Counter {
+  public let count: int;
+  constructor(start: int) { this.count = start; }
+  function bump(): int {
+    this.count = this.count + 1;
+    return this.count;
+  }
+}
+
+function main(): int {
+  let a: Animal = new Animal("Generic");
+  console.log(a.speak());
+  let d: Dog = new Dog("Rex", "Labrador");
+  console.log(d.speak());
+  console.log(d.getBreed());
+  let sb: SBox<string> = new SBox<string>("hi");
+  sb.set(sb.get() + "!");
+  console.log(sb.get());
+  let bi: SBox<int> = new SBox<int>(5);
+  console.log("bi: ", bi.get());
+  let c: Counter = new Counter(40);
+  c.bump();
+  console.log("count: ", c.bump());
+  let arr: int[] = [10, 20, 30];
+  arr[1] = arr[1] + 79;
+  console.log("arr sum: ", arr[0] + arr[1] + arr[2]);
+  return 0;
+}

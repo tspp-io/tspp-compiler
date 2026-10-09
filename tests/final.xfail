@@ -1,0 +1,1 @@
+FLOAT (untracked, KT §6.4 ABI drift): IR calls tspp_float_to_string(float) but runtime takes double, so floats print 0.000000; formatting is %f not shortest; static block never runs / static field init dropped (C2 family); generic firstOf<int> returns a pointer

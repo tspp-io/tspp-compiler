@@ -1,0 +1,28 @@
+a: 42
+b: 3.14
+c: true
+d: Hello
+e: 10
+f: 9.81
+g: false
+h: either
+i: { name: "John", id: 1 }
+j: { unit: "m", 0: 5.5 }
+k: null
+l: null
+m: null
+n: null
+o: null
+p: null
+q: 100
+r: { x: 1.1, y: 2.2 }
+s: 5.5
+t: false
+add(2,3): 5
+greet(): Hello, World
+greet('Alice'): Hello, Alice
+multiply(2.5, 4.0): 10
+formatPoint(1.1): P(1.1, 0)
+formatPoint(2.2, 3.3,'Q'): Q(2.2, 3.3)
+square(5): 25
+increment(7): 8

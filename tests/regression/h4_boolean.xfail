@@ -1,0 +1,1 @@
+H4: 'boolean' falls back to ptr in getLLVMType; 'br ptr' is invalid IR and nothing links

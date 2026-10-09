@@ -1,0 +1,20 @@
+a: 42
+b: 3.14
+c: true
+d: Hello
+e: 10
+f: 9.81
+g: false
+h: either
+i: { name: "John", id: 1 }
+j: { unit: "m", 0: 5.5 }
+k: null
+l: null
+m: null
+n: null
+o: null
+p: null
+q: 100
+r: { x: 1.1, y: 2.2 }
+s: 5.5
+t: false

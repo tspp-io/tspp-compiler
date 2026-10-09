@@ -1,0 +1,9 @@
+// Function call in loop microbenchmark
+function inc(v: int): int { return v + 1; }
+function main(): int {
+  let x: int = 0;
+  for (let i: int = 0; i < 5000000; i = i + 1) {
+    x = inc(x);
+  }
+  return x;
+}

@@ -1,0 +1,10 @@
+// H4: `boolean` variables must round-trip true/false.
+function main(): int {
+  let t: boolean = true;
+  let f: boolean = false;
+  if (t) { console.log("t is true"); } else { console.log("t is false"); }
+  if (f) { console.log("f is true"); } else { console.log("f is false"); }
+  console.log("t: " + t);
+  console.log("f: " + f);
+  return 0;
+}

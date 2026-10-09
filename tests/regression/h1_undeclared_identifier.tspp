@@ -1,0 +1,7 @@
+// test: compile-error
+// error: undeclaredThing
+// H1 negative test: use of an undeclared identifier must fail compilation.
+function main(): int {
+  console.log("x = " + undeclaredThing);
+  return 0;
+}

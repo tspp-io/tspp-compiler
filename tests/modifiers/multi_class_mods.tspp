@@ -1,0 +1,5 @@
+// test: parse-only
+#abstract #packed #final class MP {
+  a: int;
+  b: bool;
+}

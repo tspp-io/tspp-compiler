@@ -1,0 +1,17 @@
+// test: compile-error
+// error: Cannot assign to const variable 'j'
+// error: Assignment to undeclared variable 'i'
+// NOTE (test harness): originally build-only, but the program is invalid: the
+// second loop assigns the const 'j' and the third uses 'i' outside its for-scope.
+// Both semantic errors are correct, so this is kept as a negative test.
+// Build-only: for-init allows variable decl without trailing semicolon
+
+function main(): int {
+  for (let i: int = 0; i < 3; i = i + 1) {
+    // loop body empty
+  }
+  for (#stack const j: int = 1; j < 2; j = j + 1) {}
+  // Ensure fallback still works
+  for (i = 0; i < 1; i = i + 1) {}
+  return 0;
+}

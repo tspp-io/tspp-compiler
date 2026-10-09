@@ -1,0 +1,35 @@
+Point.static block
+dist: 3.5
+ident: 42
+flexible: ok
+p1: (1.5, 2.5)
+p1 moved: (2, 3)
+Point.count=1
+stringifyPoint(p1): Point(2, 3)
+useBoxString(sb): hi!
+a.speak(): Generic makes a sound
+Animal.kingdom(): Animalia
+d.speak(): Rex barks (Labrador)
+d.getBreed(): Labrador
+Rex barks (Labrador)
+c.area(): 12.56
+ba.get(0): 42
+Resource#7
+firstOf<int>(10,20): 10
+bxS.get(): A
+bxI.get(): 5
+Adapter:(2, 3)
+Desc=(2, 3)
+isEven(6): true
+sumTo(5): 15
+forVariants(): 223
+precedenceDemo(): 44
+memberAndIndexAccess(): 146
+x: 5
+y: 5
+logical: true
+1<<3: 8
+8>>1: 4
+~0: -1
+pointerPlay(): 2
+storagePlay(): 42

@@ -1,0 +1,8 @@
+// test: compile-error
+// error: add
+// H1 negative test: calling a function with too many arguments must fail.
+function add(a: int, b: int): int { return a + b; }
+function main(): int {
+  console.log("r = " + add(1, 2, 3));
+  return 0;
+}
