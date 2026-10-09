@@ -81,6 +81,8 @@ add_definitions(${LLVM_DEFINITIONS})
 # Link dependencies
 target_link_libraries(core PUBLIC tokens)
 target_link_libraries(core PUBLIC CURL::libcurl)
+# Runtime strings are allocated with Boehm GC (GC_MALLOC_ATOMIC).
+target_link_libraries(core PUBLIC ${BOEHM_GC_LIB})
 target_link_libraries(tokens PUBLIC core)
 target_link_libraries(lexer PUBLIC core tokens)
 target_link_libraries(parser PUBLIC core tokens)

@@ -4734,45 +4734,7 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
   if (root) {
     root->accept(*this);
     emitPendingGlobalInits();
-    // Always emit a valid main function if not present
-    if (!module->getFunction("main")) {
-      llvm::FunctionType* mainType =
-          llvm::FunctionType::get(llvm::Type::getInt32Ty(context), false);
-      llvm::Function* mainFn = llvm::Function::Create(
-          mainType, llvm::Function::ExternalLinkage, "main", module.get());
-      llvm::BasicBlock* bb = llvm::BasicBlock::Create(context, "entry", mainFn);
-      builder->SetInsertPoint(bb);
-      builder->CreateRet(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0));
-    } else {
-      // The C entry point must be `i32 main()`. A user `main(): void` (or
-      // another integer width, e.g. bool) is renamed and wrapped so the
-      // process exit status is well defined (void main -> 0).
-      auto* userMain = module->getFunction("main");
-      llvm::Type* retTy = userMain->getReturnType();
-      bool needsWrapper = userMain->arg_empty() && !userMain->isDeclaration() &&
-                          (retTy->isVoidTy() ||
-                           (retTy->isIntegerTy() && !retTy->isIntegerTy(32)));
-      if (needsWrapper) {
-        userMain->setName("__tspp_user_main");
-        userMain->setLinkage(llvm::Function::InternalLinkage);
-        llvm::Type* i32Ty = llvm::Type::getInt32Ty(context);
-        llvm::Function* mainFn = llvm::Function::Create(
-            llvm::FunctionType::get(i32Ty, false),
-            llvm::Function::ExternalLinkage, "main", module.get());
-        llvm::BasicBlock* bb =
-            llvm::BasicBlock::Create(context, "entry", mainFn);
-        llvm::IRBuilder<> wrapperBuilder(bb);
-        llvm::Value* rv = wrapperBuilder.CreateCall(userMain);
-        if (retTy->isVoidTy()) {
-          wrapperBuilder.CreateRet(llvm::ConstantInt::get(i32Ty, 0));
-        } else {
-          wrapperBuilder.CreateRet(wrapperBuilder.CreateZExtOrTrunc(rv, i32Ty));
-        }
-      } else if (!retTy->isIntegerTy(32)) {
-        llvm::errs() << "[ERROR] User main() must return i32.\n";
-      }
-    }
+    emitEntryPoint();
     // Ensure all functions have a valid terminator on their last basic block.
     for (auto& F : module->functions()) {
       if (F.isDeclaration()) continue;
@@ -4883,6 +4845,60 @@ void LLVMCodeGenerator::visit(ast::ExprStmt& node) {
 }
 
 // Helper method to emit pending global initializers
+// Emit the C entry point `i32 main()`. It always starts with a call to the
+// runtime's `tspp_runtime_init()` (Boehm GC init) so the runtime is ready
+// before any user code runs; module initializers (Phase 5) belong right after
+// that call. A user `main()` without parameters is renamed to
+// `__tspp_user_main` and called from the wrapper; for `main(): void` (or
+// another integer width, e.g. bool) this also makes the exit status well
+// defined (void main -> 0). A missing `main` gets one that returns 0.
+void LLVMCodeGenerator::emitEntryPoint() {
+  llvm::Type* i32Ty = llvm::Type::getInt32Ty(context);
+  llvm::FunctionCallee runtimeInit = module->getOrInsertFunction(
+      "tspp_runtime_init",
+      llvm::FunctionType::get(llvm::Type::getVoidTy(context), false));
+
+  llvm::Function* userMain = module->getFunction("main");
+  if (userMain && userMain->isDeclaration()) return;  // nothing to wrap
+
+  if (userMain) {
+    llvm::Type* retTy = userMain->getReturnType();
+    bool wrappable = userMain->arg_empty() &&
+                     (retTy->isVoidTy() || retTy->isIntegerTy());
+    if (!wrappable) {
+      // main with parameters (or a non-integer return): it stays the entry
+      // point; initialize the runtime at the top of its entry block instead.
+      llvm::BasicBlock& entry = userMain->getEntryBlock();
+      llvm::IRBuilder<> initBuilder(&entry, entry.getFirstInsertionPt());
+      initBuilder.CreateCall(runtimeInit);
+      if (!retTy->isIntegerTy(32)) {
+        llvm::errs() << "[ERROR] User main() must return i32.\n";
+      }
+      return;
+    }
+    userMain->setName("__tspp_user_main");
+    userMain->setLinkage(llvm::Function::InternalLinkage);
+  }
+
+  llvm::Function* mainFn =
+      llvm::Function::Create(llvm::FunctionType::get(i32Ty, false),
+                             llvm::Function::ExternalLinkage, "main",
+                             module.get());
+  llvm::BasicBlock* bb = llvm::BasicBlock::Create(context, "entry", mainFn);
+  llvm::IRBuilder<> wrapperBuilder(bb);
+  wrapperBuilder.CreateCall(runtimeInit);
+  if (!userMain) {
+    wrapperBuilder.CreateRet(llvm::ConstantInt::get(i32Ty, 0));
+    return;
+  }
+  llvm::Value* rv = wrapperBuilder.CreateCall(userMain);
+  if (userMain->getReturnType()->isVoidTy()) {
+    wrapperBuilder.CreateRet(llvm::ConstantInt::get(i32Ty, 0));
+  } else {
+    wrapperBuilder.CreateRet(wrapperBuilder.CreateZExtOrTrunc(rv, i32Ty));
+  }
+}
+
 void LLVMCodeGenerator::emitPendingGlobalInits() {
   if (pendingGlobalInits.empty()) return;
 

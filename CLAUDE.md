@@ -84,16 +84,19 @@ run mode, the program's own status.
 - **Types are inferred by string-matching names in codegen** (`"string"`,
   `"ClassName.method"`, `Symbol::typeName` strings). Changes ripple unpredictably.
   `boolean` is not mapped in `getLLVMType` and falls back to `ptr` (H4); `bool` works.
-- Codegen renames a `main(): void` (or other-width integer main) to
-  `__tspp_user_main` and adds an `i32 main()` wrapper (void → exit 0); a missing
-  `main` gets a trivial one. Prefer `function main(): int` in tests.
+- Codegen (`emitEntryPoint`) renames a parameterless user `main` to
+  `__tspp_user_main` and emits an `i32 main()` that first calls
+  `tspp_runtime_init()` (GC_INIT), then the user main (void → exit 0); a missing
+  `main` gets one that only inits and returns 0. Prefer `function main(): int` in tests.
 - **The build forces Debug + ASan** (root `CMakeLists.txt` sets
   `CMAKE_BUILD_TYPE Debug` and `-fsanitize=address`; `-DCMAKE_BUILD_TYPE=...` is
   overridden) of the compiler. Compiled programs are PIE and not ASan-instrumented
   unless `tspp --asan`; `libcore` is built with `-fno-sanitize=address` for that.
   Expect LeakSanitizer output from the compiler on stderr; compare stdout only.
-- Runtime string helpers return a shared `static std::string` buffer (C1): a string
-  from `+`/to-string is overwritten by the next such call.
+- Every `const char*` the runtime returns to tspp code is a fresh GC-owned copy
+  (`GC_MALLOC_ATOMIC`; C1/C1b fixed). Never free it; `tspp_free_string` is a no-op.
+  A string pointer stored only in non-GC memory (e.g. `sys.malloc`) is invisible to
+  the collector.
 - Non-constant global initializers never run (C2). Top-level expression statements
   are silently dropped by the parser (H1): put code in `function main(): int`.
 - The parser silently skips tokens it doesn't understand and lexer errors are

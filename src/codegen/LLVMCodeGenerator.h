@@ -155,6 +155,7 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   };
   std::vector<PendingGlobalInit> pendingGlobalInits;
   void emitPendingGlobalInits();
+  void emitEntryPoint();
 
   // ...other helpers for function/variable management...
 
