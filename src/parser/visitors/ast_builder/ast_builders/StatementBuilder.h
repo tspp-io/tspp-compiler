@@ -7,7 +7,8 @@ namespace parser {
 
 /**
  * @brief Builder for statement AST nodes
- * Handles parsing of if, while, for, return, block statements
+ * Handles parsing of if, while, do-while, for, for-of, switch, break,
+ * continue, return, throw, try/catch/finally, and block statements
  */
 class StatementBuilder {
  public:
@@ -40,11 +41,46 @@ class StatementBuilder {
   static Shared(ast::WhileStmt) buildWhile(tokens::TokenStream& stream);
 
   /**
-   * @brief Build for statement
+   * @brief Build for statement (C-style or for-of)
    * @param stream Token stream to parse from
-   * @return Shared pointer to for statement, or nullptr on error
+   * @return Shared pointer to ForStmt or ForOfStmt, or nullptr on error
    */
-  static Shared(ast::ForStmt) buildFor(tokens::TokenStream& stream);
+  static Shared(ast::Stmt) buildFor(tokens::TokenStream& stream);
+
+  /**
+   * @brief Build do-while statement: do stmt while (expr);
+   * @param stream Token stream to parse from
+   * @return Shared pointer to do-while statement, or nullptr on error
+   */
+  static Shared(ast::DoWhileStmt) buildDoWhile(tokens::TokenStream& stream);
+
+  /**
+   * @brief Build switch statement
+   * @param stream Token stream to parse from
+   * @return Shared pointer to switch statement, or nullptr on error
+   */
+  static Shared(ast::SwitchStmt) buildSwitch(tokens::TokenStream& stream);
+
+  /**
+   * @brief Build break or continue statement
+   * @param stream Token stream to parse from
+   * @return Shared pointer to BreakStmt/ContinueStmt, or nullptr on error
+   */
+  static Shared(ast::Stmt) buildJump(tokens::TokenStream& stream);
+
+  /**
+   * @brief Build throw statement: throw expr;
+   * @param stream Token stream to parse from
+   * @return Shared pointer to throw statement, or nullptr on error
+   */
+  static Shared(ast::ThrowStmt) buildThrow(tokens::TokenStream& stream);
+
+  /**
+   * @brief Build try statement with optional catch and finally clauses
+   * @param stream Token stream to parse from
+   * @return Shared pointer to try statement, or nullptr on error
+   */
+  static Shared(ast::TryStmt) buildTry(tokens::TokenStream& stream);
 
   /**
    * @brief Build return statement

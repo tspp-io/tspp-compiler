@@ -60,8 +60,8 @@ There is no server, database, or cloud component. "Users" are people who run `ts
 | `let`/`const` variables (local and global) | ✅ | ✅ (undeclared/const-assign) | ✅ | `visit(VarDecl&)` in both visitors |
 | `int`, `float`, `double`, `bool`, `string` | ✅ | names only | ✅. **`boolean` is not mapped** (see [§9](#9-known-issues-and-technical-debt)) | `LLVMCodeGenerator::getLLVMType` |
 | `if`/`else`, `while`, C-style `for` | ✅ | ✅ | ✅ | `StatementBuilder`, `visit(IfStmt/WhileStmt/ForStmt&)` |
-| `switch`, `do-while`, `break`, `continue`, `try/catch`, `for..of` | Tokens exist only | ❌ | ❌ | No AST node in `src/parser/nodes/statement_nodes.h` |
-| `++`, `+=`, ternary `?:` | Tokens exist only | ❌ | ❌ | `ExpressionBuilder::isBinaryOperator` lacks them |
+| `switch`, `do-while`, `break`, `continue`, `try/catch/finally`, `throw`, `for..of` | ✅ | ✅ (scopes, `break`/`continue` placement, duplicate `default`) | ❌ Rejected with a "not yet supported by code generation" semantic error | `SwitchStmt`, `DoWhileStmt`, `ForOfStmt`, `TryStmt`, … in `statement_nodes.h`; `StatementBuilder`; `SemanticAnalyzerVisitor::reportNotLowered` |
+| `++`/`--` (prefix and postfix), compound assignment (`+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `\|=`, `^=`), ternary `?:` | ✅ | ✅ (const/invalid targets) | ✅ `a op= b` and `++`/`--` lower as `a = a op b` (the target expression is evaluated twice). `?:` uses branches + `phi`, so only the taken arm runs. | `UpdateExpr`, `CompoundAssignmentExpr`, `ConditionalExpr` in `expression_nodes.h`; `ExpressionBuilder::buildPostfix/buildBinary`; `LLVMCodeGenerator::emitReadModifyWrite`, `visit(ConditionalExpr&)` |
 | Classes: fields, methods, constructor, `extends`, `implements`, `static {}` | ✅ | ✅ partial | ✅ (struct + `ClassName.method` functions) | `buildClass`, `LLVMCodeGenerator::visit(ClassDecl&)` |
 | Interfaces, generics (`<T extends X>`) | ✅ | names only | Lowered as opaque `ptr` (type erasure) | `FunctionDecl` codegen heuristics around `LLVMCodeGenerator.cpp:1836` |
 | Type aliases (`typedef X = …;` / `type X = …;`) | ✅ | ✅ (alias table) | via resolution | `SemanticAnalyzerVisitor::typeAliases` |

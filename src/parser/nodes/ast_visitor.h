@@ -19,6 +19,9 @@ class MemberAccessExpr;
 class IndexAccessExpr;
 class ArrayLiteralExpr;
 class ObjectLiteralExpr;
+class CompoundAssignmentExpr;
+class UpdateExpr;
+class ConditionalExpr;
 class BlockStmt;
 class StaticBlockStmt;
 class ExprStmt;
@@ -27,6 +30,13 @@ class WhileStmt;
 class ForStmt;
 class AsmStmt;
 class ReturnStmt;
+class DoWhileStmt;
+class ForOfStmt;
+class BreakStmt;
+class ContinueStmt;
+class SwitchStmt;
+class ThrowStmt;
+class TryStmt;
 class VarDecl;
 class Parameter;
 class FunctionDecl;
@@ -71,6 +81,9 @@ class ASTVisitor {
   virtual void visit(IndexAccessExpr&) {}
   virtual void visit(ArrayLiteralExpr&) {}
   virtual void visit(ObjectLiteralExpr&) {}
+  virtual void visit(CompoundAssignmentExpr&) {}
+  virtual void visit(UpdateExpr&) {}
+  virtual void visit(ConditionalExpr&) {}
   virtual void visit(BlockStmt&) {}
   virtual void visit(StaticBlockStmt&) {}
   virtual void visit(ExprStmt&) {}
@@ -79,6 +92,13 @@ class ASTVisitor {
   virtual void visit(ForStmt&) {}
   virtual void visit(AsmStmt&) {}
   virtual void visit(ReturnStmt&) {}
+  virtual void visit(DoWhileStmt&) {}
+  virtual void visit(ForOfStmt&) {}
+  virtual void visit(BreakStmt&) {}
+  virtual void visit(ContinueStmt&) {}
+  virtual void visit(SwitchStmt&) {}
+  virtual void visit(ThrowStmt&) {}
+  virtual void visit(TryStmt&) {}
   virtual void visit(VarDecl&) {}
   virtual void visit(Parameter&) {}
   virtual void visit(FunctionDecl&) {}

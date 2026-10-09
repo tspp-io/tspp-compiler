@@ -296,10 +296,22 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
     case tokens::TokenType::STAR: {  // Dereference operator (*)
       auto op = stream.peek();
       stream.advance();
-      auto right = buildPrimary(stream);
+      auto right = buildPostfix(stream);
       auto expr = std::make_shared<ast::UnaryExpr>();
       expr->op = op;
       expr->operand = right;
+      expr->location = op.getLocation();
+      return expr;
+    }
+    // Prefix increment/decrement: ++expr, --expr
+    case tokens::TokenType::PLUS_PLUS:
+    case tokens::TokenType::MINUS_MINUS: {
+      auto op = stream.peek();
+      stream.advance();
+      auto expr = std::make_shared<ast::UpdateExpr>();
+      expr->op = op;
+      expr->operand = buildPostfix(stream);
+      expr->isPrefix = true;
       expr->location = op.getLocation();
       return expr;
     }
@@ -310,17 +322,61 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
   }
 }
 
+// Parse a primary expression followed by any postfix '++' / '--'
+Shared(ast::Expr) ExpressionBuilder::buildPostfix(tokens::TokenStream& stream) {
+  auto expr = buildPrimary(stream);
+  while (expr && (stream.peek().getType() == tokens::TokenType::PLUS_PLUS ||
+                  stream.peek().getType() == tokens::TokenType::MINUS_MINUS)) {
+    auto update = std::make_shared<ast::UpdateExpr>();
+    update->op = stream.peek();
+    update->operand = expr;
+    update->isPrefix = false;
+    update->location = expr->location;
+    stream.advance();
+    expr = update;
+  }
+  return expr;
+}
+
 // Parse a binary expression using precedence climbing
 Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
                                                  int minPrec) {
-  auto left = buildPrimary(stream);
+  auto left = buildPostfix(stream);
   while (true) {
     auto type = stream.peek().getType();
+    // Ternary conditional: cond ? thenExpr : elseExpr. Binds looser than
+    // '||' and is right-associative, like assignment.
+    if (type == tokens::TokenType::QUESTION) {
+      int prec = getOperatorPrecedence(type);
+      if (prec < minPrec) break;
+      auto q = stream.peek();
+      stream.advance();  // consume '?'
+      auto cond = std::make_shared<ast::ConditionalExpr>();
+      cond->condition = left;
+      cond->thenExpr = build(stream);
+      if (stream.peek().getType() == tokens::TokenType::COLON) {
+        stream.advance();  // consume ':'
+      }
+      cond->elseExpr = buildBinary(stream, prec);
+      cond->location = q.getLocation();
+      left = cond;
+      continue;
+    }
     if (!isBinaryOperator(type)) break;
     int prec = getOperatorPrecedence(type);
     if (prec < minPrec) break;
     auto op = stream.peek();
     stream.advance();
+    // Compound assignment is right-associative like '='
+    if (isCompoundAssignmentOperator(type)) {
+      auto assignExpr = std::make_shared<ast::CompoundAssignmentExpr>();
+      assignExpr->target = left;
+      assignExpr->op = op;
+      assignExpr->value = buildBinary(stream, prec);
+      assignExpr->location = op.getLocation();
+      left = assignExpr;
+      continue;
+    }
     // Optionally consume generic arguments: Identifier '<' ... '>'
     if (stream.peek().getType() == tokens::TokenType::LESS) {
       int depth = 0;
@@ -438,7 +494,17 @@ int ExpressionBuilder::getOperatorPrecedence(tokens::TokenType type) {
     case tokens::TokenType::LEFT_SHIFT:
     case tokens::TokenType::RIGHT_SHIFT:
       return 5;  // Shift (between additive and comparison per docs)
+    case tokens::TokenType::QUESTION:
+      return 1;  // Ternary conditional (right-associative)
     case tokens::TokenType::EQUALS:
+    case tokens::TokenType::PLUS_EQUALS:
+    case tokens::TokenType::MINUS_EQUALS:
+    case tokens::TokenType::STAR_EQUALS:
+    case tokens::TokenType::SLASH_EQUALS:
+    case tokens::TokenType::PERCENT_EQUALS:
+    case tokens::TokenType::AMPERSAND_EQUALS:
+    case tokens::TokenType::PIPE_EQUALS:
+    case tokens::TokenType::CARET_EQUALS:
       return 1;  // Assignment
     default:
       return 0;
@@ -467,6 +533,23 @@ bool ExpressionBuilder::isBinaryOperator(tokens::TokenType type) {
     case tokens::TokenType::LEFT_SHIFT:
     case tokens::TokenType::RIGHT_SHIFT:
     case tokens::TokenType::EQUALS:
+      return true;
+    default:
+      return isCompoundAssignmentOperator(type);
+  }
+}
+
+// Returns true if the token is a compound assignment operator
+bool ExpressionBuilder::isCompoundAssignmentOperator(tokens::TokenType type) {
+  switch (type) {
+    case tokens::TokenType::PLUS_EQUALS:
+    case tokens::TokenType::MINUS_EQUALS:
+    case tokens::TokenType::STAR_EQUALS:
+    case tokens::TokenType::SLASH_EQUALS:
+    case tokens::TokenType::PERCENT_EQUALS:
+    case tokens::TokenType::AMPERSAND_EQUALS:
+    case tokens::TokenType::PIPE_EQUALS:
+    case tokens::TokenType::CARET_EQUALS:
       return true;
     default:
       return false;

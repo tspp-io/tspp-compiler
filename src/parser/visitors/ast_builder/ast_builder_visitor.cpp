@@ -131,6 +131,10 @@ bool ASTBuilderVisitor::isStatementStart() const {
   auto type = stream_.peek().getType();
   return type == tokens::TokenType::IF || type == tokens::TokenType::WHILE ||
          type == tokens::TokenType::FOR || type == tokens::TokenType::RETURN ||
+         type == tokens::TokenType::DO || type == tokens::TokenType::SWITCH ||
+         type == tokens::TokenType::BREAK ||
+         type == tokens::TokenType::CONTINUE ||
+         type == tokens::TokenType::THROW || type == tokens::TokenType::TRY ||
          type == tokens::TokenType::LEFT_BRACE ||
          type == tokens::TokenType::LET || type == tokens::TokenType::CONST;
 }

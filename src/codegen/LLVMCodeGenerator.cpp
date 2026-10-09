@@ -16,6 +16,13 @@
 #include "parser/nodes/type_nodes.h"
 
 namespace codegen {
+
+// True if the block ends in a terminator. LLVM 23+ asserts in
+// BasicBlock::getTerminator() on unterminated blocks instead of returning
+// nullptr, so it can no longer be used as a check.
+static bool hasTerminator(const llvm::BasicBlock* bb) {
+  return !bb->empty() && bb->back().isTerminator();
+}
 using namespace ast;
 
 std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
@@ -37,7 +44,7 @@ std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
   root->accept(*this);
 
   // Always terminate with a valid void return
-  if (!bb->getTerminator()) {
+  if (!hasTerminator(bb)) {
     builder->CreateRetVoid();
   }
 }
@@ -1922,7 +1929,7 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
   if (node.body) node.body->accept(*this);
 
   // If no explicit return, emit default value for the return type
-  if (!entry->getTerminator()) {
+  if (!hasTerminator(entry)) {
     if (retType->isIntegerTy(1)) {
       builder->CreateRet(llvm::ConstantInt::getFalse(context));
     } else if (retType->isIntegerTy()) {
@@ -1949,7 +1956,7 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
 // Visit ReturnStmt: emit return
 void LLVMCodeGenerator::visit(ast::ReturnStmt& node) {
   llvm::BasicBlock* bb = builder->GetInsertBlock();
-  if (!bb || bb->getTerminator()) return;
+  if (!bb || hasTerminator(bb)) return;
 
   llvm::Value* valueToReturn = nullptr;
   if (node.value) {
@@ -2011,7 +2018,7 @@ void LLVMCodeGenerator::visit(ast::BlockStmt& node) {
   // run through each statement, but stop after emitting a terminator
   for (auto& stmt : node.statements) {
     auto* bb = builder->GetInsertBlock();
-    if (bb && bb->getTerminator()) break;
+    if (bb && hasTerminator(bb)) break;
     if (stmt) stmt->accept(*this);
   }
 }
@@ -2624,6 +2631,20 @@ void LLVMCodeGenerator::visit(ast::CallExpr& node) {
       if (litArg->value.getType() == TokenType::STRING_LITERAL) {
         semanticTypeName = "string";
       }
+    } else if (auto condArg = dynamic_cast<ConditionalExpr*>(arg.get())) {
+      // cond ? a : b is a string if either arm is a string literal or a
+      // string-typed variable (both arms share the result type)
+      for (auto* armExpr : {condArg->thenExpr.get(), condArg->elseExpr.get()}) {
+        if (auto lit = dynamic_cast<LiteralExpr*>(armExpr)) {
+          if (lit->value.getType() == tokens::TokenType::STRING_LITERAL)
+            semanticTypeName = "string";
+        } else if (auto id = dynamic_cast<IdentifierExpr*>(armExpr)) {
+          auto itSym = symbolTable.find(id->name.getLexeme());
+          if (itSym != symbolTable.end() &&
+              itSym->second.typeName == std::string("string"))
+            semanticTypeName = "string";
+        }
+      }
     }
 
     if (isConsole) {
@@ -3141,7 +3162,7 @@ void LLVMCodeGenerator::visit(ast::IfStmt& node) {
     node.thenBranch->accept(*this);
   }
   // Only create branch if block doesn't already have a terminator
-  if (!thenBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(mergeBB);
   }
 
@@ -3150,7 +3171,7 @@ void LLVMCodeGenerator::visit(ast::IfStmt& node) {
     builder->SetInsertPoint(elseBB);
     node.elseBranch->accept(*this);
     // Only create branch if block doesn't already have a terminator
-    if (!elseBB->getTerminator()) {
+    if (!hasTerminator(builder->GetInsertBlock())) {
       builder->CreateBr(mergeBB);
     }
   }
@@ -3202,7 +3223,7 @@ void LLVMCodeGenerator::visit(ast::WhileStmt& node) {
   }
 
   // After body, branch back to condition (if no terminator exists)
-  if (!bodyBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(condBB);
   }
 
@@ -3261,7 +3282,7 @@ void LLVMCodeGenerator::visit(ast::ForStmt& node) {
   }
 
   // After body, branch to increment (if no terminator exists)
-  if (!bodyBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(incBB);
   }
 
@@ -3272,7 +3293,7 @@ void LLVMCodeGenerator::visit(ast::ForStmt& node) {
   }
 
   // After increment, branch back to condition
-  if (!incBB->getTerminator()) {
+  if (!hasTerminator(builder->GetInsertBlock())) {
     builder->CreateBr(condBB);
   }
 
@@ -3459,6 +3480,161 @@ void LLVMCodeGenerator::visit(ast::AssignmentExpr& node) {
     lastValue = val;
     return;
   }
+}
+
+void LLVMCodeGenerator::emitReadModifyWrite(const Shared(ast::Expr) & target,
+                                            const std::string& op,
+                                            const Shared(ast::Expr) & value) {
+  // Note: the target expression is evaluated twice (once to read, once to
+  // write), so side effects inside it, e.g. a[f()] += 1, run twice.
+  auto binary = std::make_shared<ast::BinaryExpr>();
+  binary->left = target;
+  binary->op = tokens::Token(tokens::TokenType::IDENTIFIER, op,
+                             target ? target->location : core::Location());
+  binary->right = value;
+  binary->location = binary->op.getLocation();
+  ast::AssignmentExpr assign;
+  assign.target = target;
+  assign.value = binary;
+  assign.location = binary->location;
+  visit(assign);
+}
+
+llvm::Value* LLVMCodeGenerator::toBool(llvm::Value* v) {
+  if (!v) return nullptr;
+  llvm::Type* ty = v->getType();
+  if (ty->isIntegerTy(1)) return v;
+  if (ty->isIntegerTy())
+    return builder->CreateICmpNE(v, llvm::ConstantInt::get(ty, 0), "tobool");
+  if (ty->isFloatingPointTy())
+    return builder->CreateFCmpONE(v, llvm::ConstantFP::get(ty, 0.0), "tobool");
+  if (ty->isPointerTy()) return builder->CreateIsNotNull(v, "tobool");
+  return nullptr;
+}
+
+// Visit CompoundAssignmentExpr: a op= b  ->  a = a op b
+void LLVMCodeGenerator::visit(ast::CompoundAssignmentExpr& node) {
+  if (!currentFunction || !node.target || !node.value) {
+    lastValue = nullptr;
+    return;
+  }
+  std::string op = node.op.getLexeme();
+  if (op.size() < 2 || op.back() != '=') {
+    lastValue = nullptr;
+    return;
+  }
+  op.pop_back();  // "+=" -> "+"
+  emitReadModifyWrite(node.target, op, node.value);
+}
+
+// Visit UpdateExpr: ++x / x++ / --x / x--  ->  x = x +/- 1
+void LLVMCodeGenerator::visit(ast::UpdateExpr& node) {
+  if (!currentFunction || !node.operand) {
+    lastValue = nullptr;
+    return;
+  }
+  // Postfix yields the value from before the update
+  llvm::Value* oldValue = nullptr;
+  if (!node.isPrefix) {
+    node.operand->accept(*this);
+    oldValue = lastValue;
+  }
+  auto one = std::make_shared<ast::LiteralExpr>();
+  one->value = tokens::Token(tokens::TokenType::NUMBER, "1", node.location);
+  one->location = node.location;
+  emitReadModifyWrite(
+      node.operand,
+      node.op.getType() == tokens::TokenType::PLUS_PLUS ? "+" : "-", one);
+  if (!node.isPrefix && lastValue) lastValue = oldValue;
+}
+
+// Visit ConditionalExpr: cond ? a : b, evaluating only the taken branch
+void LLVMCodeGenerator::visit(ast::ConditionalExpr& node) {
+  if (!currentFunction || !node.condition || !node.thenExpr || !node.elseExpr) {
+    lastValue = nullptr;
+    return;
+  }
+  node.condition->accept(*this);
+  llvm::Value* cond = toBool(lastValue);
+  if (!cond) {
+    lastValue = nullptr;
+    return;
+  }
+
+  llvm::BasicBlock* thenBB =
+      llvm::BasicBlock::Create(context, "cond.then", currentFunction);
+  llvm::BasicBlock* elseBB =
+      llvm::BasicBlock::Create(context, "cond.else", currentFunction);
+  llvm::BasicBlock* endBB =
+      llvm::BasicBlock::Create(context, "cond.end", currentFunction);
+  builder->CreateCondBr(cond, thenBB, elseBB);
+
+  // Emit both arms without their final branch, so that casts to the common
+  // result type can still be appended to each arm.
+  builder->SetInsertPoint(thenBB);
+  node.thenExpr->accept(*this);
+  llvm::Value* thenV = lastValue;
+  llvm::BasicBlock* thenEnd = builder->GetInsertBlock();
+
+  builder->SetInsertPoint(elseBB);
+  node.elseExpr->accept(*this);
+  llvm::Value* elseV = lastValue;
+  llvm::BasicBlock* elseEnd = builder->GetInsertBlock();
+
+  // Pick the common type: double/float beats integers, wider int beats
+  // narrower, pointers must match pointers.
+  llvm::Type* resultTy = nullptr;
+  if (thenV && elseV) {
+    llvm::Type* a = thenV->getType();
+    llvm::Type* b = elseV->getType();
+    if (a == b) {
+      resultTy = a;
+    } else if (a->isFloatingPointTy() || b->isFloatingPointTy()) {
+      if ((a->isFloatingPointTy() || a->isIntegerTy()) &&
+          (b->isFloatingPointTy() || b->isIntegerTy())) {
+        resultTy = (a->isDoubleTy() || b->isDoubleTy() ||
+                    !a->isFloatingPointTy() || !b->isFloatingPointTy())
+                       ? llvm::Type::getDoubleTy(context)
+                       : llvm::Type::getFloatTy(context);
+      }
+    } else if (a->isIntegerTy() && b->isIntegerTy()) {
+      resultTy = a->getIntegerBitWidth() >= b->getIntegerBitWidth() ? a : b;
+    } else if (a->isPointerTy() && b->isPointerTy()) {
+      resultTy = a;
+    }
+  }
+
+  auto coerce = [&](llvm::Value* v) -> llvm::Value* {
+    llvm::Type* ty = v->getType();
+    if (ty == resultTy) return v;
+    if (ty->isIntegerTy() && resultTy->isIntegerTy())
+      return builder->CreateIntCast(v, resultTy, !ty->isIntegerTy(1));
+    if (ty->isIntegerTy() && resultTy->isFloatingPointTy())
+      return ty->isIntegerTy(1) ? builder->CreateUIToFP(v, resultTy)
+                                : builder->CreateSIToFP(v, resultTy);
+    if (ty->isFloatingPointTy() && resultTy->isFloatingPointTy())
+      return builder->CreateFPCast(v, resultTy);
+    if (ty->isPointerTy() && resultTy->isPointerTy())
+      return builder->CreatePointerCast(v, resultTy);
+    return v;
+  };
+
+  builder->SetInsertPoint(thenEnd);
+  if (resultTy) thenV = coerce(thenV);
+  builder->CreateBr(endBB);
+  builder->SetInsertPoint(elseEnd);
+  if (resultTy) elseV = coerce(elseV);
+  builder->CreateBr(endBB);
+
+  builder->SetInsertPoint(endBB);
+  if (!resultTy) {
+    lastValue = nullptr;
+    return;
+  }
+  llvm::PHINode* phi = builder->CreatePHI(resultTy, 2, "cond");
+  phi->addIncoming(thenV, thenEnd);
+  phi->addIncoming(elseV, elseEnd);
+  lastValue = phi;
 }
 
 // Visit UnaryExpr: handle unary operators
@@ -3716,7 +3892,7 @@ void LLVMCodeGenerator::visit(ast::ConstructorDecl& node) {
   }
 
   if (node.body) node.body->accept(*this);
-  if (!entry->getTerminator()) builder->CreateRetVoid();
+  if (!hasTerminator(entry)) builder->CreateRetVoid();
   currentFunction = prevFunction;
 }
 
@@ -3880,7 +4056,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
     }
     // Insert before the final return
     auto& lastBB = ctor->back();
-    if (lastBB.getTerminator()) lastBB.getTerminator()->eraseFromParent();
+    if (hasTerminator(&lastBB)) lastBB.getTerminator()->eraseFromParent();
     auto* savedFunc = currentFunction;
     currentFunction = ctor;
     builder->SetInsertPoint(&lastBB);
@@ -4024,7 +4200,7 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
       idx++;
     }
     if (m->body) m->body->accept(*this);
-    if (!entry->getTerminator()) {
+    if (!hasTerminator(entry)) {
       if (retTy->isVoidTy())
         builder->CreateRetVoid();
       else if (retTy->isIntegerTy())
@@ -4581,7 +4757,7 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
       if (F.isDeclaration()) continue;
       if (F.empty()) continue;
       llvm::BasicBlock* lastBB = &F.back();
-      if (lastBB->getTerminator()) continue;
+      if (hasTerminator(lastBB)) continue;
       builder->SetInsertPoint(lastBB);
       llvm::Type* retTy = F.getReturnType();
       if (retTy->isVoidTy()) {
@@ -4607,7 +4783,7 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
     for (auto& F : module->functions()) {
       if (F.isDeclaration()) continue;
       for (auto& BB : F) {
-        if (BB.getTerminator()) continue;
+        if (hasTerminator(&BB)) continue;
         // Find next basic block in function
         llvm::BasicBlock* next = BB.getNextNode();
         builder->SetInsertPoint(&BB);
