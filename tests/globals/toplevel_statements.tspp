@@ -1,0 +1,25 @@
+// C2c: top-level statements run in source order, interleaved with global
+// initializers, before main.
+function trace(msg: string): int {
+  console.log(msg);
+  return 1;
+}
+console.log("start");
+let x: int = trace("init x");
+console.log("after x");
+for (let i: int = 0; i < 2; i++) {
+  console.log("loop " + i);
+}
+let y: int = x + trace("init y");
+if (y == 2) {
+  console.log("y is 2");
+}
+{
+  let local: int = y * 10;
+  console.log("block local " + local);
+}
+y = y + 100;
+function main(): int {
+  console.log("main y=" + y);
+  return 0;
+}

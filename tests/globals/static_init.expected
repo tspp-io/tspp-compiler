@@ -1,0 +1,3 @@
+seed()
+Counter static block: start=10
+before=5 after=11 name=counter-5

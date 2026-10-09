@@ -51,6 +51,16 @@ std::unique_ptr<llvm::Module> LLVMCodeGenerator::generateModuleForREPL(
 
 // Visit ProgramNode: emit all declarations and statements in phases
 void LLVMCodeGenerator::visit(ast::ProgramNode& node) {
+  // Phase 0: record top-level function return types so an untyped global
+  // initialized by a call (`let g = f();`) can be typed before f is emitted.
+  for (auto& decl : node.declarations) {
+    if (auto* fn = dynamic_cast<ast::FunctionDecl*>(decl.get())) {
+      std::string retName;
+      resolveFunctionReturnType(*fn, retName);
+      topLevelReturnTypes[fn->name.getLexeme()] = retName;
+    }
+  }
+
   // Phase 1: emit global variable declarations first
   for (auto& decl : node.declarations) {
     if (!decl) continue;
@@ -83,20 +93,9 @@ void LLVMCodeGenerator::visit(ast::ProgramNode& node) {
     decl->accept(*this);
   }
 
-  // Phase 3: remaining statements (e.g., expression statements)
-  for (auto& stmt : node.statements) {
-    if (!stmt) continue;
-    // Skip VarDecl already handled
-    if (dynamic_cast<ast::VarDecl*>(stmt.get())) continue;
-    // Also skip expression statements that wrap a VarDecl
-    if (auto* exprStmt = dynamic_cast<ast::ExprStmt*>(stmt.get())) {
-      if (exprStmt->expression &&
-          dynamic_cast<ast::VarDecl*>(exprStmt->expression.get())) {
-        continue;
-      }
-    }
-    stmt->accept(*this);
-  }
+  // Phase 3: non-constant global initializers, class static initializers
+  // and top-level statements run at startup, in source order (C2/C2c).
+  emitModuleInit(node);
 }
 
 // Visit VarDecl: allocate and initialize variable
@@ -107,9 +106,37 @@ void LLVMCodeGenerator::visit(ast::VarDecl& node) {
   // If there's an initializer, evaluate once up-front so we can refine type
   // decisions (especially for pointers) before allocating storage.
   llvm::Value* initValEarly = nullptr;
-  if (node.initializer) {
+  // A global (no current function) has no valid insertion point here: its
+  // initializer runs later, inside __tspp_global_ctors (C2b). If the global
+  // has no declared type, the initializer is evaluated once in a throwaway
+  // function purely to infer its type, then that function is deleted.
+  const bool isGlobal = (currentFunction == nullptr);
+  ScratchFunction scratch(*this, isGlobal && node.initializer &&
+                                     !(semanticAnalyzer && node.type));
+  if (node.initializer && (!isGlobal || scratch.active())) {
     node.initializer->accept(*this);
     initValEarly = lastValue;
+    // Classes and top-level functions are not emitted yet: `new C(...)` is
+    // an object pointer, and a call uses the function's declared return type.
+    if (!initValEarly && scratch.active() &&
+        dynamic_cast<ast::NewExpr*>(node.initializer.get())) {
+      initValEarly = llvm::UndefValue::get(getPointerTy());
+    }
+    if (!initValEarly && scratch.active()) {
+      if (auto* call = dynamic_cast<ast::CallExpr*>(node.initializer.get())) {
+        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->callee.get())) {
+          auto it = topLevelReturnTypes.find(id->name.getLexeme());
+          if (it != topLevelReturnTypes.end() && it->second != "void") {
+            llvm::Type* t = classes.count(it->second)
+                                ? getPointerTy()
+                                : getLLVMType(it->second);
+            initValEarly = llvm::UndefValue::get(t);
+            if (it->second == "string")
+              functionReturnTypes.emplace(id->name.getLexeme(), "string");
+          }
+        }
+      }
+    }
   }
 
   if (semanticAnalyzer && node.type) {
@@ -244,6 +271,7 @@ void LLVMCodeGenerator::visit(ast::VarDecl& node) {
   }
 
   bool isMutable = !node.isConst;
+  scratch.finish();  // global: back to "no current function"
 
   if (currentFunction) {
     // Local variable allocation
@@ -364,10 +392,9 @@ void LLVMCodeGenerator::visit(ast::VarDecl& node) {
     symbolTable[node.name.getLexeme()] =
         SymbolInfo{gvar, llvmType, isMutable, resolvedTypeName};
 
-    // If initializer was not a constant expression but exists, defer it
+    // Not a constant expression: evaluated at startup by emitModuleInit()
     if (node.initializer && !initWasConst) {
-      pendingGlobalInits.push_back(
-          PendingGlobalInit{node.initializer.get(), gvar, llvmType});
+      deferredGlobalInits[&node] = gvar;
     }
   }
 }
@@ -1782,9 +1809,13 @@ void LLVMCodeGenerator::visit(ast::BinaryExpr& node) {
 }
 
 // Visit FunctionDecl: emit function definition
-void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
+// Resolve a function's declared return type to (semantic name, LLVM type).
+// Shared by visit(FunctionDecl) and the ProgramNode pre-pass that records
+// top-level return types before global initializers are typed.
+llvm::Type* LLVMCodeGenerator::resolveFunctionReturnType(
+    ast::FunctionDecl& node, std::string& resolvedRetType) {
   // Resolve return type using semantic analyzer if available
-  std::string resolvedRetType = "int";
+  resolvedRetType = "int";
   llvm::Type* retType = llvm::Type::getInt32Ty(context);
   if (semanticAnalyzer && node.returnType) {
     // If it's a union type, lower to string for now
@@ -1818,6 +1849,12 @@ void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
       }
     }
   }
+  return retType;
+}
+
+void LLVMCodeGenerator::visit(ast::FunctionDecl& node) {
+  std::string resolvedRetType;
+  llvm::Type* retType = resolveFunctionReturnType(node, resolvedRetType);
   // Record function return type for later call-site conversions
   functionReturnTypes[node.name.getLexeme()] = resolvedRetType;
 
@@ -4040,36 +4077,27 @@ void LLVMCodeGenerator::visit(ast::ClassDecl& node) {
         (void)gvar;
       }
     }
-  }
-  // Emit static blocks: run once by appending to GC ctor
-  if (!node.staticBlocks.empty()) {
-    auto* ctor = module->getFunction("__tspp_gc_ctor");
-    if (!ctor) {
-      // Should exist from generate(); if not, create a minimal one
-      auto ctorTy =
-          llvm::FunctionType::get(llvm::Type::getVoidTy(context), false);
-      ctor = llvm::Function::Create(ctorTy, llvm::GlobalValue::InternalLinkage,
-                                    "__tspp_gc_ctor", module.get());
-      auto bb = llvm::BasicBlock::Create(context, "entry", ctor);
-      builder->SetInsertPoint(bb);
-      builder->CreateRetVoid();
+    // Static field initializers: a constant becomes the global's initial
+    // value; anything else runs in __tspp_global_ctors (emitModuleInit), in
+    // source order with the class's static blocks.
+    for (auto& f : node.fields) {
+      if (!f || f->qualifier != ast::StorageQualifier::Static ||
+          !f->initializer)
+        continue;
+      auto* gvar = module->getGlobalVariable(
+          className + std::string(".") + f->name.getLexeme(), true);
+      if (!gvar) continue;
+      llvm::Constant* c = nullptr;
+      if (auto cv = constantEvaluator.evaluate(f->initializer.get()))
+        c = constantValueToLLVM(*cv);
+      if (c && c->getType() == gvar->getValueType()) {
+        gvar->setInitializer(c);
+      } else {
+        deferredGlobalInits[f.get()] = gvar;
+      }
     }
-    // Insert before the final return
-    auto& lastBB = ctor->back();
-    if (hasTerminator(&lastBB)) lastBB.getTerminator()->eraseFromParent();
-    auto* savedFunc = currentFunction;
-    currentFunction = ctor;
-    builder->SetInsertPoint(&lastBB);
-    // Push class context for 'static' blocks if they reference statics via
-    // ClassName
-    classNameStack.push_back(className);
-    for (auto& sb : node.staticBlocks) {
-      if (sb && sb->body) sb->body->accept(*this);
-    }
-    classNameStack.pop_back();
-    builder->CreateRetVoid();
-    currentFunction = savedFunc;
   }
+  // Static blocks are emitted by emitModuleInit() into __tspp_global_ctors.
   if (node.constructor) {
     info.hasConstructor = true;
     node.constructor->accept(*this);
@@ -4733,7 +4761,6 @@ LLVMCodeGenerator::LLVMCodeGenerator(
 void LLVMCodeGenerator::generate(ast::BaseNode* root) {
   if (root) {
     root->accept(*this);
-    emitPendingGlobalInits();
     emitEntryPoint();
     // Ensure all functions have a valid terminator on their last basic block.
     for (auto& F : module->functions()) {
@@ -4844,11 +4871,12 @@ void LLVMCodeGenerator::visit(ast::ExprStmt& node) {
   }
 }
 
-// Helper method to emit pending global initializers
 // Emit the C entry point `i32 main()`. It always starts with a call to the
-// runtime's `tspp_runtime_init()` (Boehm GC init) so the runtime is ready
-// before any user code runs; module initializers (Phase 5) belong right after
-// that call. A user `main()` without parameters is renamed to
+// runtime's `tspp_runtime_init()` (Boehm GC init) and then, if there is any
+// startup code, `__tspp_global_ctors()` (emitModuleInit): global
+// initializers, class static initializers and top-level statements. Calling
+// it explicitly (instead of registering it in llvm.global_ctors) guarantees
+// it runs after GC init and in a fixed place, before any user code. A user `main()` without parameters is renamed to
 // `__tspp_user_main` and called from the wrapper; for `main(): void` (or
 // another integer width, e.g. bool) this also makes the exit status well
 // defined (void main -> 0). A missing `main` gets one that returns 0.
@@ -4871,6 +4899,7 @@ void LLVMCodeGenerator::emitEntryPoint() {
       llvm::BasicBlock& entry = userMain->getEntryBlock();
       llvm::IRBuilder<> initBuilder(&entry, entry.getFirstInsertionPt());
       initBuilder.CreateCall(runtimeInit);
+      if (moduleInitFn) initBuilder.CreateCall(moduleInitFn);
       if (!retTy->isIntegerTy(32)) {
         llvm::errs() << "[ERROR] User main() must return i32.\n";
       }
@@ -4887,6 +4916,7 @@ void LLVMCodeGenerator::emitEntryPoint() {
   llvm::BasicBlock* bb = llvm::BasicBlock::Create(context, "entry", mainFn);
   llvm::IRBuilder<> wrapperBuilder(bb);
   wrapperBuilder.CreateCall(runtimeInit);
+  if (moduleInitFn) wrapperBuilder.CreateCall(moduleInitFn);
   if (!userMain) {
     wrapperBuilder.CreateRet(llvm::ConstantInt::get(i32Ty, 0));
     return;
@@ -4899,30 +4929,113 @@ void LLVMCodeGenerator::emitEntryPoint() {
   }
 }
 
-void LLVMCodeGenerator::emitPendingGlobalInits() {
-  if (pendingGlobalInits.empty()) return;
+LLVMCodeGenerator::ScratchFunction::ScratchFunction(LLVMCodeGenerator& gen,
+                                                   bool enable)
+    : gen_(gen) {
+  if (!enable) return;
+  savedFunction_ = gen_.currentFunction;
+  savedIP_ = gen_.builder->saveIP();
+  fn_ = llvm::Function::Create(
+      llvm::FunctionType::get(llvm::Type::getVoidTy(gen_.context), false),
+      llvm::Function::InternalLinkage, "__tspp_scratch", gen_.module.get());
+  gen_.builder->SetInsertPoint(
+      llvm::BasicBlock::Create(gen_.context, "entry", fn_));
+  gen_.currentFunction = fn_;
+}
 
-  // Create a module constructor function if needed
-  llvm::FunctionType* ctorType =
-      llvm::FunctionType::get(llvm::Type::getVoidTy(context), false);
-  llvm::Function* ctorFunc =
-      llvm::Function::Create(ctorType, llvm::Function::InternalLinkage,
-                             "__tspp_global_ctors", module.get());
+void LLVMCodeGenerator::ScratchFunction::finish() {
+  if (!fn_) return;
+  gen_.lastValue = nullptr;  // may point into the scratch function
+  gen_.currentFunction = savedFunction_;
+  gen_.builder->restoreIP(savedIP_);
+  fn_->dropAllReferences();
+  fn_->eraseFromParent();
+  fn_ = nullptr;
+}
 
-  llvm::BasicBlock* ctorBB =
-      llvm::BasicBlock::Create(context, "entry", ctorFunc);
-  builder->SetInsertPoint(ctorBB);
+// Evaluate one deferred initializer (global or class #static field) at the
+// current insertion point inside __tspp_global_ctors and store it.
+void LLVMCodeGenerator::emitDeferredInit(const ast::VarDecl& decl,
+                                         llvm::GlobalVariable* gvar) {
+  lastValue = nullptr;
+  decl.initializer->accept(*this);
+  llvm::Value* v = lastValue;
+  if (!v) {
+    llvm::errs() << "[ERROR] Could not generate the initializer of global '"
+                 << decl.name.getLexeme() << "'\n";
+    return;
+  }
+  llvm::Type* ty = gvar->getValueType();
+  if (v->getType() != ty) v = coerceToReturnType(v, ty);
+  if (v && v->getType() == ty) builder->CreateStore(v, gvar);
+}
 
-  // Emit initializers
-  for (auto& pending : pendingGlobalInits) {
-    pending.expr->accept(*this);
-    if (lastValue) {
-      builder->CreateStore(lastValue, pending.gvar);
+// Build __tspp_global_ctors: walk the top level in source order (imported
+// modules first, as merged by ModuleResolver) and emit
+//   - each non-constant global initializer,
+//   - each class's non-constant #static field initializers and static
+//     blocks, in the order they appear in the class body,
+//   - each top-level non-declaration statement.
+// emitEntryPoint() calls the function right after tspp_runtime_init().
+void LLVMCodeGenerator::emitModuleInit(ast::ProgramNode& program) {
+  auto runsCode = [&](ast::BaseNode* n) -> bool {
+    if (auto* v = dynamic_cast<ast::VarDecl*>(n))
+      return deferredGlobalInits.count(v) != 0;
+    if (auto* c = dynamic_cast<ast::ClassDecl*>(n)) {
+      if (!c->staticBlocks.empty()) return true;
+      for (auto& f : c->fields)
+        if (f && deferredGlobalInits.count(f.get())) return true;
+      return false;
+    }
+    return dynamic_cast<ast::Stmt*>(n) != nullptr;
+  };
+  bool needed = false;
+  for (auto& item : program.topLevel)
+    if (item && runsCode(item.get())) needed = true;
+  if (!needed) return;
+
+  llvm::IRBuilderBase::InsertPointGuard ipGuard(*builder);
+  auto* savedFunction = currentFunction;
+  auto savedSymbols = symbolTable;  // top-level blocks may add locals
+
+  moduleInitFn = llvm::Function::Create(
+      llvm::FunctionType::get(llvm::Type::getVoidTy(context), false),
+      llvm::Function::InternalLinkage, "__tspp_global_ctors", module.get());
+  builder->SetInsertPoint(
+      llvm::BasicBlock::Create(context, "entry", moduleInitFn));
+  currentFunction = moduleInitFn;
+
+  for (auto& item : program.topLevel) {
+    ast::BaseNode* n = item.get();
+    if (!n || !runsCode(n)) continue;
+    if (auto* v = dynamic_cast<ast::VarDecl*>(n)) {
+      emitDeferredInit(*v, deferredGlobalInits[v]);
+    } else if (auto* c = dynamic_cast<ast::ClassDecl*>(n)) {
+      if (!c->body) continue;
+      classNameStack.push_back(c->name.getLexeme());
+      for (auto& member : c->body->statements) {
+        if (auto* f = dynamic_cast<ast::VarDecl*>(member.get())) {
+          auto it = deferredGlobalInits.find(f);
+          if (it != deferredGlobalInits.end()) emitDeferredInit(*f, it->second);
+        } else if (auto* sb = dynamic_cast<ast::StaticBlockStmt*>(member.get())) {
+          if (sb->body) sb->body->accept(*this);
+        }
+      }
+      classNameStack.pop_back();
+    } else {
+      n->accept(*this);
+    }
+    // Code after a top-level `return`/`break` is unreachable but must still
+    // go into a block of its own.
+    if (hasTerminator(builder->GetInsertBlock())) {
+      builder->SetInsertPoint(
+          llvm::BasicBlock::Create(context, "after", moduleInitFn));
     }
   }
+  if (!hasTerminator(builder->GetInsertBlock())) builder->CreateRetVoid();
 
-  builder->CreateRetVoid();
-  pendingGlobalInits.clear();
+  currentFunction = savedFunction;
+  symbolTable = std::move(savedSymbols);
 }
 
 // === Helper: coerce runtime value to the current function's declared return

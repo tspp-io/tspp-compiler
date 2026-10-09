@@ -1,0 +1,17 @@
+// C2: globals initialized from function calls run before main, typed and untyped.
+function compute(): int { return 6 * 7; }
+function greeting(): string { return "hello"; }
+function half(): float { return 2.5; }
+let a: int = compute();
+let b = compute();
+let s = greeting();
+let t: string = greeting() + " world";
+let f: int = half() * 2.0;
+function main(): int {
+  console.log("a = " + a);
+  console.log("b = " + b);
+  console.log("s = " + s);
+  console.log("t = " + t);
+  console.log("f = " + f);
+  return 0;
+}

@@ -1,0 +1,23 @@
+// C2 family: class #static field initializers and static blocks run once at
+// startup, in source order with the surrounding globals.
+function seed(): int {
+  console.log("seed()");
+  return 5;
+}
+let before: int = seed();
+class Counter {
+  #static let start: int = before * 2;
+  #static let name: string = "counter-" + before;
+  static {
+    console.log("Counter static block: start=" + Counter.start);
+    Counter.start = Counter.start + 1;
+  }
+  #static function get(): int { return Counter.start; }
+  #static function label(): string { return Counter.name; }
+}
+let after: int = Counter.get();
+function main(): int {
+  let name: string = Counter.label();
+  console.log("before=" + before + " after=" + after + " name=" + name);
+  return 0;
+}

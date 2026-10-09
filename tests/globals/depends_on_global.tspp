@@ -1,0 +1,11 @@
+// C2: a global initializer may read globals declared (and initialized) before it.
+function base(): int { return 10; }
+let first: int = base();
+let second: int = first * 2 + 1;
+let third: int = second + first;
+let label: string = "third=" + third;
+function main(): int {
+  console.log(label);
+  console.log("first=" + first + " second=" + second);
+  return 0;
+}

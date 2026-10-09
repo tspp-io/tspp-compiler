@@ -1,0 +1,9 @@
+start
+init x
+after x
+loop 0
+loop 1
+init y
+y is 2
+block local 20
+main y=102

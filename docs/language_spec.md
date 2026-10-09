@@ -50,3 +50,27 @@
 #const int N = 10;
 function add(a: int, b: int): int { return a + b; }
 ```
+
+## Program Startup and Initialization Order
+
+Before `main` runs, the program executes its startup code once, in this order:
+
+1. The runtime is initialized (`tspp_runtime_init`: Boehm GC).
+2. Every top-level item that has code to run, in source order:
+   - a global whose initializer is not a compile-time constant
+     (`let g: int = compute();`); constant initializers are folded into the
+     global and need no code;
+   - a class's non-constant `#static` field initializers and its `static { }`
+     blocks, in the order they appear in the class body;
+   - a top-level statement (`console.log("hi");`, `if`, `for`, `{ ... }`).
+3. `main`, if there is one.
+
+A global initializer can read any global declared before it. Reading a global
+declared later gives its zero value (or its constant initializer).
+
+Imports are merged into the importing file (no namespaces). Code from an
+imported module runs before the code of the file that imports it. Several
+imports of one file run in the order they are written. A module imported more
+than once runs once, at the position of its first merge (with diamond imports
+this may be after a module that also imports it).
+

@@ -51,8 +51,10 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
           program.imports.push_back(asImport);
         } else if (auto asDecl = std::dynamic_pointer_cast<ast::Decl>(node)) {
           program.declarations.push_back(asDecl);
+          program.topLevel.push_back(asDecl);
         } else if (auto asStmt = std::dynamic_pointer_cast<ast::Stmt>(node)) {
           program.statements.push_back(asStmt);
+          program.topLevel.push_back(asStmt);
         }
       } else {
         stream_.advance();
@@ -69,6 +71,7 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
       auto stmt = StatementBuilder::build(stream_);
       if (stmt) {
         program.statements.push_back(stmt);
+        program.topLevel.push_back(stmt);
       } else {
         stream_.advance();
       }
@@ -83,6 +86,7 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
       auto stmt = StatementBuilder::build(stream_);
       if (stmt) {
         program.statements.push_back(stmt);
+        program.topLevel.push_back(stmt);
       } else {
         stream_.advance();
       }
@@ -92,7 +96,37 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
       }
       continue;
     }
+
+    // Top-level expression statements (`console.log("hi");`, `x = f();`)
+    // run in source order at startup, inside __tspp_global_ctors (C2c).
+    if (isExpressionStatementStart()) {
+      auto stmt = StatementBuilder::build(stream_);
+      if (stmt) {
+        program.statements.push_back(stmt);
+        program.topLevel.push_back(stmt);
+      } else {
+        stream_.advance();
+      }
+      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
+        stream_.advance();
+      }
+      continue;
+    }
     stream_.advance();
+  }
+}
+
+bool ASTBuilderVisitor::isExpressionStatementStart() const {
+  switch (stream_.peek().getType()) {
+    case tokens::TokenType::IDENTIFIER:
+    case tokens::TokenType::THIS:
+    case tokens::TokenType::NEW:
+    case tokens::TokenType::LEFT_PAREN:
+    case tokens::TokenType::PLUS_PLUS:
+    case tokens::TokenType::MINUS_MINUS:
+      return true;
+    default:
+      return false;
   }
 }
 

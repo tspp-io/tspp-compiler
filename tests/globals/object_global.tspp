@@ -1,0 +1,14 @@
+// C2: globals holding objects created with `new` (typed and untyped).
+class Point {
+  x: int;
+  y: int;
+  constructor(x: int, y: int) { this.x = x; this.y = y; }
+}
+let typed: Point = new Point(1, 2);
+let untyped = new Point(3, 4);
+function main(): int {
+  let u: Point = untyped;
+  console.log("typed=" + typed.x + "," + typed.y);
+  console.log("untyped=" + u.x + "," + u.y);
+  return 0;
+}

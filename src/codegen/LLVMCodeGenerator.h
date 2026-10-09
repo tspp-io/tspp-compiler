@@ -147,14 +147,38 @@ class LLVMCodeGenerator : public ast::ASTVisitor {
   llvm::Value* emitFieldPtr(llvm::Value* objPtr, const std::string& className,
                             const std::string& fieldName);
 
-  // Deferred global initializers emitted into module ctor
-  struct PendingGlobalInit {
-    ast::Expr* expr;             // initializer expression AST
-    llvm::GlobalVariable* gvar;  // global to initialize
-    llvm::Type* type;            // LLVM type for the global
+  // Module initialization (C2). Globals (and class #static fields) whose
+  // initializer is not a compile-time constant are zero-initialized and
+  // recorded here; emitModuleInit() evaluates them, class static blocks and
+  // top-level statements in source order inside __tspp_global_ctors, which
+  // emitEntryPoint() calls right after tspp_runtime_init().
+  std::unordered_map<const ast::VarDecl*, llvm::GlobalVariable*>
+      deferredGlobalInits;
+  // Declared return types of top-level functions, known before any function
+  // is emitted; used only to type untyped globals initialized by a call.
+  std::unordered_map<std::string, std::string> topLevelReturnTypes;
+  llvm::Function* moduleInitFn = nullptr;  // __tspp_global_ctors, if any
+  void emitModuleInit(ast::ProgramNode& program);
+  void emitDeferredInit(const ast::VarDecl& decl, llvm::GlobalVariable* gvar);
+  llvm::Type* resolveFunctionReturnType(ast::FunctionDecl& node,
+                                        std::string& resolvedRetType);
+
+  // RAII: while active, codegen emits into a throwaway function (used to
+  // infer the type of an untyped global's initializer without emitting IR
+  // at a stale insertion point). finish()/destructor deletes it.
+  class ScratchFunction {
+   public:
+    ScratchFunction(LLVMCodeGenerator& gen, bool enable);
+    ~ScratchFunction() { finish(); }
+    bool active() const { return fn_ != nullptr; }
+    void finish();
+
+   private:
+    LLVMCodeGenerator& gen_;
+    llvm::Function* fn_ = nullptr;
+    llvm::Function* savedFunction_ = nullptr;
+    llvm::IRBuilderBase::InsertPoint savedIP_;
   };
-  std::vector<PendingGlobalInit> pendingGlobalInits;
-  void emitPendingGlobalInits();
   void emitEntryPoint();
 
   // ...other helpers for function/variable management...

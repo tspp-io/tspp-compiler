@@ -85,9 +85,17 @@ run mode, the program's own status.
   `"ClassName.method"`, `Symbol::typeName` strings). Changes ripple unpredictably.
   `boolean` is not mapped in `getLLVMType` and falls back to `ptr` (H4); `bool` works.
 - Codegen (`emitEntryPoint`) renames a parameterless user `main` to
-  `__tspp_user_main` and emits an `i32 main()` that first calls
-  `tspp_runtime_init()` (GC_INIT), then the user main (void → exit 0); a missing
-  `main` gets one that only inits and returns 0. Prefer `function main(): int` in tests.
+  `__tspp_user_main` and emits an `i32 main()` that calls `tspp_runtime_init()`
+  (GC_INIT), then `__tspp_global_ctors()` (if there is startup code), then the
+  user main (void → exit 0); a missing `main` gets one that only does the two
+  init calls and returns 0; a `main` with parameters gets both calls at the top
+  of its entry block. Prefer `function main(): int` in tests.
+- Startup code (`emitModuleInit`, C2 fixed): non-constant global initializers,
+  class `#static` field initializers and `static {}` blocks, and top-level
+  statements all run in `__tspp_global_ctors`, in source order; imported
+  modules' code comes first (ModuleResolver prepends them). Constant
+  initializers are folded into the global. Order of top-level items is kept in
+  `ProgramNode::topLevel`.
 - **The build forces Debug + ASan** (root `CMakeLists.txt` sets
   `CMAKE_BUILD_TYPE Debug` and `-fsanitize=address`; `-DCMAKE_BUILD_TYPE=...` is
   overridden) of the compiler. Compiled programs are PIE and not ASan-instrumented
@@ -97,8 +105,6 @@ run mode, the program's own status.
   (`GC_MALLOC_ATOMIC`; C1/C1b fixed). Never free it; `tspp_free_string` is a no-op.
   A string pointer stored only in non-GC memory (e.g. `sys.malloc`) is invisible to
   the collector.
-- Non-constant global initializers never run (C2). Top-level expression statements
-  are silently dropped by the parser (H1): put code in `function main(): int`.
 - The parser silently skips tokens it doesn't understand and lexer errors are
   ignored (H1); codegen errors go to stderr but IR is still written and run, with no
   `verifyModule` (H6). "Exit 0" proves little — check the output.

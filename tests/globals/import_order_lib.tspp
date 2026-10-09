@@ -1,0 +1,7 @@
+// Imported by import_order.tspp; also runs on its own (no main).
+function libValue(): int {
+  console.log("lib init");
+  return 7;
+}
+let libGlobal: int = libValue();
+console.log("lib top-level");
