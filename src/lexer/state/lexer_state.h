@@ -142,6 +142,21 @@ class LexerState {
   unsigned int getColumn() const {
     return column_;
   }
+  // Where the token being scanned starts (set by TokenScanner::scanToken).
+  void markTokenStart() {
+    tokenLine_ = line_;
+    tokenColumn_ = column_;
+    tokenPosition_ = position_;
+  }
+  size_t getTokenPosition() const {
+    return tokenPosition_;
+  }
+  unsigned int getTokenLine() const {
+    return tokenLine_;
+  }
+  unsigned int getTokenColumn() const {
+    return tokenColumn_;
+  }
   const std::vector<tokens::Token> &getTokens() const {
     return tokens_;
   }
@@ -152,6 +167,9 @@ class LexerState {
   size_t position_;                    ///< Current position in source
   unsigned int line_;                  ///< Current line number (1-based)
   unsigned int column_;                ///< Current column number (1-based)
+  unsigned int tokenLine_ = 1;         ///< Start line of the current token
+  unsigned int tokenColumn_ = 1;       ///< Start column of the current token
+  size_t tokenPosition_ = 0;           ///< Start offset of the current token
   std::vector<tokens::Token> tokens_;  ///< Collected tokens
 };
 

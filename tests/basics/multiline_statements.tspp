@@ -1,0 +1,39 @@
+// Statements that span lines. The lexer inserts a ';' at line ends; it must
+// not do so inside an argument list, after a binary operator, or before a
+// line that starts with ')' / '.' / an operator. Braces may be on their own
+// line (the body of if/else/while is the next statement).
+
+function add(a: int, b: int, c: int): int {
+  return a + b + c;
+}
+
+function main(): int {
+  let total: int = add(
+    1,
+    2,
+    3
+  );
+  console.log(total);
+  let sum: int = 10 +
+    20
+    + 30;
+  console.log(sum);
+  let label: string = "multi" +
+    "line";
+  console.log(label);
+  if (total > 5)
+  {
+    console.log("allman if");
+  }
+  else
+  {
+    console.log("allman else");
+  }
+  let i: int = 0;
+  while (i < 2)
+  {
+    i = i + 1;
+  }
+  console.log(i);
+  return 0;
+}

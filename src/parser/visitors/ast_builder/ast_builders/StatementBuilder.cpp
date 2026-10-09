@@ -6,9 +6,30 @@
 #include "parser/nodes/statement_nodes.h"
 #include "parser/visitors/ast_builder/ast_builders/DeclarationBuilder.h"
 #include "parser/visitors/ast_builder/ast_builders/ExpressionBuilder.h"
+#include "parser/visitors/ast_builder/ast_builders/ParseDiagnostics.h"
 #include "parser/visitors/ast_builder/ast_builders/TypeBuilder.h"
 
 namespace parser {
+
+namespace {
+// The body of if/else/while/for: one statement. A line break before it
+// (an implicit ';') is skipped, so a '{' on the next line is still the body.
+Shared(ast::Stmt) buildBody(tokens::TokenStream& stream, const char* owner) {
+  while (stream.peek().getType() == tokens::TokenType::SEMICOLON &&
+         isImplicitSemicolon(stream.peek()))
+    stream.advance();
+  if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE ||
+      stream.isAtEnd()) {
+    expectedError(stream, std::string("a statement after ") + owner);
+    return nullptr;
+  }
+  int errorsBefore = core::diagnostics().errorCount();
+  auto body = StatementBuilder::build(stream);
+  if (!body && core::diagnostics().errorCount() == errorsBefore)
+    expectedError(stream, std::string("a statement after ") + owner);
+  return body;
+}
+}  // namespace
 
 // Entry point: Parse any statement
 Shared(ast::Stmt) StatementBuilder::build(tokens::TokenStream& stream) {
@@ -89,32 +110,27 @@ Shared(ast::BlockStmt)
   stream.advance();  // consume '{'
   while (!stream.isAtEnd() &&
          stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
-    // Empty statement: skip it here so error recovery below does not also
-    // skip the following token
+    // Empty statement
     if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
       stream.advance();
       continue;
     }
-    // Patch: handle local variable declarations as VarDecl nodes
-    if (stream.peek().getType() == tokens::TokenType::LET ||
-        stream.peek().getType() == tokens::TokenType::CONST) {
-      auto varDecl = ::parser::DeclarationBuilder::buildVariable(
-          stream, ast::StorageQualifier::None);
-      if (varDecl)
-        block->statements.push_back(
-            std::static_pointer_cast<ast::Stmt>(varDecl));
-      else
-        stream.advance();
+    if (stream.peek().getType() == tokens::TokenType::ENUM ||
+        stream.peek().getType() == tokens::TokenType::NAMESPACE) {
+      skipUnsupportedDeclaration(stream);
       continue;
     }
+    size_t startPos = stream.getCurrentPosition();
+    int errorsBefore = core::diagnostics().errorCount();
     auto stmt = build(stream);
-    if (stmt)
-      block->statements.push_back(stmt);
-    else
-      stream.advance();  // error recovery
+    if (stmt) block->statements.push_back(stmt);
+    finishListItem(stream, stmt.get(), startPos, errorsBefore, "a statement");
   }
   if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
     stream.advance();  // consume '}'
+  } else {
+    expectedError(stream, "'}'");
+    core::diagnostics().note(block->location, "to match this '{'");
   }
   return block;
 }
@@ -125,15 +141,21 @@ Shared(ast::IfStmt) StatementBuilder::buildIf(tokens::TokenStream& stream) {
   auto ifStmt = std::make_shared<ast::IfStmt>();
   ifStmt->location = stream.peek().getLocation();
   stream.advance();  // consume 'if'
-  if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN)
-    stream.advance();
+  expect(stream, tokens::TokenType::LEFT_PAREN, "'(' after 'if'");
   ifStmt->condition = ExpressionBuilder::build(stream);
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
+  if (!expect(stream, tokens::TokenType::RIGHT_PAREN, "')' after condition"))
+    return nullptr;
+  ifStmt->thenBranch = buildBody(stream, "'if (...)'");
+  // 'else' may follow on the next line
+  size_t save = stream.getCurrentPosition();
+  while (stream.peek().getType() == tokens::TokenType::SEMICOLON &&
+         isImplicitSemicolon(stream.peek()))
     stream.advance();
-  ifStmt->thenBranch = build(stream);
   if (stream.peek().getType() == tokens::TokenType::ELSE) {
     stream.advance();
-    ifStmt->elseBranch = build(stream);
+    ifStmt->elseBranch = buildBody(stream, "'else'");
+  } else {
+    stream.setPosition(save);
   }
   return ifStmt;
 }
@@ -145,12 +167,11 @@ Shared(ast::WhileStmt)
   auto whileStmt = std::make_shared<ast::WhileStmt>();
   whileStmt->location = stream.peek().getLocation();
   stream.advance();  // consume 'while'
-  if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN)
-    stream.advance();
+  expect(stream, tokens::TokenType::LEFT_PAREN, "'(' after 'while'");
   whileStmt->condition = ExpressionBuilder::build(stream);
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
-    stream.advance();
-  whileStmt->body = build(stream);
+  if (!expect(stream, tokens::TokenType::RIGHT_PAREN, "')' after condition"))
+    return nullptr;
+  whileStmt->body = buildBody(stream, "'while (...)'");
   return whileStmt;
 }
 
@@ -161,8 +182,7 @@ Shared(ast::Stmt) StatementBuilder::buildFor(tokens::TokenStream& stream) {
   auto forStmt = std::make_shared<ast::ForStmt>();
   forStmt->location = stream.peek().getLocation();
   stream.advance();  // consume 'for'
-  if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN)
-    stream.advance();
+  expect(stream, tokens::TokenType::LEFT_PAREN, "'(' after 'for'");
   // Parse initializer
   if (stream.peek().getType() != tokens::TokenType::SEMICOLON) {
     // Support declarations in init position
@@ -178,9 +198,10 @@ Shared(ast::Stmt) StatementBuilder::buildFor(tokens::TokenStream& stream) {
         forOf->location = forStmt->location;
         forOf->variable = varDecl;
         forOf->iterable = ExpressionBuilder::build(stream);
-        if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
-          stream.advance();
-        forOf->body = build(stream);
+        if (!expect(stream, tokens::TokenType::RIGHT_PAREN,
+                    "')' after for-of iterable"))
+          return nullptr;
+        forOf->body = buildBody(stream, "'for (...)'");
         return forOf;
       }
     } else if (t == tokens::TokenType::STACK) {
@@ -209,17 +230,25 @@ Shared(ast::Stmt) StatementBuilder::buildFor(tokens::TokenStream& stream) {
       }
     }
   }
-  if (stream.peek().getType() == tokens::TokenType::SEMICOLON) stream.advance();
+  // A declaration initializer consumes its own ';'
+  bool initConsumedSemicolon =
+      forStmt->init && stream.previous().getType() == tokens::TokenType::SEMICOLON;
+  if (!initConsumedSemicolon &&
+      !expect(stream, tokens::TokenType::SEMICOLON,
+              "';' after for-loop initializer"))
+    return nullptr;
   // Parse condition
   if (stream.peek().getType() != tokens::TokenType::SEMICOLON)
     forStmt->condition = ExpressionBuilder::build(stream);
-  if (stream.peek().getType() == tokens::TokenType::SEMICOLON) stream.advance();
+  if (!expect(stream, tokens::TokenType::SEMICOLON,
+              "';' after for-loop condition"))
+    return nullptr;
   // Parse increment
   if (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN)
     forStmt->increment = ExpressionBuilder::build(stream);
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
-    stream.advance();
-  forStmt->body = build(stream);
+  if (!expect(stream, tokens::TokenType::RIGHT_PAREN, "')' after for clauses"))
+    return nullptr;
+  forStmt->body = buildBody(stream, "'for (...)'");
   return forStmt;
 }
 
@@ -232,14 +261,16 @@ Shared(ast::DoWhileStmt)
   stream.advance();  // consume 'do'
   while (stream.peek().getType() == tokens::TokenType::SEMICOLON)
     stream.advance();  // ASI after 'do' at end of line
-  doWhile->body = build(stream);
-  if (stream.peek().getType() != tokens::TokenType::WHILE) return nullptr;
-  stream.advance();  // consume 'while'
-  if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN)
+  doWhile->body = buildBody(stream, "'do'");
+  while (stream.peek().getType() == tokens::TokenType::SEMICOLON &&
+         isImplicitSemicolon(stream.peek()))
     stream.advance();
+  if (!expect(stream, tokens::TokenType::WHILE, "'while' after 'do' body"))
+    return nullptr;
+  expect(stream, tokens::TokenType::LEFT_PAREN, "'(' after 'while'");
   doWhile->condition = ExpressionBuilder::build(stream);
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
-    stream.advance();
+  if (!expect(stream, tokens::TokenType::RIGHT_PAREN, "')' after condition"))
+    return nullptr;
   if (stream.peek().getType() == tokens::TokenType::SEMICOLON) stream.advance();
   return doWhile;
 }
@@ -252,25 +283,34 @@ Shared(ast::SwitchStmt)
   auto switchStmt = std::make_shared<ast::SwitchStmt>();
   switchStmt->location = stream.peek().getLocation();
   stream.advance();  // consume 'switch'
-  if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN)
-    stream.advance();
+  expect(stream, tokens::TokenType::LEFT_PAREN, "'(' after 'switch'");
   switchStmt->discriminant = ExpressionBuilder::build(stream);
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
+  if (!expect(stream, tokens::TokenType::RIGHT_PAREN, "')' after switch value"))
+    return nullptr;
+  while (stream.peek().getType() == tokens::TokenType::SEMICOLON &&
+         isImplicitSemicolon(stream.peek()))
     stream.advance();
-  if (stream.peek().getType() != tokens::TokenType::LEFT_BRACE) return nullptr;
-  stream.advance();  // consume '{'
+  if (!expect(stream, tokens::TokenType::LEFT_BRACE, "'{' after 'switch (...)'"))
+    return nullptr;
   while (!stream.isAtEnd() &&
          stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
     auto t = stream.peek().getType();
+    if (t == tokens::TokenType::SEMICOLON) {
+      stream.advance();
+      continue;
+    }
     if (t != tokens::TokenType::CASE && t != tokens::TokenType::DEFAULT) {
-      stream.advance();  // error recovery: statement outside of a case
+      expectedError(stream, "'case' or 'default'");
+      synchronize(stream);
       continue;
     }
     ast::SwitchStmt::Case c;
     c.location = stream.peek().getLocation();
     stream.advance();  // consume 'case' / 'default'
     if (t == tokens::TokenType::CASE) c.test = ExpressionBuilder::build(stream);
-    if (stream.peek().getType() == tokens::TokenType::COLON) stream.advance();
+    expect(stream, tokens::TokenType::COLON,
+           t == tokens::TokenType::CASE ? "':' after case value"
+                                        : "':' after 'default'");
     while (!stream.isAtEnd()) {
       auto st = stream.peek().getType();
       if (st == tokens::TokenType::CASE || st == tokens::TokenType::DEFAULT ||
@@ -281,16 +321,16 @@ Shared(ast::SwitchStmt)
         stream.advance();
         continue;
       }
+      size_t startPos = stream.getCurrentPosition();
+      int errorsBefore = core::diagnostics().errorCount();
       auto stmt = build(stream);
-      if (stmt)
-        c.body.push_back(stmt);
-      else
-        stream.advance();  // error recovery
+      if (stmt) c.body.push_back(stmt);
+      finishListItem(stream, stmt.get(), startPos, errorsBefore,
+                     "a statement");
     }
     switchStmt->cases.push_back(std::move(c));
   }
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE)
-    stream.advance();  // consume '}'
+  expect(stream, tokens::TokenType::RIGHT_BRACE, "'}' at end of switch");
   return switchStmt;
 }
 
@@ -321,7 +361,7 @@ Shared(ast::ThrowStmt)
   throwStmt->location = stream.peek().getLocation();
   stream.advance();  // consume 'throw'
   throwStmt->value = ExpressionBuilder::build(stream);
-  if (!throwStmt->value) return nullptr;
+  if (!throwStmt->value) return nullptr;  // reported by ExpressionBuilder
   if (stream.peek().getType() == tokens::TokenType::SEMICOLON) stream.advance();
   return throwStmt;
 }
@@ -335,13 +375,18 @@ Shared(ast::TryStmt) StatementBuilder::buildTry(tokens::TokenStream& stream) {
   tryStmt->location = stream.peek().getLocation();
   stream.advance();  // consume 'try'
   tryStmt->tryBlock = buildBlock(stream);
-  if (!tryStmt->tryBlock) return nullptr;
+  if (!tryStmt->tryBlock) {
+    expectedError(stream, "'{' after 'try'");
+    return nullptr;
+  }
   if (stream.peek().getType() == tokens::TokenType::CATCH) {
     stream.advance();  // consume 'catch'
     if (stream.peek().getType() == tokens::TokenType::LEFT_PAREN) {
       stream.advance();  // consume '('
-      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER)
+      if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
+        expectedError(stream, "a name for the caught value");
         return nullptr;
+      }
       tryStmt->hasCatchParam = true;
       tryStmt->catchParam = stream.peek();
       stream.advance();  // consume identifier
@@ -349,19 +394,28 @@ Shared(ast::TryStmt) StatementBuilder::buildTry(tokens::TokenStream& stream) {
         stream.advance();  // consume ':'
         tryStmt->catchType = TypeBuilder::build(stream);
       }
-      if (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN)
+      if (!expect(stream, tokens::TokenType::RIGHT_PAREN,
+                  "')' after catch parameter"))
         return nullptr;
-      stream.advance();  // consume ')'
     }
     tryStmt->catchBlock = buildBlock(stream);
-    if (!tryStmt->catchBlock) return nullptr;
+    if (!tryStmt->catchBlock) {
+      expectedError(stream, "'{' after 'catch'");
+      return nullptr;
+    }
   }
   if (stream.peek().getType() == tokens::TokenType::FINALLY) {
     stream.advance();  // consume 'finally'
     tryStmt->finallyBlock = buildBlock(stream);
-    if (!tryStmt->finallyBlock) return nullptr;
+    if (!tryStmt->finallyBlock) {
+      expectedError(stream, "'{' after 'finally'");
+      return nullptr;
+    }
   }
-  if (!tryStmt->catchBlock && !tryStmt->finallyBlock) return nullptr;
+  if (!tryStmt->catchBlock && !tryStmt->finallyBlock) {
+    expectedError(stream, "'catch' or 'finally' after 'try' block");
+    return nullptr;
+  }
   return tryStmt;
 }
 
@@ -401,15 +455,11 @@ Shared(ast::AsmStmt) StatementBuilder::buildAsm(tokens::TokenStream& stream) {
     stream.advance();
   }
 
-  if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
-    // Error: expected '('
+  if (!expect(stream, tokens::TokenType::LEFT_PAREN, "'(' after '#asm'"))
     return nullptr;
-  }
-  stream.advance();  // consume '('
-
   // Parse assembly string
   if (stream.peek().getType() != tokens::TokenType::STRING_LITERAL) {
-    // Error: expected string literal
+    expectedError(stream, "an assembly string");
     return nullptr;
   }
   stmt->assembly = stream.peek().getLexeme();
@@ -490,9 +540,8 @@ Shared(ast::AsmStmt) StatementBuilder::buildAsm(tokens::TokenStream& stream) {
     }
   }
 
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
-    stream.advance();
-  }
+  if (!expect(stream, tokens::TokenType::RIGHT_PAREN, "')' after #asm operands"))
+    return nullptr;
 
   // Optional semicolon
   if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {

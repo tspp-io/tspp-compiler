@@ -1,0 +1,9 @@
+// test: compile-error
+// error: lex_bad_escape.tspp:6:19: error: invalid escape sequence
+// Lexer errors used to be dropped (H1); the literal is skipped as a whole.
+
+function main(): int {
+  let s: string = "a\qb";
+  console.log(s);
+  return 0;
+}

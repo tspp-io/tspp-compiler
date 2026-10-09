@@ -1,0 +1,8 @@
+// test: compile-error
+// error: unclosed_block.tspp:9:1: error: expected '}', found end of input
+// error: unclosed_block.tspp:4:22: note: to match this '{'
+function main(): int {
+  if (true) {
+    console.log("x");
+  }
+  return 0;

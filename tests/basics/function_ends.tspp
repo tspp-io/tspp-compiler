@@ -1,0 +1,59 @@
+// Function bodies whose last statement is an if/while. generate() used to
+// patch every unterminated block in the module (H6); each function now
+// terminates its own last block: void functions return, a block after an
+// if/else whose branches both return is unreachable.
+
+interface Shape {
+  area(): int;
+  get(): int;
+}
+
+function report(x: int): void {
+  if (x > 1) {
+    console.log("big");
+  }
+}
+
+function pick(x: int): int {
+  if (x > 1) {
+    return 1;
+  } else {
+    return 2;
+  }
+}
+
+function countdown(x: int): void {
+  while (x > 0) {
+    x = x - 1;
+  }
+  console.log("done");
+}
+
+class Box {
+  constructor(a: int) {
+    if (a > 0) {
+      console.log("positive box");
+    }
+  }
+  function describe(x: int): void {
+    if (x == 0) {
+      console.log("zero");
+    } else {
+      console.log("non-zero");
+    }
+  }
+}
+
+if (pick(3) == 1) {
+  console.log("top-level if");
+}
+
+function main(): int {
+  report(3);
+  report(0);
+  console.log(pick(0));
+  countdown(3);
+  let b = new Box(1);
+  b.describe(0);
+  return 0;
+}

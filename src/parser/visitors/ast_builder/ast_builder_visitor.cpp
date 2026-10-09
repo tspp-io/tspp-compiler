@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "ast_builders/DeclarationBuilder.h"
+#include "ast_builders/ParseDiagnostics.h"
 #include "ast_builders/StatementBuilder.h"
 #include "tokens/token_type.h"
 
@@ -17,36 +18,40 @@ void ASTBuilderVisitor::visit(ast::ProgramNode& node) {
 
 void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
   while (!stream_.isAtEnd()) {
-    // (debug tracing removed)
-    // Skip any potential EOF or error tokens
-    if (stream_.peek().getType() == tokens::TokenType::END_OF_FILE) {
-      break;
-    }
+    auto type = stream_.peek().getType();
+    if (type == tokens::TokenType::END_OF_FILE) break;
 
-    // Handle optional semicolons (skip them, as in JavaScript)
-    if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
+    // Empty statements (explicit or inserted at line ends)
+    if (type == tokens::TokenType::SEMICOLON) {
       stream_.advance();
       continue;
     }
 
-    // Handle imports as a top-level construct
-    if (stream_.peek().getType() == tokens::TokenType::IMPORT) {
-      auto importDecl = DeclarationBuilder::buildImport(stream_);
-      if (importDecl) {
-        program.imports.push_back(importDecl);
-      }
-      // Optionally consume a semicolon after an import
-      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
-        stream_.advance();
-      }
+    if (type == tokens::TokenType::ENUM ||
+        type == tokens::TokenType::NAMESPACE) {
+      skipUnsupportedDeclaration(stream_);
       continue;
     }
 
-    // Handle declarations (functions, classes, imports via main switch, etc.)
-    if (isDeclarationStart()) {
-      auto node = DeclarationBuilder::build(stream_);
+    if (type == tokens::TokenType::RIGHT_BRACE) {
+      parseError(stream_.peek(), "unexpected '}'");
+      stream_.advance();
+      continue;
+    }
+
+    const tokens::Token startTok = stream_.peek();
+    const size_t startPos = stream_.getCurrentPosition();
+    const int errorsBefore = core::diagnostics().errorCount();
+    Shared(ast::BaseNode) node;
+
+    if (type == tokens::TokenType::IMPORT) {
+      auto importDecl = DeclarationBuilder::buildImport(stream_);
+      if (importDecl) program.imports.push_back(importDecl);
+      node = importDecl;
+    } else if (isDeclarationStart()) {
+      node = DeclarationBuilder::build(stream_);
       if (node) {
-        node->location = stream_.peek().getLocation();
+        if (!node->location.isValid()) node->location = startTok.getLocation();
         if (auto asImport = std::dynamic_pointer_cast<ast::ImportDecl>(node)) {
           program.imports.push_back(asImport);
         } else if (auto asDecl = std::dynamic_pointer_cast<ast::Decl>(node)) {
@@ -56,77 +61,20 @@ void ASTBuilderVisitor::parseTopLevel(ast::ProgramNode& program) {
           program.statements.push_back(asStmt);
           program.topLevel.push_back(asStmt);
         }
-      } else {
-        stream_.advance();
       }
-      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
-        stream_.advance();
-      }
-      continue;
-    }
-
-    // Handle variable declarations as statements
-    if (stream_.peek().getType() == tokens::TokenType::LET ||
-        stream_.peek().getType() == tokens::TokenType::CONST) {
+    } else {
+      // Statements, variable declarations and expression statements run in
+      // source order at startup, inside __tspp_global_ctors (C2c).
       auto stmt = StatementBuilder::build(stream_);
       if (stmt) {
+        if (!stmt->location.isValid()) stmt->location = startTok.getLocation();
         program.statements.push_back(stmt);
         program.topLevel.push_back(stmt);
-      } else {
-        stream_.advance();
       }
-      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
-        stream_.advance();
-      }
-      continue;
+      node = stmt;
     }
-
-    // Handle statements
-    if (isStatementStart()) {
-      auto stmt = StatementBuilder::build(stream_);
-      if (stmt) {
-        program.statements.push_back(stmt);
-        program.topLevel.push_back(stmt);
-      } else {
-        stream_.advance();
-      }
-      // Optionally consume a semicolon after a statement
-      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
-        stream_.advance();
-      }
-      continue;
-    }
-
-    // Top-level expression statements (`console.log("hi");`, `x = f();`)
-    // run in source order at startup, inside __tspp_global_ctors (C2c).
-    if (isExpressionStatementStart()) {
-      auto stmt = StatementBuilder::build(stream_);
-      if (stmt) {
-        program.statements.push_back(stmt);
-        program.topLevel.push_back(stmt);
-      } else {
-        stream_.advance();
-      }
-      if (stream_.peek().getType() == tokens::TokenType::SEMICOLON) {
-        stream_.advance();
-      }
-      continue;
-    }
-    stream_.advance();
-  }
-}
-
-bool ASTBuilderVisitor::isExpressionStatementStart() const {
-  switch (stream_.peek().getType()) {
-    case tokens::TokenType::IDENTIFIER:
-    case tokens::TokenType::THIS:
-    case tokens::TokenType::NEW:
-    case tokens::TokenType::LEFT_PAREN:
-    case tokens::TokenType::PLUS_PLUS:
-    case tokens::TokenType::MINUS_MINUS:
-      return true;
-    default:
-      return false;
+    finishListItem(stream_, node.get(), startPos, errorsBefore,
+                   "a declaration or statement");
   }
 }
 
@@ -140,6 +88,15 @@ bool ASTBuilderVisitor::isDeclarationStart() const {
   // treat it as a declaration start so DeclarationBuilder can consume the
   // modifiers and the following 'class' token.
   if (tokens::isClassModifier(stream_.peek().getType())) {
+    return true;
+  }
+  // #inline / #virtual / #override (ignored on free functions)
+  if (tokens::isMethodAttribute(stream_.peek().getType())) return true;
+  // Function modifiers (#constexpr, #simd, #pinned, ...) before 'function',
+  // and #pinned before 'class'
+  if (tokens::isFunctionModifier(stream_.peek().getType()) &&
+      (stream_.peekNext().getType() == tokens::TokenType::FUNCTION ||
+       stream_.peekNext().getType() == tokens::TokenType::CLASS)) {
     return true;
   }
   switch (stream_.peek().getType()) {
@@ -159,18 +116,6 @@ bool ASTBuilderVisitor::isDeclarationStart() const {
     default:
       return false;
   }
-}
-
-bool ASTBuilderVisitor::isStatementStart() const {
-  auto type = stream_.peek().getType();
-  return type == tokens::TokenType::IF || type == tokens::TokenType::WHILE ||
-         type == tokens::TokenType::FOR || type == tokens::TokenType::RETURN ||
-         type == tokens::TokenType::DO || type == tokens::TokenType::SWITCH ||
-         type == tokens::TokenType::BREAK ||
-         type == tokens::TokenType::CONTINUE ||
-         type == tokens::TokenType::THROW || type == tokens::TokenType::TRY ||
-         type == tokens::TokenType::LEFT_BRACE ||
-         type == tokens::TokenType::LET || type == tokens::TokenType::CONST;
 }
 
 }  // namespace parser

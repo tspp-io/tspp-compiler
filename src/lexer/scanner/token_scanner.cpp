@@ -24,7 +24,9 @@ TokenScanner::TokenScanner(std::shared_ptr<LexerState> state)
 tokens::Token TokenScanner::scanToken() {
   skipWhitespace();
 
-  if (state_->isAtEnd()) {
+  // LexerState::isAtEnd() is only true one past the last character
+  if (state_->isAtEnd() ||
+      state_->getPosition() >= state_->getSource().length()) {
     return makeEndToken();
   }
 
@@ -32,6 +34,7 @@ tokens::Token TokenScanner::scanToken() {
     return scanToken();
   }
 
+  state_->markTokenStart();
   char c = state_->getCurrentChar();
 
   // Handle string literals
@@ -121,6 +124,7 @@ void TokenScanner::skipBlockComment() {
 }
 
 tokens::Token TokenScanner::makeEndToken() {
+  state_->markTokenStart();
   core::Location location(state_->getLine(), state_->getColumn(),
                           state_->getFileName());
   return tokens::Token(tokens::TokenType::END_OF_FILE, "", location);

@@ -47,12 +47,13 @@ class ModuleResolver {
   static std::string resolvePath(const std::string& spec,
                                  const std::string& currentFile);
 
-  bool checkCircular(const std::string& path);
+  bool checkCircular(const std::string& path, const core::Location& where);
   void enter(const std::string& path);
   void exit(const std::string& path);
 
   // Parse a module file into a ProgramNode (cached)
-  std::shared_ptr<ast::ProgramNode> parseModuleFile(const std::string& absPath);
+  std::shared_ptr<ast::ProgramNode> parseModuleFile(const std::string& absPath,
+                                                    const core::Location& where);
 
   // Merge declarations/statements from module into root (once per absPath)
   void mergeInto(ast::ProgramNode* root, const std::string& modulePath,

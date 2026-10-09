@@ -27,10 +27,22 @@ should declare `function main(): int`.
 |---|---|---|
 | run (default) | sibling `<name>.expected`; optional `// exit: <n>` | `tspp -o` exits 0, stdout == `.expected`, exit status == `<n>` (default 0) |
 | parse-only | `// test: parse-only` in the first 20 lines | `tspp --emit-llvm` exits 0 and the IR passes `llvm-as` (not linked or run) |
-| compile-error | `// test: compile-error`, plus optional `// error: <text>` lines | `tspp -o` exits non-zero and each `<text>` appears in stderr |
+| compile-error | `// test: compile-error`, plus `// error: <text>` lines | `tspp -o` exits 1 and each `<text>` appears in stderr |
 | driver | `tests/driver/<name>.sh` | the script exits 0 (it gets `TSPP` and a private `TMPDIR`) |
 
 `<name>` is the file name without `.tspp`, e.g. `sample.test.tspp` → `sample.test.expected`.
+
+**Compile-error tests pin the location.** Diagnostics are printed GCC style,
+`file:line:col: error: message` (then the source line and a caret), so an
+`// error:` line should contain the file name, line and column, e.g.
+`// error: parse_errors.tspp:12:19: error: expected an expression, found ';'`.
+The path in stderr is the one passed to `tspp`, so match on the file name, not
+a full path. Line numbers count the header lines too. Expected stderr lives in
+these header lines rather than in a separate `<name>.expected_err` file: the
+compiler's stderr also carries sanitizer noise and the source excerpts, so a
+whole-file comparison would be brittle, and keeping the expectation next to the
+code keeps line numbers easy to check. Internal compiler errors have no
+location (`tspp: internal compiler error: ...`).
 
 **Known failures:** a sibling `<name>.xfail` marks the test as expected to fail. The
 first line is the reason and names the bug ID from `docs/KNOWLEDGE_TRANSFER.md` §9.
@@ -64,7 +76,8 @@ wrong, and say so in the PR when you do.
 | `basics/` | Passing smoke tests for the parts of `final.tspp` that work today |
 | `globals/` | Startup code (C2): global initializers, class static initializers/blocks, top-level statements, order across an import (`import_order_lib.tspp` is imported by `import_order.tspp` and also runs alone), `main` with parameters |
 | `regression/` | Known-bug pins from KNOWLEDGE_TRANSFER §8.3 (C1, C2, H1, H3, H4) |
-| `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status |
+| `diagnostics/` | Negative tests, one or more per error class (lexer, parser, unsupported `enum`/`namespace`, semantic, imports, codegen, internal compiler error), each pinning `file:line:col` (H1, H6). `import_*_lib.tspp` are imported by their sibling and also run alone |
+| `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status, diagnostics format (warnings, error cap, no color when not a terminal) |
 | `bench/` | Micro-benchmarks. **Not run** by `run.sh`. |
 
 Notes on specific restored tests:
@@ -75,8 +88,8 @@ Notes on specific restored tests:
 - `console_impl_in_tspp.tspp` (a user-defined `console` class) and `sys_io_env.tspp`
   (prints CWD and `$PATH`) are parse-only. Their runtime output is either undefined
   or depends on the environment.
-- `bench/allocloop.tspp` and `bench/arraysum.tspp` use a `memory.alloc` stdlib
-  that doesn't exist and fail semantic analysis. `bench/stringcat.tspp` uses
+- `bench/allocloop.tspp` and `bench/arraysum.tspp` use a `[]int` type syntax
+  and a `memory.alloc` stdlib that don't exist; they fail to parse. `bench/stringcat.tspp` uses
   `string_util.concat` and `.length`.
 
 ## Not restored (and why)

@@ -10,7 +10,6 @@
  *****************************************************************************/
 
 #pragma once
-#include <fstream>
 #include <sstream>
 #include <string>
 
@@ -25,21 +24,17 @@ using Bool = bool;
 using String = std::string;
 
 /*****************************************************************************
- * Source Location & Error Display
+ * Source Location
+ *
+ * A plain (file, line, column) triple. Lines and columns are 1-based; 0 means
+ * "unknown". Cheap to copy: every token carries one. The source line shown
+ * under a diagnostic is looked up by core::ErrorReporter, not stored here.
  *****************************************************************************/
 class Location {
  public:
-  // Constants for error highlighting
-  static constexpr const char *RED = "\033[1;31m";
-  static constexpr const char *RESET = "\033[0m";
-
-  // Constructors matching TokenLocation interface
   Location(unsigned int ln = 0, unsigned int col = 0, std::string file = "")
-      : line_(ln), column_(col), filename_(std::move(file)) {
-    loadLineContent();
-  }
+      : line_(ln), column_(col), filename_(std::move(file)) {}
 
-  // TokenLocation compatible interface
   unsigned int getLine() const {
     return line_;
   }
@@ -49,66 +44,31 @@ class Location {
   const std::string &getFilename() const {
     return filename_;
   }
-
-  // Extended functionality
-  const std::string &getLineContent() const {
-    return line_content_;
+  bool isValid() const {
+    return line_ > 0;
   }
 
-  // Comparison operator
   bool operator==(const Location &other) const {
     return filename_ == other.filename_ && line_ == other.line_ &&
            column_ == other.column_;
   }
 
-  // Format location for error display
+  // "file:line:col" (parts that are unknown are left out).
   std::string toString() const {
     std::stringstream output;
-    // File location
-    output << filename_ << ":" << line_ << ":" << column_ << "\n";
-
-    // Show line content with error pointer if available
-    if (!line_content_.empty()) {
-      output << line_content_ << "\n";
-      std::string pointer_line(column_ - 1, ' ');
-      output << pointer_line << RED << "^" << RESET;
+    output << filename_;
+    if (line_ > 0) {
+      if (!filename_.empty()) output << ":";
+      output << line_;
+      if (column_ > 0) output << ":" << column_;
     }
-
     return output.str();
   }
 
-  // Reload line content (useful if file changes)
-  void reloadContent() {
-    loadLineContent();
-  }
-
  private:
-  unsigned int line_;         // Line number (1-based)
-  unsigned int column_;       // Column number (1-based)
-  std::string filename_;      // Source file name
-  std::string line_content_;  // Content of the error line
-
-  // Load the source line for error display
-  void loadLineContent() {
-    std::ifstream file(filename_);
-    if (!file.is_open()) {
-      line_content_ = "";
-      return;
-    }
-
-    std::string current_line;
-    unsigned int current_line_num = 1;
-
-    while (std::getline(file, current_line)) {
-      if (current_line_num == line_) {
-        line_content_ = current_line;
-        break;
-      }
-      current_line_num++;
-    }
-
-    file.close();
-  }
+  unsigned int line_;     // Line number (1-based, 0 = unknown)
+  unsigned int column_;   // Column number (1-based, 0 = unknown)
+  std::string filename_;  // Source file name
 };
 
 /*****************************************************************************

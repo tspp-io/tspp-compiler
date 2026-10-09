@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "core/common/common_types.h"
 #include "parser/nodes/ast_visitor.h"
 #include "parser/visitors/semantic/SemanticScope.h"
 
@@ -86,10 +87,12 @@ class SemanticAnalyzerVisitor : public ASTVisitor {
 
   void enterScope();
   void exitScope();
-  void reportError(const std::string& message);
+  // Reports at node's location (or the last known one if it has none).
+  void reportError(const BaseNode* node, const std::string& message);
+  core::Location lastLocation_;
   // Report a construct that parses and type-checks but that
   // LLVMCodeGenerator does not lower yet, so it is not silently dropped.
-  void reportNotLowered(const std::string& construct);
+  void reportNotLowered(const BaseNode& node, const std::string& construct);
   // Validate the target of '++', '--' or a compound assignment
   void checkMutableTarget(Expr* target, const std::string& opName);
 

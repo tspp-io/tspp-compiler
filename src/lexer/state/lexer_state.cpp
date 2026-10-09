@@ -10,6 +10,96 @@
 
 namespace lexer {
 
+namespace {
+using tokens::TokenType;
+
+// A line ending in one of these continues on the next line, so no implicit
+// ';' is inserted after it (e.g. `f(a,` or `x = a +`).
+bool continuesAfter(TokenType t) {
+  switch (t) {
+    case TokenType::PLUS:
+    case TokenType::MINUS:
+    case TokenType::STAR:
+    case TokenType::SLASH:
+    case TokenType::PERCENT:
+    case TokenType::AMPERSAND:
+    case TokenType::PIPE:
+    case TokenType::CARET:
+    case TokenType::TILDE:
+    case TokenType::LEFT_SHIFT:
+    case TokenType::EXCLAIM:
+    case TokenType::AMPERSAND_AMPERSAND:
+    case TokenType::PIPE_PIPE:
+    case TokenType::EQUALS:
+    case TokenType::EQUALS_EQUALS:
+    case TokenType::EXCLAIM_EQUALS:
+    case TokenType::LESS_EQUALS:
+    case TokenType::GREATER_EQUALS:
+    case TokenType::PLUS_EQUALS:
+    case TokenType::MINUS_EQUALS:
+    case TokenType::STAR_EQUALS:
+    case TokenType::SLASH_EQUALS:
+    case TokenType::PERCENT_EQUALS:
+    case TokenType::AMPERSAND_EQUALS:
+    case TokenType::PIPE_EQUALS:
+    case TokenType::CARET_EQUALS:
+    case TokenType::QUESTION:
+    case TokenType::ARROW:
+    case TokenType::DOT:
+    case TokenType::AT:
+    case TokenType::LEFT_PAREN:
+    case TokenType::LEFT_BRACKET:
+    case TokenType::COMMA:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// A line starting with one of these continues the previous line, so the
+// implicit ';' before it is dropped (e.g. a closing `)` or `.method()`).
+bool continuesBefore(TokenType t) {
+  switch (t) {
+    case TokenType::RIGHT_PAREN:
+    case TokenType::RIGHT_BRACKET:
+    case TokenType::COMMA:
+    case TokenType::DOT:
+    case TokenType::QUESTION:
+    case TokenType::COLON:
+    case TokenType::PLUS:
+    case TokenType::MINUS:
+    case TokenType::SLASH:
+    case TokenType::PERCENT:
+    case TokenType::AMPERSAND:
+    case TokenType::PIPE:
+    case TokenType::CARET:
+    case TokenType::AMPERSAND_AMPERSAND:
+    case TokenType::PIPE_PIPE:
+    case TokenType::EQUALS:
+    case TokenType::EQUALS_EQUALS:
+    case TokenType::EXCLAIM_EQUALS:
+    case TokenType::LESS_EQUALS:
+    case TokenType::GREATER_EQUALS:
+    case TokenType::PLUS_EQUALS:
+    case TokenType::MINUS_EQUALS:
+    case TokenType::STAR_EQUALS:
+    case TokenType::SLASH_EQUALS:
+    case TokenType::PERCENT_EQUALS:
+    case TokenType::AMPERSAND_EQUALS:
+    case TokenType::PIPE_EQUALS:
+    case TokenType::CARET_EQUALS:
+    case TokenType::ARROW:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool isImplicitSemicolon(const tokens::Token &tok) {
+  return tok.getType() == TokenType::SEMICOLON && tok.getLexeme() == "\n";
+}
+}  // namespace
+
 /*****************************************************************************
  * Source Inspection Methods
  *****************************************************************************/
@@ -92,6 +182,9 @@ void LexerState::newLine() {
     return;
   }
 
+  // The implicit semicolon sits at the end of the line it terminates.
+  core::Location eol(line_, column_, fileName_);
+
   // Update line tracking
   line_++;
   column_ = 1;
@@ -102,16 +195,22 @@ void LexerState::newLine() {
     const auto &lastToken = tokens_.back();
     if (lastToken.getType() != tokens::TokenType::SEMICOLON &&
         lastToken.getType() != tokens::TokenType::LEFT_BRACE &&
-        lastToken.getType() != tokens::TokenType::RIGHT_BRACE) {
-      addToken(tokens::Token(tokens::TokenType::SEMICOLON, ";",
-                             core::Location(line_ - 1, column_)));
+        lastToken.getType() != tokens::TokenType::RIGHT_BRACE &&
+        !continuesAfter(lastToken.getType())) {
+      // Lexeme "\n" marks it as implicit (parser::isImplicitSemicolon)
+      addToken(tokens::Token(tokens::TokenType::SEMICOLON, "\n", eol));
     }
   }
 }
 
 void LexerState::addToken(tokens::Token token) {
+  if (continuesBefore(token.getType()) && !tokens_.empty() &&
+      isImplicitSemicolon(tokens_.back())) {
+    tokens_.pop_back();
+  }
   ASSERT(token.getLocation().getLine() <= line_);
-  ASSERT(token.getLocation().getColumn() <= column_);
+  ASSERT(token.getLocation().getLine() < line_ ||
+         token.getLocation().getColumn() <= column_);
 
   tokens_.push_back(std::move(token));
 }

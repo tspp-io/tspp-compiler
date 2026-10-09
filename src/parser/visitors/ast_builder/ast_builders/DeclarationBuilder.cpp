@@ -5,6 +5,7 @@
 
 #include "ExpressionBuilder.h"
 #include "StatementBuilder.h"
+#include "ParseDiagnostics.h"
 #include "TypeBuilder.h"
 #include "core/common/macros.h"
 #include "tokens/token_type.h"
@@ -30,6 +31,16 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
       break;
     default:
       break;
+  }
+
+  // Method attributes (#inline, #virtual, #override) mean nothing on a free
+  // function; they are accepted and ignored, with a warning.
+  while (tokens::isMethodAttribute(stream.peek().getType())) {
+    core::diagnostics().warning(
+        stream.peek().getLocation(),
+        "'" + stream.peek().getLexeme() +
+            "' has no effect outside a class; ignored");
+    stream.advance();
   }
 
   // Optional function modifier (applies only when followed by 'function')
@@ -154,7 +165,7 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
     stream.advance();
     // Expect alias name
     if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-      stream.advance();
+      expectedError(stream, "a type alias name");
       return nullptr;
     }
     tokens::Token typeName = stream.peek();
@@ -170,14 +181,12 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
       } while (!stream.isAtEnd() && depth > 0);
     }
     // Expect '='
-    if (stream.peek().getType() != tokens::TokenType::EQUALS) {
-      stream.advance();
+    if (!expect(stream, tokens::TokenType::EQUALS,
+                "'=' after type alias name"))
       return nullptr;
-    }
-    stream.advance();
     auto aliased = TypeBuilder::build(stream);
     if (!aliased) {
-      stream.advance();
+      expectedError(stream, "a type");
       return nullptr;
     }
     // Optional ';'
@@ -218,6 +227,7 @@ Shared(ast::BaseNode) DeclarationBuilder::build(tokens::TokenStream& stream) {
     case tokens::TokenType::TYPEDEF:
       return buildTypeDef(stream);
     default:
+      expectedError(stream, "a declaration");
       return nullptr;
   }
 
@@ -237,7 +247,7 @@ Shared(ast::TypeAliasDecl)
   }
 
   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "a type alias name");
     return nullptr;
   }
   tokens::Token typeName = stream.peek();
@@ -255,19 +265,19 @@ Shared(ast::TypeAliasDecl)
   }
 
   if (stream.peek().getType() != tokens::TokenType::EQUALS) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "'=' after type alias name");
     return nullptr;
   }
   stream.advance();  // consume '='
 
   Shared(ast::TypeNode) typeNode = TypeBuilder::build(stream);
   if (!typeNode) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "a type");
     return nullptr;
   }
 
   if (stream.peek().getType() != tokens::TokenType::SEMICOLON) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "';' after type alias");
     return nullptr;
   }
   stream.advance();  // consume ';'
@@ -288,7 +298,7 @@ Shared(ast::ImportDecl)
   stream.advance();  // consume 'import'
 
   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "a name after 'import'");
     return nullptr;
   }
   tokens::Token importName = stream.peek();
@@ -302,7 +312,7 @@ Shared(ast::ImportDecl)
       fromModule = stream.peek().getLexeme();
       stream.advance();  // consume string literal
     } else {
-      stream.advance();  // Skip faulty token
+      expectedError(stream, "a module path string after 'from'");
     }
   }
 
@@ -324,7 +334,7 @@ Shared(ast::Stmt) DeclarationBuilder::buildVariable(
 
   stream.advance();  // consume 'let' or 'const'
   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "a variable name");
     return nullptr;
   }
 
@@ -344,9 +354,12 @@ Shared(ast::Stmt) DeclarationBuilder::buildVariable(
         tt == tokens::TokenType::ATTRIBUTE) {
       varType = TypeBuilder::build(stream);
       if (!varType) {
-        stream.advance();  // Skip faulty token
+        expectedError(stream, "a type");
         return nullptr;
       }
+    } else {
+      expectedError(stream, "a type after ':'");
+      return nullptr;
     }
   }
 
@@ -355,7 +368,7 @@ Shared(ast::Stmt) DeclarationBuilder::buildVariable(
     stream.advance();  // consume '='
     initializer = ExpressionBuilder::build(stream);
     if (!initializer) {
-      stream.advance();  // Skip faulty token
+      // (the expression error was reported)
       return nullptr;
     }
   }
@@ -386,7 +399,7 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
   // ```
 
   if (stream.peek().getType() != tokens::TokenType::FUNCTION) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "'function'");
     return nullptr;
   }
   stream.advance();  // consume 'function'
@@ -395,7 +408,7 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
   if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
         nameTokType == tokens::TokenType::GET ||
         nameTokType == tokens::TokenType::SET)) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "a function name");
     return nullptr;
   }
   tokens::Token funcName = stream.peek();
@@ -429,7 +442,7 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
     if (stream.peek().getType() == tokens::TokenType::GREATER) stream.advance();
   }
   if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "'(' after function name");
     return nullptr;
   }
   stream.advance();  // consume '('
@@ -447,13 +460,13 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
       auto paramLoc = stream.peek().getLocation();
       stream.advance();  // consume identifier
       if (stream.peek().getType() != tokens::TokenType::COLON) {
-        stream.advance();  // Skip faulty token
+        expectedError(stream, "':' and a type after parameter name");
         return nullptr;
       }
       stream.advance();  // consume ':'
       Shared(ast::TypeNode) paramType = TypeBuilder::build(stream);
       if (!paramType) {
-        stream.advance();  // Skip faulty token
+        expectedError(stream, "a type");
         return nullptr;
       }
       // Optional default value: '=' Expression
@@ -462,7 +475,7 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
         stream.advance();  // consume '='
         defaultExpr = ExpressionBuilder::build(stream);
         if (!defaultExpr) {
-          stream.advance();  // Skip faulty token
+          // (the expression error was reported)
           return nullptr;
         }
       }
@@ -471,10 +484,18 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
       param->defaultExpr = defaultExpr;
       param->location = paramLoc;
       funcDecl->params.push_back(param);
+    } else {
+      expectedError(stream, "a parameter name");
+      return nullptr;
+    }
+    if (stream.peek().getType() != tokens::TokenType::COMMA &&
+        stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+      expectedError(stream, "',' or ')' after parameter");
+      return nullptr;
     }
   }
   if (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "',' or ')' after parameters");
     return nullptr;
   }
   stream.advance();  // consume ')'
@@ -482,23 +503,19 @@ Shared(ast::FunctionDecl) DeclarationBuilder::buildFunction(
     stream.advance();  // consume ':'
     funcDecl->returnType = TypeBuilder::build(stream);
     if (!funcDecl->returnType) {
-      stream.advance();  // Skip faulty token
+      expectedError(stream, "a type");
       return nullptr;
     }
   }
   if (stream.peek().getType() != tokens::TokenType::LEFT_BRACE) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "'{' before function body");
     return nullptr;
   }
   // Do NOT advance here; StatementBuilder::buildBlock should consume the '{'
   // and '}'
   auto blockStmt = StatementBuilder::buildBlock(stream);
   funcDecl->body = blockStmt;
-  if (!funcDecl->body) {
-    std::cerr << "Error: Function body is not properly closed at "
-              << funcLoc.toString() << std::endl;
-    return nullptr;
-  }
+  if (!funcDecl->body) return nullptr;
   return funcDecl;
 }
 
@@ -515,12 +532,12 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
   // ```
 
   if (stream.peek().getType() != tokens::TokenType::CLASS) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "'class'");
     return nullptr;
   }
   stream.advance();  // consume 'class'
   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "a class name");
     return nullptr;
   }
   tokens::Token className = stream.peek();
@@ -567,7 +584,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         } while (!stream.isAtEnd() && d > 0);
       }
     } else {
-      stream.advance();  // Skip faulty token
+      expectedError(stream, "a base class name after 'extends'");
       return nullptr;
     }
   }
@@ -602,9 +619,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
   classDecl->location = classLoc;
   classDecl->body = std::make_shared<ast::BlockStmt>();
   if (stream.peek().getType() != tokens::TokenType::LEFT_BRACE) {
-    // No body provided; error out gracefully
-    std::cerr << "Error: Class body is missing at " << classLoc.toString()
-              << std::endl;
+    expectedError(stream, "'{' before class body");
     return nullptr;
   }
   // Parse class body with members: fields, methods, constructor
@@ -803,8 +818,8 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
             nameTokType == tokens::TokenType::GET ||
             nameTokType == tokens::TokenType::SET)) {
-        // recovery: skip token and continue class member parsing
-        stream.advance();
+        expectedError(stream, "a method name");
+        synchronize(stream);
         continue;
       }
       tokens::Token funcName = stream.peek();
@@ -843,8 +858,8 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
 
       // Params: '(' [ ParameterList ] ')'
       if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
-        // recovery
-        stream.advance();
+        expectedError(stream, "'(' after method name");
+        synchronize(stream);
         continue;
       }
       stream.advance();  // consume '('
@@ -860,7 +875,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
           auto paramLoc = stream.peek().getLocation();
           stream.advance();  // consume identifier
           if (stream.peek().getType() != tokens::TokenType::COLON) {
-            // recovery: skip unexpected token(s) until comma/paren
+            expectedError(stream, "':' and a type after parameter name");
             while (!stream.isAtEnd() &&
                    stream.peek().getType() != tokens::TokenType::COMMA &&
                    stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
@@ -871,7 +886,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
           stream.advance();  // consume ':'
           Shared(ast::TypeNode) paramType = TypeBuilder::build(stream);
           if (!paramType) {
-            // recovery similar to above
+            expectedError(stream, "a type");
             while (!stream.isAtEnd() &&
                    stream.peek().getType() != tokens::TokenType::COMMA &&
                    stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
@@ -892,17 +907,24 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
           funcDecl->params.push_back(param);
           continue;
         }
-        // skip unexpected token inside params for resilience
-        stream.advance();
+        expectedError(stream, "a parameter name");
+        while (!stream.isAtEnd() &&
+               stream.peek().getType() != tokens::TokenType::COMMA &&
+               stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
+          stream.advance();
+        }
       }
-      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
-        stream.advance();  // consume ')'
+      if (!expect(stream, tokens::TokenType::RIGHT_PAREN,
+                  "')' after parameters")) {
+        synchronize(stream);
+        continue;
       }
 
       // Optional return type
       if (stream.peek().getType() == tokens::TokenType::COLON) {
         stream.advance();  // consume ':'
         funcDecl->returnType = TypeBuilder::build(stream);
+        if (!funcDecl->returnType) expectedError(stream, "a return type");
       }
 
       // Body or signature terminator
@@ -915,8 +937,8 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         stream.advance();
         funcDecl->body = nullptr;
       } else {
-        // recovery: skip unexpected token and continue
-        stream.advance();
+        expectedError(stream, "'{' or ';' after method signature");
+        synchronize(stream);
         continue;
       }
 
@@ -933,8 +955,8 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       auto ctorLoc = ctorTok.getLocation();
       stream.advance();  // consume 'constructor'
       if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
-        // malformed, recover
-        stream.advance();
+        expectedError(stream, "'(' after 'constructor'");
+        synchronize(stream);
         continue;
       }
       stream.advance();  // consume '('
@@ -958,6 +980,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
             stream.advance();  // consume ':'
             auto paramType = TypeBuilder::build(stream);
             if (!paramType) {
+              expectedError(stream, "a type");
               stream.advance();
             } else {
               param->name = paramName;
@@ -965,21 +988,26 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
               param->location = paramLoc;
               ctor->params.push_back(param);
             }
+          } else {
+            expectedError(stream, "':' and a type after parameter name");
           }
         } else {
-          // skip unexpected token
+          expectedError(stream, "a parameter name");
           stream.advance();
         }
       }
-      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN)
-        stream.advance();
+      if (!expect(stream, tokens::TokenType::RIGHT_PAREN,
+                  "')' after parameters")) {
+        synchronize(stream);
+        continue;
+      }
       // Body
       if (stream.peek().getType() == tokens::TokenType::LEFT_BRACE) {
         auto body = StatementBuilder::buildBlock(stream);
         ctor->body = body;
       } else {
-        // recover
-        stream.advance();
+        expectedError(stream, "'{' before constructor body");
+        synchronize(stream);
       }
       classDecl->constructor = ctor;
       continue;
@@ -998,7 +1026,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         classDecl->body->statements.push_back(fieldStmt);
         continue;
       } else {
-        stream.advance();
+        synchronize(stream);
         continue;
       }
     }
@@ -1019,8 +1047,7 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
         classDecl->body->statements.push_back(staticNode);
         continue;  // proceed to next member
       } else {
-        // recovery: skip token to avoid infinite loop
-        stream.advance();
+        synchronize(stream);
         continue;
       }
     }
@@ -1035,8 +1062,8 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
 
       Shared(ast::TypeNode) fieldType = TypeBuilder::build(stream);
       if (!fieldType) {
-        // malformed type, try to recover
-        stream.advance();
+        expectedError(stream, "a type");
+        synchronize(stream);
         continue;
       }
 
@@ -1064,20 +1091,15 @@ Shared(ast::ClassDecl) DeclarationBuilder::buildClass(
       continue;
     }
 
-    // Fallback: parse any statement for resilience
-    auto stmt = StatementBuilder::build(stream);
-    if (stmt) {
-      classDecl->body->statements.push_back(stmt);
-    } else {
-      // error recovery to avoid infinite loop
-      stream.advance();
-    }
+    // Anything else is not a class member.
+    expectedError(stream, "a class member (field, method or constructor)");
+    synchronize(stream);
   }
   if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
     stream.advance();  // consume '}'
   } else {
-    std::cerr << "Error: Class body is not properly closed at "
-              << classLoc.toString() << std::endl;
+    expectedError(stream, "'}' at end of class body");
+    core::diagnostics().note(classLoc, "class declared here");
   }
   return classDecl;
 }
@@ -1093,12 +1115,12 @@ Shared(ast::InterfaceDecl)
   // 'type' Identifier '=' Type ';'
   // ```
   if (stream.peek().getType() != tokens::TokenType::INTERFACE) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "'interface'");
     return nullptr;
   }
   stream.advance();  // consume 'interface'
   if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-    stream.advance();  // Skip faulty token
+    expectedError(stream, "an interface name");
     return nullptr;
   }
   tokens::Token interfaceName = stream.peek();
@@ -1160,8 +1182,7 @@ Shared(ast::InterfaceDecl)
 
   // Body: '{' (propertySig | methodSig | ';')* '}'
   if (stream.peek().getType() != tokens::TokenType::LEFT_BRACE) {
-    std::cerr << "Error: Interface body is missing at "
-              << interfaceLoc.toString() << std::endl;
+    expectedError(stream, "'{' before interface body");
     return nullptr;
   }
   stream.advance();  // consume '{'
@@ -1172,25 +1193,33 @@ Shared(ast::InterfaceDecl)
       continue;
     }
 
-    // Method signature: 'function' Identifier '(' [params] ')' [':' Type] ';'
-    if (stream.peek().getType() == tokens::TokenType::FUNCTION) {
+    // Method signature: ['function'] Identifier '(' [params] ')' [':' Type]
+    // ';' (TypeScript writes it without 'function').
+    auto memberTok = stream.peek().getType();
+    bool tsStyleMethod =
+        (memberTok == tokens::TokenType::IDENTIFIER ||
+         memberTok == tokens::TokenType::GET ||
+         memberTok == tokens::TokenType::SET) &&
+        stream.peekNext().getType() == tokens::TokenType::LEFT_PAREN;
+    if (stream.peek().getType() == tokens::TokenType::FUNCTION ||
+        tsStyleMethod) {
       auto funcDecl = std::make_shared<ast::FunctionDecl>();
       funcDecl->modifier = ast::FunctionModifier::None;
-      stream.advance();  // consume 'function'
+      if (!tsStyleMethod) stream.advance();  // consume 'function'
       auto nameTokType = stream.peek().getType();
       if (!(nameTokType == tokens::TokenType::IDENTIFIER ||
             nameTokType == tokens::TokenType::GET ||
             nameTokType == tokens::TokenType::SET)) {
-        // recovery
-        stream.advance();
+        expectedError(stream, "a method name");
+        synchronize(stream);
         continue;
       }
       funcDecl->name = stream.peek();
       funcDecl->location = stream.peek().getLocation();
       stream.advance();  // consume name
       if (stream.peek().getType() != tokens::TokenType::LEFT_PAREN) {
-        // recovery
-        stream.advance();
+        expectedError(stream, "'(' after method name");
+        synchronize(stream);
         continue;
       }
       stream.advance();  // consume '('
@@ -1202,7 +1231,7 @@ Shared(ast::InterfaceDecl)
           continue;
         }
         if (stream.peek().getType() != tokens::TokenType::IDENTIFIER) {
-          // skip unexpected token
+          expectedError(stream, "a parameter name");
           stream.advance();
           continue;
         }
@@ -1210,7 +1239,7 @@ Shared(ast::InterfaceDecl)
         auto paramLoc = paramName.getLocation();
         stream.advance();  // consume name
         if (stream.peek().getType() != tokens::TokenType::COLON) {
-          // missing type annotation; recover by skipping to next comma/paren
+          expectedError(stream, "':' and a type after parameter name");
           while (!stream.isAtEnd() &&
                  stream.peek().getType() != tokens::TokenType::COMMA &&
                  stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
@@ -1221,7 +1250,7 @@ Shared(ast::InterfaceDecl)
         stream.advance();  // consume ':'
         auto paramType = TypeBuilder::build(stream);
         if (!paramType) {
-          // recover similarly
+          expectedError(stream, "a type");
           while (!stream.isAtEnd() &&
                  stream.peek().getType() != tokens::TokenType::COMMA &&
                  stream.peek().getType() != tokens::TokenType::RIGHT_PAREN) {
@@ -1235,12 +1264,15 @@ Shared(ast::InterfaceDecl)
         param->location = paramLoc;
         funcDecl->params.push_back(param);
       }
-      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
-        stream.advance();  // consume ')'
+      if (!expect(stream, tokens::TokenType::RIGHT_PAREN,
+                  "')' after parameters")) {
+        synchronize(stream);
+        continue;
       }
       if (stream.peek().getType() == tokens::TokenType::COLON) {
         stream.advance();  // consume ':'
         funcDecl->returnType = TypeBuilder::build(stream);
+        if (!funcDecl->returnType) expectedError(stream, "a return type");
       }
       // Expect optional ';'
       if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
@@ -1260,8 +1292,8 @@ Shared(ast::InterfaceDecl)
       stream.advance();  // ':'
       auto typeNode = TypeBuilder::build(stream);
       if (!typeNode) {
-        // malformed type; recover forward
-        stream.advance();
+        expectedError(stream, "a type");
+        synchronize(stream);
         continue;
       }
       if (stream.peek().getType() == tokens::TokenType::SEMICOLON) {
@@ -1277,14 +1309,14 @@ Shared(ast::InterfaceDecl)
       continue;
     }
 
-    // Unknown member: try to recover
-    stream.advance();
+    expectedError(stream, "a property or method signature");
+    synchronize(stream);
   }
   if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
     stream.advance();
   } else {
-    std::cerr << "Error: Interface body is not properly closed at "
-              << interfaceLoc.toString() << std::endl;
+    expectedError(stream, "'}' at end of interface body");
+    core::diagnostics().note(interfaceLoc, "interface declared here");
   }
   return interfaceDecl;
 }

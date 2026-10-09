@@ -1,5 +1,5 @@
 // test: compile-error
-// error: undeclaredThing
+// error: h1_undeclared_identifier.tspp:5:24: error: use of undeclared identifier 'undeclaredThing'
 // H1 negative test: use of an undeclared identifier must fail compilation.
 function main(): int {
   console.log("x = " + undeclaredThing);

@@ -1,0 +1,9 @@
+// test: compile-error
+// error: import_error_lib.tspp:6:26: error: expected an expression, found ')'
+// A parse error in an imported file is reported with that file's path,
+// line and column.
+import helper from "./import_error_lib.tspp";
+
+function main(): int {
+  return helper();
+}

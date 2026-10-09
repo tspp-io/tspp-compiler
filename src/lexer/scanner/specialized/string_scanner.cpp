@@ -24,15 +24,30 @@ tokens::Token StringScanner::scanString() {
 
   advance();  // Skip opening quote
 
+  // On an error, skip the rest of the literal (up to the closing quote on
+  // this line) so scanning resumes after it instead of inside it.
+  auto fail = [&](const char *message) {
+    while (!isAtEnd() && peek() != '"' && peek() != '\n') {
+      if (peek() == '\\' && peekNext() != '\n') advance();
+      advance();
+    }
+    if (!isAtEnd() && peek() == '"') advance();
+    return makeErrorToken(message);
+  };
+
   // Process string contents
   while (!isAtEnd() && peek() != '"') {
+    if (peek() == '\n' || peek() == '\0') {
+      // A string literal cannot span lines
+      return makeErrorToken("Unterminated string");
+    }
     if (peek() == '\\') {
       std::string escape = scanEscapeSequence();
       if (escape.empty()) {
-        return makeErrorToken("Invalid escape sequence");
+        return fail("Invalid escape sequence");
       }
     } else if (!validateCharacter(peek())) {
-      return makeErrorToken("Invalid character in string");
+      return fail("Invalid character in string");
     } else {
       advance();
     }
@@ -130,7 +145,9 @@ std::string StringScanner::scanEscapeSequence() {
 }
 
 bool StringScanner::validateCharacter(char c) const {
-  return (c >= 32 && c <= 126) || c == '\n' || c == '\t';
+  unsigned char u = static_cast<unsigned char>(c);
+  // Printable ASCII, tab, and the bytes of UTF-8 multibyte sequences.
+  return (u >= 32 && u <= 126) || u == '\t' || u >= 0x80;
 }
 
 bool StringScanner::validateEscapeSequence(const std::string& sequence) const {

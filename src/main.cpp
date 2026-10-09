@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "codegen/LLVMCodeGenerator.h"
+#include "core/diagnostics/error_reporter.h"
 #include "lexer/lexer.h"
 #include "parser/module/ModuleResolver.h"
 #include "parser/parser.h"
@@ -222,36 +223,39 @@ bool runStage(const char* stage, const std::string& program,
   return false;
 }
 
-// Front end: source -> LLVM IR file. `inputPath` is used to resolve imports;
-// empty for the REPL (no import resolution). Returns true on success.
+// Front end: source -> LLVM IR file. `inputPath` names the source in
+// diagnostics and is used to resolve imports; empty for the REPL (no import
+// resolution). Every stage reports through core::diagnostics(); compilation
+// stops after the first stage that reported an error. Returns true on success.
 bool compileToIR(const std::string& source, const std::string& inputPath,
                  const std::string& irPath) {
-  lexer::Lexer lexer(source);
+  core::ErrorReporter& diag = core::diagnostics();
+  diag.clear();
+  const std::string fileName = inputPath.empty() ? "<repl>" : inputPath;
+  diag.registerSource(fileName, source);
+
+  lexer::Lexer lexer(source, fileName);
   auto tokens = lexer.tokenize();
+  if (diag.hasErrors()) return false;
   auto ast = parser::buildAST(tokens);
-  if (!ast) {
-    llvm::errs() << "Parse error\n";
-    return false;
-  }
+  if (!ast || diag.hasErrors()) return false;
   if (!inputPath.empty()) {
     parser::modules::ModuleResolver resolver;
-    if (!resolver.resolveAndMerge(ast.get(), inputPath)) {
-      llvm::errs() << "Import resolution failed\n";
+    if (!resolver.resolveAndMerge(ast.get(), inputPath) || diag.hasErrors())
       return false;
-    }
   }
   // Semantic analysis gives codegen resolved types.
   ast::SemanticAnalyzerVisitor semanticAnalyzer;
   ast->accept(semanticAnalyzer);
-  if (!semanticAnalyzer.getErrors().empty()) {
-    llvm::errs() << "Semantic error(s):\n";
-    for (auto& e : semanticAnalyzer.getErrors()) llvm::errs() << e << "\n";
-    return false;
-  }
+  if (diag.hasErrors()) return false;
   // Remove a stale file first so a failed write cannot be mistaken for output.
   llvm::sys::fs::remove(irPath);
   codegen::LLVMCodeGenerator codegen(&semanticAnalyzer);
   codegen.generate(ast.get(), irPath);
+  if (diag.hasErrors()) {
+    llvm::sys::fs::remove(irPath);
+    return false;
+  }
   if (!llvm::sys::fs::exists(irPath)) {
     llvm::errs() << "tspp: error: could not write LLVM IR to " << irPath
                  << "\n";

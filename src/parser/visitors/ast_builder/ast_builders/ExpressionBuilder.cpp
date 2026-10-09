@@ -5,10 +5,53 @@
 
 #include "core/common/macros.h"
 #include "parser/nodes/expression_nodes.h"
+#include "parser/visitors/ast_builder/ast_builders/ParseDiagnostics.h"
 // For ThisExpr and GroupingExpr/NullExpr definitions
 #include "parser/nodes/misc_nodes.h"
 
 namespace parser {
+
+namespace {
+// At '<' after a callee: if the tokens up to the matching '>' can only be
+// type arguments and are followed by '(', '.' or '[', consume them (they are
+// not used by codegen) and return true. Otherwise leave the stream alone, so
+// `a < b` stays a comparison.
+bool skipTypeArguments(tokens::TokenStream& stream) {
+  size_t save = stream.getCurrentPosition();
+  int depth = 0;
+  while (!stream.isAtEnd()) {
+    auto t = stream.peek().getType();
+    if (t == tokens::TokenType::LESS) {
+      ++depth;
+    } else if (t == tokens::TokenType::GREATER) {
+      --depth;
+    } else if (t == tokens::TokenType::RIGHT_SHIFT) {
+      depth -= 2;
+    } else if (!(t == tokens::TokenType::IDENTIFIER ||
+                 t == tokens::TokenType::INT || t == tokens::TokenType::FLOAT ||
+                 t == tokens::TokenType::BOOLEAN ||
+                 t == tokens::TokenType::STRING ||
+                 t == tokens::TokenType::VOID ||
+                 t == tokens::TokenType::COMMA || t == tokens::TokenType::DOT ||
+                 t == tokens::TokenType::STAR || t == tokens::TokenType::AT ||
+                 t == tokens::TokenType::PIPE ||
+                 t == tokens::TokenType::LEFT_BRACKET ||
+                 t == tokens::TokenType::RIGHT_BRACKET)) {
+      break;
+    }
+    stream.advance();
+    if (depth <= 0) break;
+  }
+  auto next = stream.peek().getType();
+  if (depth == 0 && (next == tokens::TokenType::LEFT_PAREN ||
+                     next == tokens::TokenType::DOT ||
+                     next == tokens::TokenType::LEFT_BRACKET)) {
+    return true;
+  }
+  stream.setPosition(save);
+  return false;
+}
+}  // namespace
 
 // Entry point: Parse any expression (handles binary precedence)
 Shared(ast::Expr) ExpressionBuilder::build(tokens::TokenStream& stream) {
@@ -34,16 +77,17 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       while (!stream.isAtEnd() &&
              stream.peek().getType() != tokens::TokenType::RIGHT_BRACKET) {
         auto elem = build(stream);
-        if (elem) arr->elements.push_back(elem);
+        if (!elem) return nullptr;
+        arr->elements.push_back(elem);
         if (stream.peek().getType() == tokens::TokenType::COMMA) {
           stream.advance();
         } else {
           break;
         }
       }
-      if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
-        stream.advance();
-      }
+      if (!expect(stream, tokens::TokenType::RIGHT_BRACKET,
+                  "',' or ']' in array literal"))
+        return nullptr;
       return arr;
     }
     // Handle object literals: { key: value, ... }
@@ -68,35 +112,30 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
         if (kt != tokens::TokenType::IDENTIFIER &&
             kt != tokens::TokenType::STRING_LITERAL &&
             kt != tokens::TokenType::NUMBER) {
-          // Malformed; bail out gracefully by skipping until '}'
-          while (!stream.isAtEnd() &&
-                 stream.peek().getType() != tokens::TokenType::RIGHT_BRACE) {
-            stream.advance();
-          }
-          if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE)
-            stream.advance();
-          return obj;
+          expectedError(stream, "a property name in object literal");
+          return nullptr;
         }
         stream.advance();  // consume key
-        // Expect ':'
-        if (stream.peek().getType() == tokens::TokenType::COLON) {
-          stream.advance();
-        }
+        if (!expect(stream, tokens::TokenType::COLON,
+                    "':' after property name"))
+          return nullptr;
         // Parse value expression
         auto val = build(stream);
+        if (!val) return nullptr;
         ast::ObjectLiteralExpr::Field f{keyTok, val};
         obj->fields.push_back(f);
-        // Comma between fields
+        // Comma between fields (a line break may follow the last one)
         if (stream.peek().getType() == tokens::TokenType::COMMA) {
           stream.advance();
-          continue;
         } else {
           break;
         }
+        while (isImplicitSemicolon(stream.peek())) stream.advance();
       }
-      if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACE) {
-        stream.advance();
-      }
+      while (isImplicitSemicolon(stream.peek())) stream.advance();
+      if (!expect(stream, tokens::TokenType::RIGHT_BRACE,
+                  "',' or '}' in object literal"))
+        return nullptr;
       return obj;
     }
     // Handle null literal
@@ -117,7 +156,7 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       if (!(t == tokens::TokenType::IDENTIFIER || t == tokens::TokenType::INT ||
             t == tokens::TokenType::FLOAT || t == tokens::TokenType::BOOLEAN ||
             t == tokens::TokenType::STRING)) {
-        // Malformed; return null to avoid crash
+        expectedError(stream, "a class or type name after 'new'");
         return nullptr;
       }
       auto classTok = stream.peek();
@@ -146,24 +185,25 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
         while (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN &&
                !stream.isAtEnd()) {
           auto arg = build(stream);
-          if (arg) newExpr->arguments.push_back(arg);
+          if (!arg) return nullptr;
+          newExpr->arguments.push_back(arg);
           if (stream.peek().getType() == tokens::TokenType::COMMA) {
             stream.advance();
           } else {
             break;
           }
         }
-        if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
-          stream.advance();
-        }
+        if (!expect(stream, tokens::TokenType::RIGHT_PAREN,
+                    "',' or ')' in argument list"))
+          return nullptr;
       } else if (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET) {
         // Parse single dimension for now: new T[expr]
         stream.advance();  // '['
         auto sizeExpr = build(stream);
-        if (sizeExpr) newExpr->arguments.push_back(sizeExpr);
-        if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
-          stream.advance();  // ']'
-        }
+        if (!sizeExpr) return nullptr;
+        newExpr->arguments.push_back(sizeExpr);
+        if (!expect(stream, tokens::TokenType::RIGHT_BRACKET, "']'"))
+          return nullptr;
       }
       return newExpr;
     }
@@ -203,15 +243,19 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
             object = memberExpr;
             continue;
           } else {
-            break;  // Malformed member access; exit gracefully
+            expectedError(stream, "a member name after '.'");
+            return nullptr;
           }
+        } else if (stream.peek().getType() == tokens::TokenType::LESS &&
+                   skipTypeArguments(stream)) {
+          continue;  // explicit type arguments: f<int>(x)
         } else if (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET) {
           auto lb = stream.peek();
           stream.advance();
           auto idxExpr = build(stream);
-          if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
-            stream.advance();
-          }
+          if (!idxExpr) return nullptr;
+          if (!expect(stream, tokens::TokenType::RIGHT_BRACKET, "']'"))
+            return nullptr;
           auto idx = std::make_shared<ast::IndexAccessExpr>();
           idx->object = object;
           idx->index = idxExpr;
@@ -251,16 +295,20 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
             object = memberExpr;
             continue;
           } else {
-            break;
+            expectedError(stream, "a member name after '.'");
+            return nullptr;
           }
+        } else if (stream.peek().getType() == tokens::TokenType::LESS &&
+                   skipTypeArguments(stream)) {
+          continue;  // explicit type arguments: f<int>(x)
         } else if (stream.peek().getType() == tokens::TokenType::LEFT_BRACKET) {
           // Index access: obj[expr]
           auto lb = stream.peek();
           stream.advance();
           auto indexExpr = build(stream);
-          if (stream.peek().getType() == tokens::TokenType::RIGHT_BRACKET) {
-            stream.advance();
-          }
+          if (!indexExpr) return nullptr;
+          if (!expect(stream, tokens::TokenType::RIGHT_BRACKET, "']'"))
+            return nullptr;
           auto idx = std::make_shared<ast::IndexAccessExpr>();
           idx->object = object;
           idx->index = indexExpr;
@@ -282,9 +330,9 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
     case tokens::TokenType::LEFT_PAREN: {
       stream.advance();  // consume '('
       auto expr = build(stream);
-      if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
-        stream.advance();  // consume ')'
-      }
+      if (!expr) return nullptr;
+      if (!expect(stream, tokens::TokenType::RIGHT_PAREN, "')'"))
+        return nullptr;
       return expr;
     }
       // Handle unary operators: -expr, !expr, @expr (address-of), *expr
@@ -297,6 +345,7 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       auto op = stream.peek();
       stream.advance();
       auto right = buildPostfix(stream);
+      if (!right) return nullptr;
       auto expr = std::make_shared<ast::UnaryExpr>();
       expr->op = op;
       expr->operand = right;
@@ -311,13 +360,15 @@ Shared(ast::Expr) ExpressionBuilder::buildPrimary(tokens::TokenStream& stream) {
       auto expr = std::make_shared<ast::UpdateExpr>();
       expr->op = op;
       expr->operand = buildPostfix(stream);
+      if (!expr->operand) return nullptr;
       expr->isPrefix = true;
       expr->location = op.getLocation();
       return expr;
     }
     default:
-      // Unrecognized: skip token and return nullptr
-      stream.advance();
+      // Not the start of an expression. The token is left in place; the
+      // enclosing statement list resynchronizes.
+      expectedError(stream, "an expression");
       return nullptr;
   }
 }
@@ -342,6 +393,7 @@ Shared(ast::Expr) ExpressionBuilder::buildPostfix(tokens::TokenStream& stream) {
 Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
                                                  int minPrec) {
   auto left = buildPostfix(stream);
+  if (!left) return nullptr;
   while (true) {
     auto type = stream.peek().getType();
     // Ternary conditional: cond ? thenExpr : elseExpr. Binds looser than
@@ -354,10 +406,12 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
       auto cond = std::make_shared<ast::ConditionalExpr>();
       cond->condition = left;
       cond->thenExpr = build(stream);
-      if (stream.peek().getType() == tokens::TokenType::COLON) {
-        stream.advance();  // consume ':'
-      }
+      if (!cond->thenExpr) return nullptr;
+      if (!expect(stream, tokens::TokenType::COLON,
+                  "':' in conditional expression"))
+        return nullptr;
       cond->elseExpr = buildBinary(stream, prec);
+      if (!cond->elseExpr) return nullptr;
       cond->location = q.getLocation();
       left = cond;
       continue;
@@ -373,6 +427,7 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
       assignExpr->target = left;
       assignExpr->op = op;
       assignExpr->value = buildBinary(stream, prec);
+      if (!assignExpr->value) return nullptr;
       assignExpr->location = op.getLocation();
       left = assignExpr;
       continue;
@@ -392,6 +447,7 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
       // Assignment is right-associative: parse RHS with the same precedence
       // so that chains like x = y = 5 associate as x = (y = 5)
       auto right = buildBinary(stream, prec);
+      if (!right) return nullptr;
       auto assignExpr = std::make_shared<ast::AssignmentExpr>();
       assignExpr->target = left;
       assignExpr->value = right;
@@ -400,6 +456,7 @@ Shared(ast::Expr) ExpressionBuilder::buildBinary(tokens::TokenStream& stream,
     } else {
       // Regular binary expression
       auto right = buildBinary(stream, prec + 1);
+      if (!right) return nullptr;
       auto expr = std::make_shared<ast::BinaryExpr>();
       expr->op = op;
       expr->left = left;
@@ -451,16 +508,17 @@ Shared(ast::CallExpr) ExpressionBuilder::buildCall(tokens::TokenStream& stream,
   while (stream.peek().getType() != tokens::TokenType::RIGHT_PAREN &&
          !stream.isAtEnd()) {
     auto arg = build(stream);
-    if (arg) call->arguments.push_back(arg);
+    if (!arg) return nullptr;
+    call->arguments.push_back(arg);
     if (stream.peek().getType() == tokens::TokenType::COMMA) {
       stream.advance();
     } else {
       break;
     }
   }
-  if (stream.peek().getType() == tokens::TokenType::RIGHT_PAREN) {
-    stream.advance();
-  }
+  if (!expect(stream, tokens::TokenType::RIGHT_PAREN,
+              "',' or ')' in argument list"))
+    return nullptr;
   return call;
 }
 

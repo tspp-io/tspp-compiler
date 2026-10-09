@@ -1,0 +1,7 @@
+// test: compile-error
+// error: lex_unterminated_string.tspp:5:15: error: unterminated string
+// A string literal cannot span lines.
+function main(): int {
+  console.log("no closing quote);
+  return 0;
+}

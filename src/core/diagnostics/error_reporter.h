@@ -1,9 +1,23 @@
 /*****************************************************************************
  * File: error_reporter.h
- * Description: Error and diagnostic reporting system for the compiler.
+ * Description: The compiler's single diagnostics sink.
+ *
+ * Every stage (lexer, parser, import resolution, semantic analysis, codegen)
+ * reports through core::diagnostics(). Diagnostics are printed to stderr as
+ * they are reported, GCC style:
+ *
+ *   file:line:col: error: message
+ *       source line
+ *       ^
+ *
+ * The driver resets the sink before each compilation and stops after any
+ * stage that reported an error.
  *****************************************************************************/
 
 #pragma once
+#include <iosfwd>
+#include <map>
+#include <string>
 #include <vector>
 
 #include "../common/common_types.h"
@@ -12,41 +26,37 @@ namespace core {
 
 struct Diagnostic {
   enum class Severity {
-    Error,    // Fatal errors that prevent compilation
-    Warning,  // Potential issues that don't stop compilation
-    Info      // Informational messages for the user
+    Error,    // Prevents compilation
+    Warning,  // Potential issue, compilation continues
+    Note,     // Extra information attached to the previous diagnostic
+    Fatal     // Internal compiler error
   };
 
-  Diagnostic(Severity sev, const Location &loc, String msg, String c = "")
-      : severity(sev),
-        location(loc),
-        message(std::move(msg)),
-        code(std::move(c)) {}
+  Diagnostic(Severity sev, const Location &loc, String msg)
+      : severity(sev), location(loc), message(std::move(msg)) {}
 
-  Severity severity;  // Message severity level
-  Location location;  // Source code location
-  String message;     // Descriptive message
-  String code;        // Optional diagnostic code (e.g., "E001")
+  Severity severity;
+  Location location;
+  String message;
 };
 
 class ErrorReporter {
  public:
-  // Report different types of diagnostics
-  void error(const Location &location, const String &message,
-             const String &code = "");
+  ErrorReporter();
 
-  void warning(const Location &location, const String &message,
-               const String &code = "");
+  void error(const Location &location, const String &message);
+  void warning(const Location &location, const String &message);
+  void note(const Location &location, const String &message);
+  // A bug in the compiler itself (e.g. invalid IR): always an error.
+  void internalError(const String &message);
 
-  void info(const Location &location, const String &message,
-            const String &code = "");
+  // Source text used to print the offending line under a diagnostic. Files
+  // that are not registered are read from disk on demand.
+  void registerSource(const String &filename, const String &content);
 
-  // Access collected diagnostics
   const std::vector<Diagnostic> &getDiagnostics() const {
     return diagnostics_;
   }
-
-  // Error state queries
   bool hasErrors() const {
     return errorCount_ > 0;
   }
@@ -54,17 +64,32 @@ class ErrorReporter {
     return errorCount_;
   }
 
-  // Diagnostic management
+  // Forget all diagnostics and registered sources (one compilation each).
   void clear();
-  void printAllErrors() const;
+
+  // Where diagnostics are printed (default: std::cerr; nullptr: nowhere).
+  void setOutput(std::ostream *out);
+  void setColor(bool enabled) {
+    color_ = enabled;
+  }
+
+  // After this many errors, further errors are counted but not printed.
+  static constexpr int kMaxPrintedErrors = 50;
 
  private:
-  std::vector<Diagnostic> diagnostics_;  // All collected diagnostics
-  int errorCount_ = 0;                   // Number of errors encountered
+  std::vector<Diagnostic> diagnostics_;
+  std::map<String, String> sources_;
+  std::ostream *out_;
+  bool color_;
+  int errorCount_ = 0;
 
-  // Common reporting logic
   void report(Diagnostic::Severity severity, const Location &location,
-              const String &message, const String &code);
+              const String &message);
+  void print(const Diagnostic &diag);
+  bool sourceLine(const String &filename, unsigned line, String &out);
 };
+
+// The process-wide diagnostics sink.
+ErrorReporter &diagnostics();
 
 }  // namespace core

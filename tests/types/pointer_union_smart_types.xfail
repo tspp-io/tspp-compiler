@@ -1,1 +1,1 @@
-H1: parser mis-parses smart-pointer parameter types (#shared<int>, #weak<...>): the parameter list ends early and the leftover tokens (d: ..., e: ...), formerly dropped silently at top level, are now parsed as top-level statements -> 'undeclared identifier'
+H1 (parser): smart-pointer types are not parsed: the lexer emits '#shared' as one SHARED token but TypeBuilder expects ATTRIBUTE then SHARED, and '>>' closing nested generics is one RIGHT_SHIFT token; now reported as 'expected a type, found '<'' at 2:49 instead of being skipped

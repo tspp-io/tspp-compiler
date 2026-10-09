@@ -1,1 +1,1 @@
-FLOAT (untracked, KT §6.4 ABI drift): IR calls tspp_float_to_string(float) but runtime takes double, so floats print 0.000000; formatting is %f not shortest; generic firstOf<int> returns a pointer
+H1 (parser): smart-pointer types (#unique/#shared/#weak<...>) are not parsed (see types/pointer_union_smart_types), now located parse errors at 245:12-247:12; also FLOAT (KT §6.4 ABI drift: tspp_float_to_string(float) vs double, %f not shortest) and generic firstOf<int> returns a pointer

@@ -1,0 +1,8 @@
+// test: compile-error
+// error: main_params_return.tspp:6:10: error: 'main' with parameters must return int
+// A main with parameters stays the C entry point, so it must return int.
+// This used to print '[ERROR] User main() must return i32.' and still build.
+
+function main(argc: int): string {
+  return "x";
+}

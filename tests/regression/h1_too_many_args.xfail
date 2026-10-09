@@ -1,1 +1,0 @@
-H1: semantic pass checks missing args but not extra args; add(1, 2, 3) compiles and prints 3

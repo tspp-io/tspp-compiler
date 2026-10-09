@@ -1,0 +1,9 @@
+// test: compile-error
+// error: import_missing.tspp:5:8: error: imported file './no_such_file.tspp' not found
+// A relative import that does not exist used to be only a warning.
+
+import nothing from "./no_such_file.tspp";
+
+function main(): int {
+  return 0;
+}

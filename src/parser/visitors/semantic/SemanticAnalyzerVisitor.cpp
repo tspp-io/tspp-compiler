@@ -6,6 +6,7 @@
 #include <unordered_set>
 
 #include "core/common/macros.h"
+#include "core/diagnostics/error_reporter.h"
 #include "parser/nodes/declaration_nodes.h"
 #include "parser/nodes/meta_nodes.h"
 #include "parser/nodes/misc_nodes.h"
@@ -33,13 +34,18 @@ void SemanticAnalyzerVisitor::exitScope() {
   }
 }
 
-void SemanticAnalyzerVisitor::reportError(const std::string& message) {
+void SemanticAnalyzerVisitor::reportError(const BaseNode* node,
+                                          const std::string& message) {
   errors.push_back(message);
+  core::Location loc = node ? node->location : core::Location();
+  if (!loc.isValid()) loc = lastLocation_;
+  core::diagnostics().error(loc, message);
 }
 
-void SemanticAnalyzerVisitor::reportNotLowered(const std::string& construct) {
-  reportError("'" + construct +
-              "' is parsed but not yet supported by code generation");
+void SemanticAnalyzerVisitor::reportNotLowered(const BaseNode& node,
+                                               const std::string& construct) {
+  reportError(&node, "'" + construct +
+                         "' is parsed but not yet supported by code generation");
 }
 
 void SemanticAnalyzerVisitor::checkMutableTarget(Expr* target,
@@ -48,12 +54,12 @@ void SemanticAnalyzerVisitor::checkMutableTarget(Expr* target,
     std::string varName = ident->name.getLexeme();
     auto sym = currentScope->lookup(varName);
     if (sym && sym->isConst) {
-      reportError("Cannot apply '" + opName + "' to const variable '" +
-                  varName + "'");
+      reportError(ident, "cannot apply '" + opName + "' to const variable '" +
+                             varName + "'");
     }
   } else if (!dynamic_cast<MemberAccessExpr*>(target) &&
              !dynamic_cast<IndexAccessExpr*>(target)) {
-    reportError("Invalid operand for '" + opName + "'");
+    reportError(target, "invalid operand for '" + opName + "'");
   }
   // Undeclared identifiers are reported when the target itself is visited
   if (target) target->accept(*this);
@@ -361,7 +367,7 @@ void SemanticAnalyzerVisitor::visit(ThisExpr& node) {
     if (scope->containsClassSymbol()) return;
     scope = scope->getParent();
   }
-  reportError("'this' used outside of a class context");
+  reportError(&node, "'this' used outside of a class context");
 }
 
 void SemanticAnalyzerVisitor::visit(NullExpr&) {
@@ -424,11 +430,14 @@ void SemanticAnalyzerVisitor::visit(ProgramNode& node) {
   for (auto& decl : node.declarations) {
     if (!decl) continue;
     if (dynamic_cast<ClassDecl*>(decl.get())) continue;  // already handled
+    if (decl->location.isValid()) lastLocation_ = decl->location;
     decl->accept(*this);
   }
   // Pass 3: analyze top-level statements
   for (auto& stmt : node.statements) {
-    if (stmt) stmt->accept(*this);
+    if (!stmt) continue;
+    if (stmt->location.isValid()) lastLocation_ = stmt->location;
+    stmt->accept(*this);
   }
   exitScope();
 }
@@ -437,6 +446,7 @@ void SemanticAnalyzerVisitor::visit(BlockStmt& node) {
   for (size_t i = 0; i < node.statements.size(); ++i) {
     auto& stmt = node.statements[i];
     if (!stmt) continue;
+    if (stmt->location.isValid()) lastLocation_ = stmt->location;
     // Patch: If statement is ExprStmt and contains VarDecl, visit as VarDecl
     if (auto exprStmt = dynamic_cast<ExprStmt*>(stmt.get())) {
       if (exprStmt->expression) {
@@ -465,7 +475,8 @@ void SemanticAnalyzerVisitor::visit(VarDecl& node) {
   // If already hoisted in the current scope, don't re-insert or error
   if (!currentScope->lookup(varName)) {
     if (!currentScope->insert(varName, sym)) {
-      reportError("Variable '" + varName + "' already declared in this scope");
+      reportError(&node,
+                  "variable '" + varName + "' already declared in this scope");
     }
   }
   if (node.initializer) {
@@ -480,7 +491,8 @@ void SemanticAnalyzerVisitor::visit(FunctionDecl& node) {
   if (!currentScope->lookup(funcName)) {
     if (!currentScope->insert(funcName, Symbol{funcName, /*typeName*/ "", false,
                                                true, false, nullptr})) {
-      reportError("Function '" + funcName + "' already declared in this scope");
+      reportError(&node,
+                  "function '" + funcName + "' already declared in this scope");
     }
   }
   enterScope();
@@ -535,7 +547,7 @@ void SemanticAnalyzerVisitor::visit(IdentifierExpr& node) {
   }
   auto sym = currentScope->lookup(idName);
   if (!sym) {
-    reportError("Use of undeclared identifier '" + idName + "'");
+    reportError(&node, "use of undeclared identifier '" + idName + "'");
   }
 }
 
@@ -546,11 +558,13 @@ void SemanticAnalyzerVisitor::visit(AssignmentExpr& node) {
     auto sym = currentScope->lookup(varName);
     if (sym) {
       if (sym->isConst) {
-        reportError("Cannot assign to const variable '" + varName + "'");
+        reportError(targetIdent,
+                    "cannot assign to const variable '" + varName + "'");
       }
       // TODO: Type compatibility check between target and value
     } else {
-      reportError("Assignment to undeclared variable '" + varName + "'");
+      reportError(targetIdent,
+                  "assignment to undeclared variable '" + varName + "'");
     }
   } else if (auto memberTarget =
                  dynamic_cast<MemberAccessExpr*>(node.target.get())) {
@@ -562,11 +576,14 @@ void SemanticAnalyzerVisitor::visit(AssignmentExpr& node) {
     // Support indexed assignment like a[i] = v
     // Detailed bounds/type checks omitted for now
   } else {
-    reportError("Unsupported assignment target");
+    reportError(node.target ? node.target.get() : &node,
+                "unsupported assignment target");
   }
 
-  // Visit the target and value for completeness (also validates 'this' usage)
-  if (node.target) node.target->accept(*this);
+  // Visit the target and value for completeness (also validates 'this'
+  // usage). An identifier target was fully checked above.
+  if (node.target && !dynamic_cast<IdentifierExpr*>(node.target.get()))
+    node.target->accept(*this);
   if (node.value) node.value->accept(*this);
 }
 
@@ -645,7 +662,7 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
     if (!funcName.empty()) {
       auto sym = currentScope->lookup(funcName);
       if (!sym || !sym->isFunction) {
-        reportError("Call to undeclared function '" + funcName + "'");
+        reportError(&node, "call to undeclared function '" + funcName + "'");
         return;
       }
     } else {
@@ -662,6 +679,12 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
     if (fnDecl) {
       size_t arg_before = node.arguments.size();
       size_t param_count = fnDecl->params.size();
+      // H1: extra arguments used to be accepted (and silently dropped).
+      if (arg_before > param_count) {
+        reportError(&node, "too many arguments in call to '" + funcName +
+                               "': expected " + std::to_string(param_count) +
+                               ", got " + std::to_string(arg_before));
+      }
       LOG_DEBUG("CallExpr callee=" << funcName
                                    << ", arg_count_before=" << arg_before
                                    << ", param_count=" << param_count);
@@ -695,9 +718,10 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
             }
             node.arguments.push_back(p->defaultExpr);  // synthesize
           } else {
-            reportError(
-                "Missing argument for parameter without default in call to '" +
-                funcName + "'");
+            reportError(&node,
+                        "missing argument for parameter '" +
+                            (p ? p->name.getLexeme() : std::string("?")) +
+                            "' (no default) in call to '" + funcName + "'");
             // Insert null literal placeholder to avoid vector underflow later
             node.arguments.push_back(nullptr);
           }
@@ -709,8 +733,8 @@ void SemanticAnalyzerVisitor::visit(CallExpr& node) {
       ASSERT(arg_after == std::max(arg_before, param_count));
       // Basic type-check placeholder: ensure not fewer than params
       if (arg_after < param_count) {
-        reportError("Not enough arguments supplied to function '" + funcName +
-                    "'");
+        reportError(&node, "not enough arguments supplied to function '" +
+                               funcName + "'");
         return;
       }
     }
@@ -767,7 +791,7 @@ void SemanticAnalyzerVisitor::visit(DoWhileStmt& node) {
   if (node.body) node.body->accept(*this);
   --loopDepth_;
   if (node.condition) node.condition->accept(*this);
-  reportNotLowered("do-while");
+  reportNotLowered(node, "do-while");
 }
 
 void SemanticAnalyzerVisitor::visit(ForOfStmt& node) {
@@ -780,21 +804,21 @@ void SemanticAnalyzerVisitor::visit(ForOfStmt& node) {
   if (node.body) node.body->accept(*this);
   --loopDepth_;
   exitScope();
-  reportNotLowered("for..of");
+  reportNotLowered(node, "for..of");
 }
 
-void SemanticAnalyzerVisitor::visit(BreakStmt&) {
+void SemanticAnalyzerVisitor::visit(BreakStmt& node) {
   if (loopDepth_ == 0 && switchDepth_ == 0) {
-    reportError("'break' outside of a loop or switch");
+    reportError(&node, "'break' outside of a loop or switch");
   }
-  reportNotLowered("break");
+  reportNotLowered(node, "break");
 }
 
-void SemanticAnalyzerVisitor::visit(ContinueStmt&) {
+void SemanticAnalyzerVisitor::visit(ContinueStmt& node) {
   if (loopDepth_ == 0) {
-    reportError("'continue' outside of a loop");
+    reportError(&node, "'continue' outside of a loop");
   }
-  reportNotLowered("continue");
+  reportNotLowered(node, "continue");
 }
 
 void SemanticAnalyzerVisitor::visit(SwitchStmt& node) {
@@ -805,7 +829,9 @@ void SemanticAnalyzerVisitor::visit(SwitchStmt& node) {
     if (c.test) {
       c.test->accept(*this);
     } else if (seenDefault) {
-      reportError("Multiple 'default' clauses in switch");
+      reportError(&node, "multiple 'default' clauses in switch");
+      if (c.location.isValid())
+        core::diagnostics().note(c.location, "second 'default' is here");
     } else {
       seenDefault = true;
     }
@@ -814,12 +840,12 @@ void SemanticAnalyzerVisitor::visit(SwitchStmt& node) {
     }
   }
   --switchDepth_;
-  reportNotLowered("switch");
+  reportNotLowered(node, "switch");
 }
 
 void SemanticAnalyzerVisitor::visit(ThrowStmt& node) {
   if (node.value) node.value->accept(*this);
-  reportNotLowered("throw");
+  reportNotLowered(node, "throw");
 }
 
 void SemanticAnalyzerVisitor::visit(TryStmt& node) {
@@ -835,7 +861,7 @@ void SemanticAnalyzerVisitor::visit(TryStmt& node) {
     exitScope();
   }
   if (node.finallyBlock) node.finallyBlock->accept(*this);
-  reportNotLowered("try/catch");
+  reportNotLowered(node, "try/catch");
 }
 
 }  // namespace ast
