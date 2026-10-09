@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "primitive_types.h"
 #include "token_type.h"
 /**
  * TokenUtils - Helper utilities for token classification and lookup.
@@ -16,8 +17,7 @@ inline bool isKeyword(const std::string &word) {
       "typedef", "namespace", "template", "new", "get", "set", "cast", "where",
       "throws", "public", "private", "protected", "if", "else", "switch",
       "case", "default", "while", "do", "for", "of", "break", "continue",
-      "return", "try", "catch", "finally", "throw", "void", "int", "float",
-      "boolean", "string",
+      "return", "try", "catch", "finally", "throw",
       // Storage Qualifiers
       "stack", "heap", "static",
       // Smart Pointer Modifiers
@@ -32,6 +32,8 @@ inline bool isKeyword(const std::string &word) {
       "attribute", "extends", "implements", "sizeof", "alignof", "typeof",
       "asm", "true", "false", "null_value", "undefined", "this", "yield",
       "async", "await"};
+  if (const PrimitiveType *p = findPrimitiveType(word))
+    return p->keyword != TokenType::IDENTIFIER;
   return keywords.count(word) > 0;
 }
 inline TokenType keywordToToken(const std::string &word) {
@@ -72,11 +74,6 @@ inline TokenType keywordToToken(const std::string &word) {
       {"catch", TokenType::CATCH},
       {"finally", TokenType::FINALLY},
       {"throw", TokenType::THROW},
-      {"void", TokenType::VOID},
-      {"int", TokenType::INT},
-      {"float", TokenType::FLOAT},
-      {"boolean", TokenType::BOOLEAN},
-      {"string", TokenType::STRING},
       // Storage Qualifiers
       {"stack", TokenType::STACK},
       {"heap", TokenType::HEAP},
@@ -115,6 +112,7 @@ inline TokenType keywordToToken(const std::string &word) {
       {"yield", TokenType::YIELD},
       {"async", TokenType::ASYNC},
       {"await", TokenType::AWAIT}};
+  if (const PrimitiveType *p = findPrimitiveType(word)) return p->keyword;
   auto it = keywordMap.find(word);
   return it != keywordMap.end() ? it->second : TokenType::IDENTIFIER;
 }
@@ -213,8 +211,8 @@ inline bool isValidIdentifier(const std::string &s) {
   return true;
 }
 inline bool isTypeKeyword(const std::string &word) {
-  return word == "int" || word == "float" || word == "string" ||
-         word == "boolean";
+  const PrimitiveType *p = findPrimitiveType(word);
+  return p && p->keyword != TokenType::IDENTIFIER && p->name != "void";
 }
 inline bool isAmbiguousToken(TokenType type) {
   // Example: treat ERROR_TOKEN as ambiguous

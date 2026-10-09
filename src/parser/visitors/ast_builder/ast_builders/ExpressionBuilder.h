@@ -57,6 +57,20 @@ class ExpressionBuilder {
    */
   static int getOperatorPrecedence(tokens::TokenType type);
 
+  // Binary precedence levels (higher = tighter), TypeScript/C order.
+  static constexpr int kPrecAssignment = 1;  // = += -= ... (right-assoc)
+  static constexpr int kPrecConditional = 2;  // ?: (right-assoc)
+  static constexpr int kPrecLogicalOr = 3;    // ||
+  static constexpr int kPrecLogicalAnd = 4;   // &&
+  static constexpr int kPrecBitOr = 5;        // |
+  static constexpr int kPrecBitXor = 6;       // ^
+  static constexpr int kPrecBitAnd = 7;       // &
+  static constexpr int kPrecEquality = 8;     // == !=
+  static constexpr int kPrecRelational = 9;   // < <= > >=
+  static constexpr int kPrecShift = 10;       // << >>
+  static constexpr int kPrecAdditive = 11;    // + -
+  static constexpr int kPrecMultiplicative = 12;  // * / %
+
   /**
    * @brief Check if token is a binary operator
    * @param type Token type to check

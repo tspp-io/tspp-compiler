@@ -10,15 +10,26 @@
 
 #include <algorithm>
 
+#include "tokens/primitive_types.h"
 #include "tokens/token_type.h"
 #include "tokens/tokens.h"
 
 namespace lexer {
 
 namespace {
+// Add the primitive type keywords (int, float, boolean, bool, string, void).
+std::unordered_map<std::string, tokens::TokenType> withPrimitiveTypes(
+    std::unordered_map<std::string, tokens::TokenType> map) {
+  for (const auto &p : tokens::kPrimitiveTypes)
+    if (p.keyword != tokens::TokenType::IDENTIFIER)
+      map.emplace(std::string(p.name), p.keyword);
+  return map;
+}
+
 // Cache the keyword map as a static member for efficiency
 const std::unordered_map<std::string, tokens::TokenType> &getKeywordMapImpl() {
-  static const std::unordered_map<std::string, tokens::TokenType> keywords = {
+  static const std::unordered_map<std::string, tokens::TokenType> keywords =
+      withPrimitiveTypes({
       {"let", tokens::TokenType::LET},
       {"const", tokens::TokenType::CONST},
       {"function", tokens::TokenType::FUNCTION},
@@ -56,11 +67,7 @@ const std::unordered_map<std::string, tokens::TokenType> &getKeywordMapImpl() {
       {"catch", tokens::TokenType::CATCH},
       {"finally", tokens::TokenType::FINALLY},
       {"throw", tokens::TokenType::THROW},
-      {"void", tokens::TokenType::VOID},
-      {"int", tokens::TokenType::INT},
-      {"float", tokens::TokenType::FLOAT},
-      {"boolean", tokens::TokenType::BOOLEAN},
-      {"string", tokens::TokenType::STRING},
+      // Primitive type keywords come from tokens/primitive_types.h
       // Storage Qualifiers
       {"stack", tokens::TokenType::STACK},
       {"heap", tokens::TokenType::HEAP},
@@ -103,7 +110,7 @@ const std::unordered_map<std::string, tokens::TokenType> &getKeywordMapImpl() {
       {"this", tokens::TokenType::THIS},
       {"yield", tokens::TokenType::YIELD},
       {"async", tokens::TokenType::ASYNC},
-      {"await", tokens::TokenType::AWAIT}};
+      {"await", tokens::TokenType::AWAIT}});
   return keywords;
 }
 }  // namespace

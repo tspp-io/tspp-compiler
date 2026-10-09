@@ -8,9 +8,10 @@ control, compiled to native via LLVM. Safe by default, unsafe when you ask for i
 The driver emits LLVM IR into a private temp dir, checks it with `llvm-as`, links
 it with `clang` against the runtime (`libcore.a` next to the `tspp` binary), Boehm
 GC (`-lgc`) and libcurl, then runs the binary and exits with its status.
-It is **not an interpreter**. The REPL (`tspp` with no args) recompiles each chunk
-as a fresh program; the `JITInterpreter` it constructs is never used — it is not a
-working JIT. Docs say LLVM 17+; the local toolchain is **LLVM 23.1.1** (`/usr/bin`)
+It is **not an interpreter** and has no JIT. The REPL (`tspp` with no args,
+`runRepl` in `src/main.cpp`) compiles, links and runs each chunk (a line, or lines
+until braces balance) as a separate program through the normal driver path;
+nothing carries over between chunks (H2). Docs say LLVM 17+; the local toolchain is **LLVM 23.1.1** (`/usr/bin`)
 and must keep building. Status of features: `docs/KNOWLEDGE_TRANSFER.md` §1.2 and
 `docs/MISSING_FEATURES_REPORT.md` (accurate). Bug IDs (C1, H3, …): KNOWLEDGE_TRANSFER §9–10.
 The work plan is `docs/STABILIZATION_PLAN.md`.
@@ -84,7 +85,9 @@ run mode, the program's own status.
 
 - **Types are inferred by string-matching names in codegen** (`"string"`,
   `"ClassName.method"`, `Symbol::typeName` strings). Changes ripple unpredictably.
-  `boolean` is not mapped in `getLLVMType` and falls back to `ptr` (H4); `bool` works.
+  Primitive type names live in one table, `src/tokens/primitive_types.h`
+  (lexer keywords, semantic `resolveType`, `getLLVMType`); `boolean` and `bool`
+  are both i1 and canonicalize to `"bool"` (H4 fixed).
 - Codegen (`emitEntryPoint`) renames a parameterless user `main` to
   `__tspp_user_main` and emits an `i32 main()` that calls `tspp_runtime_init()`
   (GC_INIT), then `__tspp_global_ctors()` (if there is startup code), then the
@@ -118,7 +121,8 @@ run mode, the program's own status.
 - The lexer inserts a `;` token (lexeme `"\n"`, see `isImplicitSemicolon`) at line
   ends, except after a token that cannot end a statement (`,` `(` operators) and
   before a line starting with `)` `]` `.` or a binary operator.
-- Operator precedence differs from `docs/grammar.md` (H3): `& | ^` bind like
-  comparisons, shifts like `+ -`.
+- Operator precedence (H3 fixed) is the TS/C table, named levels in
+  `ExpressionBuilder.h`; `docs/grammar.md` and
+  `tests/regression/h3_precedence_table.tspp` follow it.
 - Many docs (README, `docs/architecture.md`, `docs/language_spec.md`) overstate
   features (H7). Trust the code, `KNOWLEDGE_TRANSFER.md`, and `MISSING_FEATURES_REPORT.md`.

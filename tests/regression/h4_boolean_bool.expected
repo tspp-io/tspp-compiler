@@ -1,0 +1,10 @@
+isEven(4): true
+isEven(3): false
+both(true, true): true
+both(true, false): false
+not: false
+mixed: true
+globals: true false
+field: true
+branch: taken
+loop: 3

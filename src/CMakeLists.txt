@@ -1,10 +1,3 @@
-# Interpreter library
-add_library(interpreter
-    interpreter/interpreter.cpp
-    interpreter/JITInterpreter.cpp
-)
-target_link_libraries(interpreter PUBLIC tspp_codegen core parser tokens lexer)
-target_include_directories(interpreter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Diagnostics sink of the compiler (not part of the runtime; built with the
 # compiler's sanitizers, unlike libcore).
 add_library(diagnostics
@@ -127,6 +120,5 @@ target_link_libraries(tspp
         lexer
         parser
         tspp_codegen
-        interpreter
         LLVM
 )
