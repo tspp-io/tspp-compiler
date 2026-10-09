@@ -53,16 +53,17 @@ The project is organized as follows:
 - **CMake**: Version 3.14 or higher
 - **LLVM**: Version 17 or higher
 - **Boehm GC**: For garbage collection support
+- **libcurl** (with development headers): Used by the runtime's HTTP syscalls
 
 #### Ubuntu/Debian
 ```bash
 sudo apt-get update
-sudo apt-get install build-essential cmake llvm-17 llvm-17-dev libgc-dev
+sudo apt-get install build-essential cmake llvm-17 llvm-17-dev clang-17 libgc-dev libcurl4-openssl-dev
 ```
 
 #### macOS
 ```bash
-brew install cmake llvm bdw-gc
+brew install cmake llvm bdw-gc curl
 ```
 
 ### Building from Source

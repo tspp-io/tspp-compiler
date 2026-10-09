@@ -13,7 +13,7 @@ echo "Installing packages for TSPP development (Fedora/RHEL)..."
 
 # Fedora
 if command -v dnf >/dev/null 2>&1; then
-  dnf install -y @development-tools cmake ninja-build pkgconfig git llvm llvm-devel clang lld libclang-devel boehm-gc-devel
+  dnf install -y @development-tools cmake ninja-build pkgconfig git llvm llvm-devel clang lld libclang-devel boehm-gc-devel libcurl-devel
 else
   echo "dnf not found; please install packages for your distribution manually."
   exit 1

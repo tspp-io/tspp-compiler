@@ -28,6 +28,7 @@ Before contributing, ensure you have:
 - **CMake**: Version 3.14 or higher
 - **LLVM**: Version 17 or higher
 - **Boehm GC**: For garbage collection support
+- **libcurl** (with development headers): Used by the runtime's HTTP syscalls
 - **Git**: For version control
 
 ### Development Setup
@@ -42,10 +43,10 @@ Before contributing, ensure you have:
 3. **Install dependencies**:
    ```bash
    # Ubuntu/Debian
-   sudo apt-get install build-essential cmake llvm-17 llvm-17-dev libgc-dev
+   sudo apt-get install build-essential cmake llvm-17 llvm-17-dev clang-17 libgc-dev libcurl4-openssl-dev
    
    # macOS
-   brew install cmake llvm bdw-gc
+   brew install cmake llvm bdw-gc curl
    ```
 
 4. **Build the project**:
