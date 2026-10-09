@@ -60,15 +60,15 @@ jobs:
           echo "deb [signed-by=/etc/apt/keyrings/apt.llvm.org.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${LLVM_VERSION} main" \
             | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
           sudo apt-get update
-          # libclang-rt-N-dev: ASan runtime, needed because the driver links
-          # compiled programs with -fsanitize=address.
+          # libclang-rt-N-dev: ASan runtime, needed for `tspp --asan`
+          # (exercised by tests/driver/cli.sh).
           sudo apt-get install -y --no-install-recommends \
             "llvm-${LLVM_VERSION}" "llvm-${LLVM_VERSION}-dev" \
             "clang-${LLVM_VERSION}" "libclang-rt-${LLVM_VERSION}-dev"
 
       - name: Select LLVM ${{ matrix.llvm }} toolchain
         run: |
-          # The tspp driver runs unversioned `clang` and `llvm-as`; put the
+          # The tspp driver looks up `clang` and `llvm-as` on PATH first; put the
           # chosen toolchain first on PATH so they resolve to LLVM N, not the
           # runner's preinstalled default.
           echo "/usr/lib/llvm-${LLVM_VERSION}/bin" >> "$GITHUB_PATH"
@@ -95,8 +95,13 @@ jobs:
       - name: Build
         run: ./build.sh
 
+      - name: Check tspp --version
+        run: ./build/src/tspp --version | grep -E '^tspp [0-9]+\.[0-9]+\.[0-9]+$'
+
       - name: Test
-        # tests/run.sh uses ./build/src/tspp and ./build/src/libcore.a from
-        # the checkout and sets ASAN_OPTIONS/LSAN_OPTIONS itself. Exits
+        # tests/run.sh uses ./build/src/tspp (which finds libcore.a next to
+        # itself), runs the golden tests and the driver tests in
+        # tests/driver/ (shell injection, run from another directory, link
+        # failure, CLI), and sets ASAN_OPTIONS/LSAN_OPTIONS itself. Exits
         # non-zero on any FAIL or XPASS.
         run: tests/run.sh

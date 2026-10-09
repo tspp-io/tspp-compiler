@@ -4745,10 +4745,31 @@ void LLVMCodeGenerator::generate(ast::BaseNode* root) {
       builder->CreateRet(
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0));
     } else {
-      // If user main exists, ensure it has correct i32 return type
+      // The C entry point must be `i32 main()`. A user `main(): void` (or
+      // another integer width, e.g. bool) is renamed and wrapped so the
+      // process exit status is well defined (void main -> 0).
       auto* userMain = module->getFunction("main");
-      if (userMain && !userMain->getReturnType()->isIntegerTy(32)) {
-        // Patch: emit error or fixup (for now, emit error)
+      llvm::Type* retTy = userMain->getReturnType();
+      bool needsWrapper = userMain->arg_empty() && !userMain->isDeclaration() &&
+                          (retTy->isVoidTy() ||
+                           (retTy->isIntegerTy() && !retTy->isIntegerTy(32)));
+      if (needsWrapper) {
+        userMain->setName("__tspp_user_main");
+        userMain->setLinkage(llvm::Function::InternalLinkage);
+        llvm::Type* i32Ty = llvm::Type::getInt32Ty(context);
+        llvm::Function* mainFn = llvm::Function::Create(
+            llvm::FunctionType::get(i32Ty, false),
+            llvm::Function::ExternalLinkage, "main", module.get());
+        llvm::BasicBlock* bb =
+            llvm::BasicBlock::Create(context, "entry", mainFn);
+        llvm::IRBuilder<> wrapperBuilder(bb);
+        llvm::Value* rv = wrapperBuilder.CreateCall(userMain);
+        if (retTy->isVoidTy()) {
+          wrapperBuilder.CreateRet(llvm::ConstantInt::get(i32Ty, 0));
+        } else {
+          wrapperBuilder.CreateRet(wrapperBuilder.CreateZExtOrTrunc(rv, i32Ty));
+        }
+      } else if (!retTy->isIntegerTy(32)) {
         llvm::errs() << "[ERROR] User main() must return i32.\n";
       }
     }

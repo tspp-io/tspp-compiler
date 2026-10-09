@@ -1,1 +1,1 @@
-if (int) emits 'br i32' (no int->i1 conversion): invalid IR, link fails silently (H6)
+if (int) emits 'br i32' (no int->i1 conversion): invalid IR, rejected by llvm-as (H6)
