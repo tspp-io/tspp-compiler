@@ -71,4 +71,70 @@ bool StringUtils::endsWith(const String &str, const String &suffix) {
              0;
 }
 
+String StringUtils::unescapeStringLiteral(const String &lexeme) {
+  String body = lexeme;
+  if (body.size() >= 2 && body.front() == '"' && body.back() == '"') {
+    body = body.substr(1, body.size() - 2);
+  }
+
+  auto hexValue = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+  };
+  // Reads exactly `count` hex digits at body[pos]; -1 if they are not there.
+  auto readHex = [&](size_t pos, size_t count) -> long {
+    if (pos + count > body.size()) return -1;
+    long value = 0;
+    for (size_t k = 0; k < count; ++k) {
+      int d = hexValue(body[pos + k]);
+      if (d < 0) return -1;
+      value = value * 16 + d;
+    }
+    return value;
+  };
+
+  String out;
+  out.reserve(body.size());
+  for (size_t i = 0; i < body.size(); ++i) {
+    if (body[i] != '\\' || i + 1 >= body.size()) {
+      out += body[i];
+      continue;
+    }
+    char c = body[++i];
+    switch (c) {
+      case 'n': out += '\n'; break;
+      case 'r': out += '\r'; break;
+      case 't': out += '\t'; break;
+      case '0': out += '\0'; break;
+      case 'x': {
+        long v = readHex(i + 1, 2);
+        if (v < 0) { out += "\\x"; break; }
+        out += static_cast<char>(v);
+        i += 2;
+        break;
+      }
+      case 'u': {
+        long v = readHex(i + 1, 4);
+        if (v < 0) { out += "\\u"; break; }
+        i += 4;
+        if (v < 0x80) {
+          out += static_cast<char>(v);
+        } else if (v < 0x800) {
+          out += static_cast<char>(0xC0 | (v >> 6));
+          out += static_cast<char>(0x80 | (v & 0x3F));
+        } else {
+          out += static_cast<char>(0xE0 | (v >> 12));
+          out += static_cast<char>(0x80 | ((v >> 6) & 0x3F));
+          out += static_cast<char>(0x80 | (v & 0x3F));
+        }
+        break;
+      }
+      default: out += c; break;  // \\ \' \" and unknown escapes
+    }
+  }
+  return out;
+}
+
 } // namespace core::utils

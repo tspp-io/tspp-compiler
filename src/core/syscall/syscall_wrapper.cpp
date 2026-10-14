@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
@@ -796,6 +797,13 @@ const char* tspp_sys_present_canvas(int canvasHandle, const char* path) {
 // String Conversion & Console Functions
 // ============================================================================
 
+// 1 if both strings have the same contents, else 0. A null pointer equals only
+// another null pointer, so `s == null` works.
+int tspp_string_equals(const char* a, const char* b) {
+  if (!a || !b) return a == b ? 1 : 0;
+  return std::strcmp(a, b) == 0 ? 1 : 0;
+}
+
 const char* tspp_string_concat(const char* a, const char* b) {
   if (!a) a = "";
   if (!b) b = "";
@@ -828,8 +836,23 @@ const char* tspp_bool_to_string(int val) {
   return val ? gc_copy("true", 4) : gc_copy("false", 5);
 }
 
-const char* tspp_float_to_string(double val) {
-  return gc_string(std::to_string(val));
+// Codegen passes tspp floats as 32-bit `float` (not `double`), so this takes a
+// float. Prints the shortest decimal that reads back as the same float:
+// 10, 1.1, 0.5, 100000 (never 1.100000).
+const char* tspp_float_to_string(float val) {
+  char buf[64];
+  if (!std::isfinite(val)) {
+    std::snprintf(buf, sizeof buf, "%g", static_cast<double>(val));
+    return gc_string(buf);
+  }
+  for (int precision = 0; precision <= 9; ++precision) {
+    std::snprintf(buf, sizeof buf, "%.*f", precision,
+                  static_cast<double>(val));
+    if (std::strtof(buf, nullptr) == val) return gc_string(buf);
+  }
+  // Very large/small magnitudes that fixed notation cannot round-trip.
+  std::snprintf(buf, sizeof buf, "%.9g", static_cast<double>(val));
+  return gc_string(buf);
 }
 
 const char* tspp_ptr_to_string(void* ptr) {

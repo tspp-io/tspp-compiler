@@ -1,0 +1,9 @@
+// H10: escape sequences in string literals must be processed, not passed through.
+function main(): int {
+  console.log("a\tb");
+  console.log("q\"uote\"");
+  console.log("back\\slash");
+  console.log("A\x41\u0042");
+  console.log("two" + "\nlines");
+  return 0;
+}

@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "core/utils/string_utils.h"
 #include "parser/nodes/misc_nodes.h"
 #include "tokens/token_type.h"
 
@@ -44,17 +45,8 @@ void ConstantExpressionEvaluator::visit(LiteralExpr& node) {
       result = std::make_unique<ConstantValue>(false);
       evaluationSucceeded = true;
     } else if (type == TokenType::STRING_LITERAL) {
-      // Strip surrounding quotes and handle simple escapes to match codegen
-      std::string val = lexeme;
-      if (val.size() >= 2 && (val.front() == '"' && val.back() == '"')) {
-        val = val.substr(1, val.size() - 2);
-      }
-      // Basic unescape for \" -> "
-      size_t pos = 0;
-      while ((pos = val.find("\\\"", pos)) != std::string::npos) {
-        val.replace(pos, 2, "\"");
-        pos += 1;
-      }
+      // Same unescaping as LLVMCodeGenerator::visit(LiteralExpr&)
+      std::string val = core::utils::StringUtils::unescapeStringLiteral(lexeme);
       result = std::make_unique<ConstantValue>(val);
       evaluationSucceeded = true;
     } else if (type == TokenType::NULL_VALUE) {

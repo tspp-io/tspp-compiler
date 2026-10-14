@@ -71,7 +71,7 @@ There is no server, database, or cloud component. "Users" are people who run `ts
 | `let`/`const` variables (local and global) | ✅ | ✅ (undeclared/const-assign; same-scope redeclaration **not** reported, M3a) | ✅ | `examples/tour.tspp`, `globals/` |
 | Global initializers, class `#static` initializers, `static {}` blocks, top-level statements | ✅ | ✅ | ✅ run once in source order before `main` (C2 fixed: `fix/global-ctors` 2b424a5) | `globals/*.tspp`, `regression/c2_global_initializer.tspp` |
 | `int`, `bool`/`boolean`, `string` | ✅ | ✅ (one table: `src/tokens/primitive_types.h`) | ✅ `boolean` = `bool` = `i1` (H4 fixed: `fix/quick-wins` 785d307) | `regression/h4_boolean*.tspp` |
-| `float`, `double` | ✅ | names only | ✅ arithmetic; **printing broken** (H8) | 5 xfail tests (e.g. `sample.functions.test.tspp`) |
+| `float`, `double` | ✅ | names only | ✅ arithmetic; printing fixed (H8) | 5 xfail tests (e.g. `sample.functions.test.tspp`) |
 | Strings: literals, `+` with int/bool | ✅ | ✅ | ✅ GC-owned results (C1 fixed: `fix/string-ownership` 2ece020); escapes not processed (H10); `==` compares pointers (H11) | `regression/c1_*.tspp` |
 | `if`/`else`, `while`, C-style `for` | ✅ | ✅ | ✅ boolean conditions; an `int` condition is an ICE (H9) | `basics/ints_control_flow.tspp`, `basics/multiline_statements.tspp` |
 | `switch`, `do-while`, `break`, `continue`, `try/catch/finally`, `throw`, `for..of` | ✅ | ✅ (scopes, `break`/`continue` placement, duplicate `default`) | ❌ Rejected with a located "not yet supported by code generation" error | `diagnostics/` |
@@ -801,17 +801,17 @@ IDs are referenced in [§10](#10-recommended-improvements). "Verified (code)" me
 
 | ID | Issue | Evidence | Pinned by |
 |---|---|---|---|
-| H8 | **Floats print wrong.** The IR passes a `float` to `tspp_float_to_string`, which takes a `double`, so every float prints `0.000000`; the format is `%f`, not the shortest form the tests expect. (The analogous `tspp_bool_to_string` i1-vs-int mismatch was fixed with `zeroext`.) | `syscall_wrapper.cpp` `tspp_float_to_string(double)` vs codegen's declaration | `sample.functions.test.tspp`, `functions/default_params.test.tspp`, `classes_interface.test.tspp`, `interfaces_statements_expressions.test.tspp`, `final.tspp` (xfail) |
-| H9 | **`int` conditions emit `br i32`.** `if (n)` / `while (n)` with a non-boolean condition is not converted to `i1`; `verifyModule` rejects it (internal compiler error). `lib/system.tspp` fails to compile because of it. | `visit(IfStmt&)`/`visit(WhileStmt&)` | `examples/system.tspp` (xfail); `diagnostics/internal_error_invalid_ir.tspp` pins the ICE and must change when this is fixed |
-| H10 | String escape sequences (`"\n"`, `"\t"`) are validated by the lexer but not processed; they reach the program verbatim. | `string_scanner.cpp` | — |
-| H11 | `==` / `!=` on strings compare pointers, not contents (`"ab" == "a" + "b"` is false). | `visit(BinaryExpr&)` | — |
+| H8 | **Floats print wrong.** The IR passes a `float` to `tspp_float_to_string`, which takes a `double`, so every float prints `0.000000`; the format is `%f`, not the shortest form the tests expect. (The analogous `tspp_bool_to_string` i1-vs-int mismatch was fixed with `zeroext`.) | `syscall_wrapper.cpp` `tspp_float_to_string(double)` vs codegen's declaration | ✅ Fixed: `fix/small-bugs` (`regression/h8_float_print.tspp`) |
+| H9 | **`int` conditions emit `br i32`.** `if (n)` / `while (n)` with a non-boolean condition is not converted to `i1`; `verifyModule` rejects it (internal compiler error). `lib/system.tspp` fails to compile because of it. | `visit(IfStmt&)`/`visit(WhileStmt&)` | ✅ Fixed: `fix/small-bugs` (`regression/h9_int_condition.tspp`) |
+| H10 | String escape sequences (`"\n"`, `"\t"`) are validated by the lexer but not processed; they reach the program verbatim. | `string_scanner.cpp` | ✅ Fixed: `fix/small-bugs` (`regression/h10_string_escapes.tspp`) |
+| H11 | `==` / `!=` on strings compare pointers, not contents (`"ab" == "a" + "b"` is false). | `visit(BinaryExpr&)` | ✅ Fixed: `fix/small-bugs` (`regression/h11_string_equality.tspp`) |
 | H12 | **Smart-pointer types never parse.** The lexer emits `#shared` as one `SHARED` token but `TypeBuilder` expects `ATTRIBUTE` then `SHARED`; `>>` closing nested generics (`A<B<int>>`) is one `RIGHT_SHIFT` token. Blocks roadmap steps 4–5. | `identifier_scanner.cpp` `scanAttribute`, `TypeBuilder.cpp` | `types/pointer_union_smart_types.tspp`, `sample.test.tspp`, `sample.variable.test.tspp`, `final.tspp` (xfail) |
 | M8 | A union-typed global with a string initializer is invalid IR ("Global variable initializer type does not match"). | `visit(VarDecl&)`, M3c | `sample.test.tspp`, `sample.variable.test.tspp` (xfail, behind H12) |
 | M9 | Some string-valued expressions are converted with `tspp_ptr_to_string` and print an address: a string-typed `?:` inside `+`, static string fields and static methods returning `string` inside `+`. | type-name inference in `visit(BinaryExpr&)` | — |
-| M10 | `sys.get_env` is missing from the `sys.*` parameter table, so `tspp_sys_get_env` is declared without parameters and called with one (internal compiler error). | `visit(CallExpr&)` `sys.*` chain | `sys_io_env.tspp` (xfail) |
+| M10 | `sys.get_env` is missing from the `sys.*` parameter table, so `tspp_sys_get_env` is declared without parameters and called with one (internal compiler error). | `visit(CallExpr&)` `sys.*` chain | ✅ Fixed: `fix/small-bugs` (`regression/m10_sys_env.tspp`) |
 | M11 | `lib/system.tspp` defines `exit`, `write`, `read`, `strlen` as global tspp functions, shadowing the libc symbols the runtime links against. | `lib/system.tspp` | — |
 | L5 | Parser fragility: `@` lexes as a binary operator; a `<...>` after a binary operator is skipped as generic arguments; a parameter typed `#shared<int>` ends the parameter list early. | `ExpressionBuilder.cpp`, `DeclarationBuilder.cpp` | — |
-| L6 | `src/core/syscall/syscall_c_bindings.h` holds two concatenated copies (never included); `src/types/` (placeholder) and `src/ast/` (printers) are not built. | files | — |
+| L6 | `src/core/syscall/syscall_c_bindings.h` holds two concatenated copies (never included); `src/types/` (placeholder) and `src/ast/` (printers) are not built. | files | ✅ Fixed: `fix/small-bugs` (dead files deleted) |
 
 Phase 5 also noted "untyped `let w = "v" + f()` prints an address" and "member call on an untyped object global is an undeclared function"; neither reproduces on `docs/truth-pass`, so they have no ID.
 

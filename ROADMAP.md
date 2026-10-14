@@ -49,18 +49,12 @@ test that turns into a pass when fixed.
 
 | ID | Bug | Pinned by |
 |---|---|---|
-| H8 | Floats print wrong: IR passes `float` to `tspp_float_to_string(double)`; output is `%f`, not shortest form | `tests/sample.functions.test.tspp` and 4 others (xfail) |
-| H9 | `if (n)` / `while (n)` with an `int` condition emits `br i32` (internal compiler error); `lib/system.tspp` fails to compile because of it | `tests/examples/system.tspp` (xfail), `tests/diagnostics/internal_error_invalid_ir.tspp` (update it when fixed) |
-| H10 | String escape sequences (`"\n"`, `"\t"`) are not processed | — |
-| H11 | `==` / `!=` on strings compare pointers, not contents | — |
 | M8 | A union-typed global with a string initializer is invalid IR | `tests/sample.test.tspp` (xfail) |
 | M9 | Some string expressions print an address: string-typed `?:` inside `+`, static string fields and static methods returning `string` inside `+` | — |
-| M10 | `sys.get_env` is missing from the `sys.*` parameter table (internal compiler error) | `tests/sys_io_env.tspp` (xfail) |
 | M3a | A local redeclared in the same scope is not reported | — |
 | M4 | Imports: no namespaces, `import { x } from` unsupported, a missing import is only a warning, weak cycle detection, diamond imports can run a shared module after one importer | — |
 | M11 | `lib/system.tspp` defines `exit`/`write`/`read`/`strlen` globally, shadowing libc | — |
 | L5 | Parser fragility: `@` lexes as a binary operator; `<...>` after a binary operator is taken as generic arguments; parameters typed `#shared<int>` end the parameter list early | — |
-| L6 | `src/core/syscall/syscall_c_bindings.h` holds two concatenated copies; `src/ast/` and `src/types/` are unused | — |
 
 ## Language features after the memory model
 

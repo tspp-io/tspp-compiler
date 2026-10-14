@@ -1,1 +1,0 @@
-if (int) emits 'br i32' (no int->i1 conversion): now an internal compiler error from llvm::verifyModule ('Branch condition is not 'i1' type')

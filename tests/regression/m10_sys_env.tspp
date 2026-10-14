@@ -1,0 +1,8 @@
+// M10: sys.get_env / sys.set_env must be declared with their parameters.
+import sys;
+
+function main(): int {
+  sys.set_env("TSPP_M10", "ok");
+  console.log(sys.get_env("TSPP_M10"));
+  return 0;
+}

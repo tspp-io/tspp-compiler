@@ -10,6 +10,7 @@
 // Ensure full definitions of AST node types are available for dynamic_cast
 // and member access (forward declarations from ast_visitor.h are insufficient)
 #include "core/diagnostics/error_reporter.h"
+#include "core/utils/string_utils.h"
 #include "parser/nodes/base_node.h"
 #include "parser/nodes/declaration_nodes.h"
 #include "parser/nodes/expression_nodes.h"
@@ -389,16 +390,8 @@ void LLVMCodeGenerator::visit(ast::LiteralExpr& node) {
   } else if (type == TokenType::FALSE) {
     lastValue = llvm::ConstantInt::getFalse(context);
   } else if (type == TokenType::STRING_LITERAL) {
-    // Strip surrounding quotes and simple escaped quotes for internal storage
-    if (val.size() >= 2 && (val.front() == '"' && val.back() == '"')) {
-      val = val.substr(1, val.size() - 2);
-    }
-    // Replace escaped quotes \" with " (basic unescape)
-    size_t pos = 0;
-    while ((pos = val.find("\\\"", pos)) != std::string::npos) {
-      val.replace(pos, 2, "\"");
-      pos += 1;
-    }
+    // Strip the quotes and process escape sequences (\n, \t, \", ...)
+    val = core::utils::StringUtils::unescapeStringLiteral(val);
     // For string literals, we need different handling at global vs function
     // scope
     if (currentFunction) {
@@ -806,6 +799,42 @@ void LLVMCodeGenerator::visit(ast::BinaryExpr& node) {
     // For '+' we can still proceed (treat missing side as empty string/0)
     if (op != "+") {
       lastValue = nullptr;
+      return;
+    }
+  }
+
+  // H11: '==' / '!=' on strings compare contents, not addresses. Only taken
+  // when both values are pointers and at least one operand is known to be a
+  // string (literal, string-typed variable, or a string '+'), so comparisons
+  // such as `obj == null` keep comparing pointers.
+  if ((op == "==" || op == "!=") && lhs && rhs && lhs->getType()->isPointerTy() &&
+      rhs->getType()->isPointerTy()) {
+    std::function<bool(ast::Expr*)> isStringExpr =
+        [&](ast::Expr* expr) -> bool {
+      if (auto lit = dynamic_cast<LiteralExpr*>(expr)) {
+        return lit->value.getType() == tokens::TokenType::STRING_LITERAL;
+      }
+      if (auto bin = dynamic_cast<BinaryExpr*>(expr)) {
+        return bin->op.getLexeme() == "+" &&
+               (isStringExpr(bin->left.get()) || isStringExpr(bin->right.get()));
+      }
+      if (auto id = dynamic_cast<IdentifierExpr*>(expr)) {
+        auto it = symbolTable.find(id->name.getLexeme());
+        return it != symbolTable.end() && it->second.typeName == "string";
+      }
+      return false;
+    };
+    if (isStringExpr(node.left.get()) || isStringExpr(node.right.get())) {
+      // int tspp_string_equals(const char*, const char*): null-safe
+      auto eqType = llvm::FunctionType::get(
+          llvm::Type::getInt32Ty(context), {getPointerTy(), getPointerTy()},
+          false);
+      auto eqFunc = module->getOrInsertFunction("tspp_string_equals", eqType);
+      llvm::Value* r = builder->CreateCall(eqFunc, {lhs, rhs});
+      lastValue = builder->CreateICmp(
+          op == "==" ? llvm::CmpInst::ICMP_NE : llvm::CmpInst::ICMP_EQ, r,
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0),
+          op == "==" ? "streq" : "strne");
       return;
     }
   }
@@ -2252,8 +2281,13 @@ void LLVMCodeGenerator::visit(ast::CallExpr& node) {
     std::vector<llvm::Type*> paramTys;
     if (member == "set_cwd" || member == "system_call" ||
         member == "file_exists" || member == "read_file" ||
-        member == "delete_file" || member == "http_get") {
+        member == "delete_file" || member == "http_get" ||
+        member == "get_env" || member == "is_directory") {
       // single string arg
+      paramTys.push_back(getPointerTy());
+    } else if (member == "set_env") {
+      // name, value
+      paramTys.push_back(getPointerTy());
       paramTys.push_back(getPointerTy());
     } else if (member == "write_file") {
       // path, content, append flag
@@ -3123,7 +3157,7 @@ void LLVMCodeGenerator::visit(ast::IfStmt& node) {
 
   // Evaluate the condition
   node.condition->accept(*this);
-  llvm::Value* condValue = lastValue;
+  llvm::Value* condValue = toBool(lastValue);  // int/float/pointer -> i1 (H9)
 
   if (!condValue) {
     core::diagnostics().error(node.condition->location,
@@ -3195,7 +3229,7 @@ void LLVMCodeGenerator::visit(ast::WhileStmt& node) {
   builder->SetInsertPoint(condBB);
   if (node.condition) {
     node.condition->accept(*this);
-    llvm::Value* condValue = lastValue;
+    llvm::Value* condValue = toBool(lastValue);  // int/float/pointer -> i1 (H9)
 
     if (condValue) {
       // Create conditional branch: if true goto body, else goto merge
@@ -3255,7 +3289,7 @@ void LLVMCodeGenerator::visit(ast::ForStmt& node) {
   builder->SetInsertPoint(condBB);
   if (node.condition) {
     node.condition->accept(*this);
-    llvm::Value* condValue = lastValue;
+    llvm::Value* condValue = toBool(lastValue);  // int/float/pointer -> i1 (H9)
 
     if (condValue) {
       // Create conditional branch: if true goto body, else goto merge

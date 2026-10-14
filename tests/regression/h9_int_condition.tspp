@@ -1,0 +1,19 @@
+// H9: an int (or float, or pointer) used as a condition is true when non-zero.
+function main(): int {
+  let n: int = 2;
+  if (n) {
+    console.log("n is non-zero");
+  }
+  let z: int = 0;
+  if (z) {
+    console.log("not printed");
+  } else {
+    console.log("z is zero");
+  }
+  let k: int = 3;
+  while (k) {
+    console.log(k);
+    k = k - 1;
+  }
+  return 0;
+}

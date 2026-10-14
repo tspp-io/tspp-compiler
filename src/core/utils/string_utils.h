@@ -75,6 +75,16 @@ class StringUtils {
    * @throws None
    */
   static bool endsWith(const String &str, const String &suffix);
+
+  // String Literal Handling
+  /**
+   * @brief Turns the source text of a string literal (with its quotes) into
+   *        the string it denotes, processing escape sequences:
+   *        \n \r \t \0 \\ \' \" \xHH and \uHHHH (encoded as UTF-8)
+   * @param lexeme Literal exactly as written, including the quotes
+   * @return The unescaped contents without quotes
+   */
+  static String unescapeStringLiteral(const String &lexeme);
 };
 
 }  // namespace core::utils

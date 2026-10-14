@@ -1,0 +1,18 @@
+// H11: == and != on strings compare contents, not addresses.
+function main(): int {
+  let s: string = "ab";
+  let t: string = "a" + "b";
+  if (s == t) {
+    console.log("s == t");
+  }
+  if ("ab" == "a" + "b") {
+    console.log("literal == concat");
+  }
+  if (s != "xy") {
+    console.log("s != xy");
+  }
+  if (s == "xy") {
+    console.log("not printed");
+  }
+  return 0;
+}

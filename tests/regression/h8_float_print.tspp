@@ -1,0 +1,9 @@
+// H8: floats print as the shortest decimal (2.5, 10), not "0.000000" or "2.500000".
+function main(): int {
+  let a: float = 2.5;
+  let b: float = 4.0;
+  console.log("a = " + a);
+  console.log("product = " + a * b);
+  console.log("half = " + 0.5);
+  return 0;
+}
