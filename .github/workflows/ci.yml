@@ -21,25 +21,46 @@ defaults:
 
 jobs:
   build-and-test:
-    name: build + tests (LLVM ${{ matrix.llvm }}, ${{ matrix.compiler }})
+    name: build + tests (${{ matrix.build_type }}, LLVM ${{ matrix.llvm }}, ${{ matrix.compiler }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Oldest LLVM we test against, compiler built with GCC.
+          # Oldest LLVM we test against, compiler built with GCC. Debug build:
+          # the compiler is ASan-instrumented, and the suite also fails if
+          # the compiler leaks (TSPP_LEAK_CHECK=1).
           - llvm: 18
             compiler: gcc
             cc: gcc
             cxx: g++
+            build_type: Debug
+            build_flags: ""
+            build_dir: build
+            leak_check: 1
           # Current apt.llvm.org stable, compiler built with that clang.
           - llvm: 22
             compiler: clang
             cc: clang
             cxx: clang++
+            build_type: Debug
+            build_flags: ""
+            build_dir: build
+            leak_check: 1
+          # Release build (optimized, no sanitizers), as users would build it.
+          - llvm: 22
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            build_type: Release
+            build_flags: --release
+            build_dir: build-release
+            leak_check: 0
 
     env:
       LLVM_VERSION: ${{ matrix.llvm }}
+      # Compiler under test, used by tests/run.sh.
+      TSPP: ${{ matrix.build_dir }}/src/tspp
 
     steps:
       - name: Checkout code
@@ -78,7 +99,7 @@ jobs:
             echo "CC=${{ matrix.cc }}"
             echo "CXX=${{ matrix.cxx }}"
           } >> "$GITHUB_ENV"
-          # ASan (forced on in CMakeLists.txt) can crash at startup with the
+          # ASan (on by default in Debug builds) can crash at startup with the
           # high mmap ASLR entropy some runner kernels use.
           sudo sysctl -w vm.mmap_rnd_bits=28
 
@@ -92,16 +113,20 @@ jobs:
           llvm-as --version | head -n 2
           llvm-config --version
 
-      - name: Build
-        run: ./build.sh
+      - name: Build (${{ matrix.build_type }})
+        # Debug -> build/, --release -> build-release/
+        run: ./build.sh ${{ matrix.build_flags }}
 
       - name: Check tspp --version
-        run: ./build/src/tspp --version | grep -E '^tspp [0-9]+\.[0-9]+\.[0-9]+$'
+        run: |
+          "$TSPP" --version | grep -E '^tspp [0-9]+\.[0-9]+\.[0-9]+$'
 
       - name: Test
-        # tests/run.sh uses ./build/src/tspp (which finds libcore.a next to
-        # itself), runs the golden tests and the driver tests in
-        # tests/driver/ (shell injection, run from another directory, link
-        # failure, CLI), and sets ASAN_OPTIONS/LSAN_OPTIONS itself. Exits
-        # non-zero on any FAIL or XPASS.
+        # tests/run.sh uses $TSPP (which finds libcore.a next to itself), runs
+        # the golden tests and the driver tests in tests/driver/ (shell
+        # injection, run from another directory, link failure, CLI), and sets ASAN_OPTIONS/LSAN_OPTIONS itself. Exits
+        # non-zero on any FAIL or XPASS (and, with TSPP_LEAK_CHECK=1, on any
+        # LeakSanitizer report from the compiler).
+        env:
+          TSPP_LEAK_CHECK: ${{ matrix.leak_check }}
         run: tests/run.sh

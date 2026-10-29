@@ -5,6 +5,8 @@
 tests/run.sh               # run everything (except tests/bench/)
 tests/run.sh regression    # only tests whose path contains "regression"
 cd build && ctest --output-on-failure   # same suite through CTest
+TSPP=build-release/src/tspp tests/run.sh # against ./build.sh --release
+TSPP_LEAK_CHECK=1 tests/run.sh           # also fail on compiler leaks (ASan build)
 ```
 
 `run.sh` prints one line per test and a summary
@@ -72,12 +74,12 @@ wrong, and say so in the PR when you do.
 | Path | What |
 |---|---|
 | `*.tspp` (top level), `functions/`, `grammar/`, `loops/`, `modifiers/`, `types/` | Restored from `761708e^` (`git ls-tree -r 761708e^ -- tests`) |
-| `examples/system.tspp` | Restored `examples/system.tspp` (same as `lib/system.tspp`), parse-only |
+| `examples/` | `system.tspp`: restored `examples/system.tspp` (same as `lib/system.tspp`), parse-only. `hello.tspp`, `tour.tspp`: the README's hello world and language tour (keep them in sync with `README.md`) |
 | `basics/` | Passing smoke tests for the parts of `final.tspp` that work today |
 | `globals/` | Startup code (C2): global initializers, class static initializers/blocks, top-level statements, order across an import (`import_order_lib.tspp` is imported by `import_order.tspp` and also runs alone), `main` with parameters |
 | `regression/` | Known-bug pins from KNOWLEDGE_TRANSFER §8.3 (C1, C2, H1, H3, H4) |
 | `diagnostics/` | Negative tests, one or more per error class (lexer, parser, unsupported `enum`/`namespace`, semantic, imports, codegen, internal compiler error), each pinning `file:line:col` (H1, H6). `import_*_lib.tspp` are imported by their sibling and also run alone |
-| `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status, diagnostics format (warnings, error cap, no color when not a terminal), runtime ABI of `tspp_bool_to_string`, the REPL (input piped into `tspp` with no arguments) |
+| `driver/` | Driver tests: shell injection (C3), run from another directory, failing build stages, CLI flags and exit status, diagnostics format (warnings, error cap, no color when not a terminal), runtime ABI of `tspp_bool_to_string`, the REPL (input piped into `tspp` with no arguments), and `doc_samples.sh`, which runs `scripts/check_doc_samples.sh` (every ```` ```tspp ```` block in the docs must compile; planned syntax is fenced `tspp-planned`) |
 | `bench/` | Micro-benchmarks. **Not run** by `run.sh`. |
 
 Notes on specific restored tests:

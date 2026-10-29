@@ -1,5 +1,13 @@
 # tspp Language Tokens and Keywords
 
+The token kinds the lexer knows (`src/tokens/token_type.h`). Being a token
+does not mean the language supports the construct: many keywords below are
+reserved for planned features and have no grammar yet (`template`, `cast`,
+`where`, `throws`, `get`/`set`, `yield`, `async`/`await`, `ref`, `target`,
+...), and `enum`/`namespace` are rejected by the parser. The usage column
+shows intended syntax. What parses today is in [grammar.md](grammar.md); what
+works is in the [README](../README.md#works-today).
+
 ## Keywords
 ```
 let const function class interface enum constructor typedef namespace template new get set cast where throws public private protected if else switch case default while do for of break continue return try catch finally throw void int float boolean string stack heap static shared unique weak attribute inline virtual unsafe simd target ref aligned packed abstract zerocast extends implements const_expr sizeof alignof typeof asm identifier number string_literal char_literal true false null_value undefined this plus minus star slash percent ampersand pipe caret tilde right_shift left_shift exclaim ampersand_ampersand pipe_pipe equals equals_equals exclaim_equals less greater less_equals greater_equals plus_equals minus_equals star_equals slash_equals percent_equals ampersand_equals pipe_equals caret_equals plus_plus minus_minus question colon arrow dot at left_paren right_paren left_brace right_brace left_bracket right_bracket semicolon comma yield async await error_token end_of_file
@@ -105,10 +113,9 @@ let const function class interface enum constructor typedef namespace template n
 ## Example
 ```tspp
 let x = 42;
-const PI = 3.14;
+const LIMIT: int = 3;
 function add(a: int, b: int): int { return a + b; }
 class MyClass {}
-namespace Math {}
-if (x > 0) { return x; }
-#stack int y = 10;
+if (x > 0) { console.log(add(x, LIMIT)); }
+#stack let y: int = 10;   // parsed; '#stack' has no effect yet
 ```

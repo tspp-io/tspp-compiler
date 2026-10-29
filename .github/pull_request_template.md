@@ -33,7 +33,7 @@ Please describe the testing you've performed:
 ```bash
 # List the commands used to test these changes
 ./build.sh
-./test.sh example.tspp
+tests/run.sh
 ```
 
 ## Checklist

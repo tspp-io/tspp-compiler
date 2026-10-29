@@ -12,9 +12,10 @@ It is **not an interpreter** and has no JIT. The REPL (`tspp` with no args,
 `runRepl` in `src/main.cpp`) compiles, links and runs each chunk (a line, or lines
 until braces balance) as a separate program through the normal driver path;
 nothing carries over between chunks (H2). Docs say LLVM 17+; the local toolchain is **LLVM 23.1.1** (`/usr/bin`)
-and must keep building. Status of features: `docs/KNOWLEDGE_TRANSFER.md` §1.2 and
-`docs/MISSING_FEATURES_REPORT.md` (accurate). Bug IDs (C1, H3, …): KNOWLEDGE_TRANSFER §9–10.
-The work plan is `docs/STABILIZATION_PLAN.md`.
+and must keep building. Status of features: README "Works today" (each row links a passing test),
+`docs/KNOWLEDGE_TRANSFER.md` §1.2. Bug IDs (C1, H3, …): KNOWLEDGE_TRANSFER §9
+(new ones in §9.7). What comes next: `ROADMAP.md`. The finished stabilization
+plan: `docs/STABILIZATION_PLAN.md`.
 
 ## Pipeline (where each stage lives)
 
@@ -35,13 +36,14 @@ Prerequisites: CMake ≥ 3.14, C++17 compiler, LLVM dev package (`LLVMConfig.cma
 shared `libLLVM`), `clang` + `llvm-as` on `PATH`, Boehm GC (`libgc`), libcurl dev.
 
 ```bash
-./build.sh                         # rm -rf build; configure; build; tspp --version
+./build.sh                         # Debug (ASan) build in build/; incremental
+./build.sh --release               # Release (no sanitizers) in build-release/
+                                   # --clean: wipe that dir first; -- -DTSPP_ENABLE_UBSAN=ON
 ./build/src/tspp file.tspp         # compile + link + run from any directory; exits
                                    # with the program's status
 ./build/src/tspp -o prog file.tspp # build only;  --emit-llvm [-o f.ll]: IR only
 ./build/src/tspp --help            # also --keep-temps, --asan, `-- args` for the program
 ./test.sh file.tspp                # thin wrapper around build/src/tspp
-git checkout compile_commands.json # build.sh overwrites the committed copy; don't commit it
 ```
 
 Tests (see `tests/README.md`):
@@ -51,6 +53,8 @@ tests/run.sh                       # full suite; prints PASS/FAIL/XFAIL/XPASS su
                                    # exits non-zero on FAIL or XPASS
 tests/run.sh regression            # only tests whose path contains "regression"
 (cd build && ctest --output-on-failure)  # same suite via CTest
+TSPP=build-release/src/tspp tests/run.sh # suite against the Release compiler
+TSPP_LEAK_CHECK=1 tests/run.sh     # also fail if the (Debug/ASan) compiler leaks
 ```
 
 A test is `<name>.tspp` + `<name>.expected` (stdout; optional `// exit: N`), or has a
@@ -58,8 +62,8 @@ A test is `<name>.tspp` + `<name>.expected` (stdout; optional `// exit: N`), or 
 driver tests (shell injection, other CWD, link failure, CLI). `<name>.xfail` (reason + bug ID) marks a known
 bug; when your fix makes it pass (XPASS), delete the `.xfail` file.
 
-Silence leak noise from the ASan-built compiler/programs:
-`export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=0:exitcode=0"`
+`lsan.supp` holds only narrow, commented third-party leak suppressions (currently
+none); never add blanket malloc/new entries.
 
 The driver writes nothing into the CWD (except `-o` / `--emit-llvm` output),
 finds `clang`/`llvm-as` on PATH (overrides: `TSPP_CLANG`, `TSPP_LLVM_AS`) and the
@@ -100,11 +104,12 @@ run mode, the program's own status.
   modules' code comes first (ModuleResolver prepends them). Constant
   initializers are folded into the global. Order of top-level items is kept in
   `ProgramNode::topLevel`.
-- **The build forces Debug + ASan** (root `CMakeLists.txt` sets
-  `CMAKE_BUILD_TYPE Debug` and `-fsanitize=address`; `-DCMAKE_BUILD_TYPE=...` is
-  overridden) of the compiler. Compiled programs are PIE and not ASan-instrumented
-  unless `tspp --asan`; `libcore` is built with `-fno-sanitize=address` for that.
-  Expect LeakSanitizer output from the compiler on stderr; compare stdout only.
+- **Build types and sanitizers**: `CMAKE_BUILD_TYPE` defaults to Debug when unset.
+  `TSPP_ENABLE_ASAN` (default ON for Debug, OFF otherwise) and `TSPP_ENABLE_UBSAN`
+  (default OFF; fatal on UB) instrument the compiler only; values are cached
+  per build dir. Compiled programs are PIE and not instrumented unless
+  `tspp --asan`; `libcore` (the runtime) is built with `-fno-sanitize=all` for that.
+  `compile_commands.json` is generated (build.sh symlinks it to the root; gitignored).
 - Every `const char*` the runtime returns to tspp code is a fresh GC-owned copy
   (`GC_MALLOC_ATOMIC`; C1/C1b fixed). Never free it; `tspp_free_string` is a no-op.
   A string pointer stored only in non-GC memory (e.g. `sys.malloc`) is invisible to
@@ -124,5 +129,8 @@ run mode, the program's own status.
 - Operator precedence (H3 fixed) is the TS/C table, named levels in
   `ExpressionBuilder.h`; `docs/grammar.md` and
   `tests/regression/h3_precedence_table.tspp` follow it.
-- Many docs (README, `docs/architecture.md`, `docs/language_spec.md`) overstate
-  features (H7). Trust the code, `KNOWLEDGE_TRANSFER.md`, and `MISSING_FEATURES_REPORT.md`.
+- Docs were made truthful (H7 fixed). Keep them so: list a feature as working
+  only with a passing test; fence code samples ```` ```tspp ```` (compiled by
+  `scripts/check_doc_samples.sh`, run by the suite as `tests/driver/doc_samples.sh`)
+  or ```` ```tspp-planned ```` for syntax that doesn't work yet. When a fix lands,
+  update the README tables, `ROADMAP.md` and KNOWLEDGE_TRANSFER §9 status.

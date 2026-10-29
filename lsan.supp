@@ -1,29 +1,13 @@
-# Suppress known LeakSanitizer false positives from LLVM IR objects
-leak:llvm::Module
-leak:llvm::IRBuilder
-leak:llvm::ReturnInst::Create
-leak:llvm::User::operator new
-# Common LLVM IR leaks from other large projects
-leak:llvm::Type
-leak:llvm::Value
-leak:llvm::Function
-leak:llvm::BasicBlock
-leak:llvm::Instruction
-leak:llvm::Constant
-leak:llvm::GlobalVariable
-leak:llvm::ArrayType
-leak:llvm::StructType
-leak:llvm::PointerType
-leak:llvm::DataLayout
-leak:llvm::LLVMContext
-leak:llvm::PassRegistry
-leak:llvm::legacy::PassManager
-leak:llvm::raw_ostream
-leak:operator new[](unsigned long)
-leak:operator new(unsigned long)
-leak:malloc
-leak:calloc
-leak:realloc
-leak:__libc_malloc
-leak:__libc_calloc
-leak:__libc_realloc
+# LeakSanitizer suppressions for the ASan-built (Debug) compiler and for
+# programs built with `tspp --asan`. tests/run.sh and test.sh pass this file
+# via LSAN_OPTIONS=suppressions=...; `TSPP_LEAK_CHECK=1 tests/run.sh` fails
+# on any unsuppressed leak in the compiler.
+#
+# Only genuine third-party leaks belong here (Boehm GC, LLVM internals, libc),
+# one narrow entry per leak, each with a comment saying what leaks and why it
+# is not ours. Never suppress malloc/calloc/realloc/operator new or broad
+# llvm:: names: those match every allocation and hide every leak.
+#
+# Currently empty on purpose: with no suppressions, TSPP_LEAK_CHECK=1
+# tests/run.sh reports no leaks (LLVM 23 + GCC 16 locally; LLVM 18 + GCC 13
+# in CI), and the --asan builds of the run tests report none either.
