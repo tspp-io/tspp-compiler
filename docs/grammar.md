@@ -1,9 +1,15 @@
-Got it ✅
-Here’s your grammar converted into a **well-structured markdown file** with headings, code blocks, and comments preserved for clarity:
-
----
-
 # tspp Formal Grammar (EBNF)
+
+This is the grammar the parser accepts (`src/parser/visitors/ast_builder/`).
+Accepted is not the same as implemented: many constructs parse but have no
+behavior yet, or are rejected later with a "not yet supported by code
+generation" error. Notes in `/* ... */` say which. For what runs today, see
+the "Works today" table in the [README](../README.md#works-today).
+
+Statements end at `;` or at the end of a line: the lexer inserts a `;` at a
+line end unless the line obviously continues (after `,`, `(` or a binary
+operator, or when the next line starts with `)`, `]`, `.` or a binary
+operator).
 
 ## Program Structure
 
@@ -17,6 +23,10 @@ Program            ::= { Import | Declaration | Statement }
 
 ```ebnf
 Import             ::= 'import' Identifier [ 'from' StringLiteral ] ';'
+                       /* 'import X from "./file"' merges file.tspp into this
+                          program (no namespaces; X is ignored). 'import sys;'
+                          names the built-in sys.* runtime calls.
+                          'import { x } from ...' is not supported. */
 ```
 
 ---
@@ -32,8 +42,10 @@ Declaration        ::= VariableDecl | FunctionDecl | ClassDecl | InterfaceDecl |
 ## Types & Memory
 
 ```ebnf
-VariableDecl       ::= { VarModifier } ('let' | 'const') Identifier ':' Type [ '=' Expression ] ';'
+VariableDecl       ::= [ VarModifier ] ('let' | 'const') Identifier [ ':' Type ] [ '=' Expression ] ';'
 VarModifier        ::= '#' ('stack' | 'heap' | 'static')
+                       /* parsed; '#heap' and '#stack' have no effect yet,
+                          '#static' gives a global internal linkage */
 
 Type               ::= UnionType
 UnionType          ::= IntersectionType { '|' IntersectionType }
@@ -44,9 +56,17 @@ PrimaryType        ::= BasicType
                     | Identifier [ TypeArguments ]
                     | '(' Type ')'            /* grouping */
 
-BasicType          ::= 'int' | 'float' | 'bool' | 'string'
+BasicType          ::= 'int' | 'float' | 'double' | 'boolean' | 'bool' | 'string' | 'void'
+                       /* one table: src/tokens/primitive_types.h.
+                          'boolean' and 'bool' are the same type (LLVM i1).
+                          'int' is 32-bit; 'float' values currently print
+                          wrong (known bug). */
 PointerType        ::= [ '@' ('unsafe' | 'aligned') ] Type '*'
+                       /* parsed; no pointer semantics yet (planned) */
 SmartPointerType   ::= '#' ('shared' | 'unique' | 'weak') '<' Type '>'
+                       /* planned: does not parse yet ('#shared' lexes as one
+                          token the type parser does not expect), and '>>'
+                          closing nested generics lexes as a shift */
 
 TypeArguments      ::= '<' Type { ',' Type } '>'
 TypeParameters     ::= '<' TypeParam { ',' TypeParam } '>'
@@ -61,6 +81,7 @@ TypeParam          ::= Identifier [ 'extends' Type ]
 FunctionDecl       ::= { FunctionModifier } 'function' Identifier '(' [ ParameterList ] ')'
                         [ ':' Type ] Block
 FunctionModifier   ::= '#' ('const' | 'constexpr' | 'zerocast' | 'simd' | 'prefetch' | 'atomic' | 'pinned')
+                       /* recorded as attributes; no effect yet */
 
 ParameterList      ::= Parameter { ',' Parameter }
 Parameter          ::= Identifier [ ':' Type ] [ '=' Expression ]
@@ -79,6 +100,7 @@ ClassDecl          ::= { ClassModifier } 'class' Identifier [ TypeParameters ]
                         ClassBody
 
 ClassModifier      ::= '#' ('abstract' | 'packed' | 'pinned' | 'final')
+                       /* parsed (tests/modifiers/); no effect yet */
 
 ClassBody          ::= '{' { ClassMember } '}'
 ClassMember        ::= FieldDecl | MethodDecl | ConstructorDecl | StaticBlock
@@ -114,8 +136,9 @@ FieldSignature     ::= Identifier ':' Type ';'
 ## Type Aliases
 
 ```ebnf
-/* Prefer TS-style keyword */
-TypeAliasDecl      ::= 'typedef' Identifier '=' Type ';'
+TypeAliasDecl      ::= ('typedef' | 'type') Identifier [ TypeParameters ] '=' Type ';'
+                       /* union and object types are parsed but collapse to
+                          a single type in the checker */
 ```
 
 ---
@@ -123,13 +146,19 @@ TypeAliasDecl      ::= 'typedef' Identifier '=' Type ';'
 ## Statements
 
 ```ebnf
-Statement          ::= Block | ExpressionStatement | IfStatement | WhileStatement | ForStatement | ReturnStatement
+Statement          ::= Block | VariableDecl | ExpressionStatement | IfStatement
+                     | WhileStatement | ForStatement | ReturnStatement
+                     | AsmStatement | NotLoweredStatement
+
+/* Top-level statements are allowed; they run in source order before main. */
 
 Block              ::= '{' { Statement } '}'
 ExpressionStatement::= Expression ';'
 
 IfStatement        ::= 'if' '(' Expression ')' Statement [ 'else' Statement ]
 WhileStatement     ::= 'while' '(' Expression ')' Statement
+                       /* conditions must be boolean today: an int condition
+                          is a known bug (internal compiler error) */
 
 ForStatement       ::= 'for' '(' ForInit ';' [ Expression ] ';' [ Expression ] ')' Statement
 ForInit            ::= /* empty */
@@ -137,6 +166,17 @@ ForInit            ::= /* empty */
                     | Expression
 
 ReturnStatement    ::= 'return' [ Expression ] ';'
+
+AsmStatement       ::= '#asm' '(' StringLiteral [ ':' Operands [ ':' Operands [ ':' Clobbers ] ] ] ')' ';'
+                       /* GCC-style inline assembly, lowered to LLVM inline asm
+                          (used by lib/system.tspp; no passing test yet) */
+
+/* Parsed and checked, then rejected with "'<kind>' is parsed but not yet
+   supported by code generation": */
+NotLoweredStatement::= 'switch' | 'do' ... 'while' | 'for' '(' ... 'of' ... ')'
+                     | 'break' | 'continue' | 'try' ... | 'throw' Expression
+
+/* 'enum' and 'namespace' declarations are rejected ("not supported yet"). */
 ```
 
 ---
@@ -180,8 +220,10 @@ Multiplicative     ::= Unary      { ('*' | '/' | '%') Unary }
 
 Unary              ::= ('!' | '+' | '-' | '~' | '@' | '*' | '++' | '--') Unary
                     | Postfix
+                    /* '@' (address-of) and '*' (dereference) parse; they
+                       have no tested semantics yet */
 
-Postfix            ::= Primary { PostfixOp }
+Postfix            ::= Primary { PostfixOp } [ '++' | '--' ]
 PostfixOp          ::= CallArgs
                     | MemberDot
                     | IndexBracket
@@ -191,11 +233,14 @@ IndexBracket       ::= '[' Expression ']'
 
 Primary            ::= Literal
                     | Identifier
+                    | ArrayLiteral
                     | This
                     | NewExpr
                     | '(' Expression ')'
 
 NewExpr            ::= 'new' Identifier [ TypeArguments ] '(' [ ArgumentList ] ')'
+                    | 'new' Type '[' Expression ']'
+ArrayLiteral       ::= '[' [ ArgumentList ] ']'   /* int elements only */
 
 MemberAccess       ::= Primary MemberDot { PostfixOp }   /* e.g., obj.method().x */
 IndexAccess        ::= Primary IndexBracket { PostfixOp }
@@ -217,9 +262,7 @@ OperatorTokenSet   ::= '+' | '-' | '*' | '/' | '%'
                     | '==' | '!=' | '<' | '>' | '<=' | '>='
                     | '&&' | '||' | '!'
                     | '&' | '|' | '^' | '<<' | '>>'
-                    | '~' | '='
+                    | '~' | '=' | '?' | ':'
+                    | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^='
+                    | '++' | '--'
 ```
-
----
-
-Would you like me to also **add inline examples** for each section (like small snippets of code for `let`, `class`, `function`, etc.), or keep this file strictly formal grammar only?

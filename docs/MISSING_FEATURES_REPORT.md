@@ -1,11 +1,13 @@
 # Missing Features Report
 
+See [ROADMAP.md](../ROADMAP.md) for the order in which these are planned.
+
 This document outlines features that are defined in the tspp grammar and documentation but are currently missing implementation in the compiler (specifically the LLVM code generator).
 
 ## 1. Smart Pointers (`#shared<T>`, `#unique<T>`)
 
 **Current Status:**
-- **Lexer/Parser:** Supported. `SmartPointerTypeNode` exists.
+- **Lexer/Parser:** **Broken.** `SmartPointerTypeNode` exists, but smart-pointer types never parse: the lexer emits `#shared` as one `SHARED` token while `TypeBuilder` expects `ATTRIBUTE` then `SHARED`, and `>>` closing nested generics is a single `RIGHT_SHIFT` token (pinned by `tests/types/pointer_union_smart_types.tspp`, xfail).
 - **Codegen:** **Missing**. `LLVMCodeGenerator::visit(ast::SmartPointerTypeNode&)` contains only TODOs.
 
 **Required Implementation:**
@@ -34,7 +36,7 @@ This document outlines features that are defined in the tspp grammar and documen
 - Implement logic to bypass safety checks (e.g., bounds checking, null checks) when `@unsafe` is present.
 - Handle pointer arithmetic generation for unsafe pointers.
 
-## 4. Concurrency (Go Semantics)
+## 4. Concurrency (Go Semantics) — future idea, not on the roadmap
 
 **Current Status:**
 - **Lexer/Parser:** Keywords like `go`, `chan` might be reserved, but no AST nodes or parsing logic found for `go` statements or channel operations.

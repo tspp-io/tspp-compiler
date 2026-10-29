@@ -1,50 +1,63 @@
 # Development environment setup
 
-This document contains quick instructions and scripts to set up a development environment for the tspp compiler on common platforms.
+## Requirements
 
-Scripts
-- `./scripts/install_deps_ubuntu.sh` — Debian/Ubuntu installer (adds apt.llvm.org entry and installs LLVM 17 + build tools). Run with `sudo`.
-- `./scripts/install_deps_fedora.sh` — Fedora/RHEL installer. Run with `sudo`.
-- `./scripts/install_deps_macos.sh` — macOS installer using Homebrew.
-- `./scripts/setup_env.sh` — Helper to detect an installed LLVM and print environment variables to export.
+- C++17 compiler (GCC or Clang) and CMake 3.14+
+- **LLVM 17 or newer** with development files (`LLVMConfig.cmake` and the
+  shared `libLLVM`), and the matching `clang` and `llvm-as` on `PATH`.
+  Verified with LLVM 17, 18, 22 and 23; CI builds with LLVM 18 and 22.
+- Boehm GC (`libgc`) and libcurl, with development headers
 
-Usage (Ubuntu/Debian)
+## Install scripts
 
-1. Run the installer as root:
+Read a script before running it.
 
-```sh
-sudo ./scripts/install_deps_ubuntu.sh
+| Platform | Command | Notes |
+|---|---|---|
+| Debian/Ubuntu | `sudo ./scripts/install_deps_ubuntu.sh` | Adds apt.llvm.org (pipes its `llvm.sh` into bash as root) and installs the LLVM 17 packages. Any LLVM ≥ 17 from apt.llvm.org or your distro works. |
+| Fedora/RHEL | `sudo ./scripts/install_deps_fedora.sh` | Distro `llvm-devel`, `clang`, `boehm-gc-devel`, `libcurl-devel` |
+| Arch | `sudo ./scripts/install_deps_arch.sh` | Distro `llvm`, `clang`, `bdw-gc`, `curl` |
+| macOS | `./scripts/install_deps_macos.sh` | Homebrew `llvm@17` (keg-only: add its `bin/` to `PATH` and set `LLVM_DIR` as the script prints) |
+
+`./scripts/setup_env.sh` finds `llvm-config` and prints the `PATH` and
+`LLVM_DIR` exports for it.
+
+If CMake cannot find LLVM, pass its CMake directory, for example:
+
+```bash
+./build.sh -- -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm      # Debian/Ubuntu
+./build.sh -- -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" # macOS
 ```
 
-2. After install, either re-open your shell or run the helper to get the correct LLVM variables:
+## Build
 
-```sh
-./scripts/setup_env.sh
-# then copy the suggested exports into your ~/.bashrc or ~/.profile
+```bash
+./build.sh                 # Debug build in build/ (the compiler is built with ASan)
+./build.sh --release       # Release build in build-release/ (no sanitizers)
+./build.sh --clean         # wipe the build directory first
+./build.sh -- -DTSPP_ENABLE_UBSAN=ON   # extra CMake configure arguments
 ```
 
-Usage (macOS)
+CMake options (cached per build directory; use `--clean` to change them):
 
-1. Run the macOS script as a normal user (it will install Homebrew first if necessary):
+| Option | Default | Effect |
+|---|---|---|
+| `CMAKE_BUILD_TYPE` | `Debug` when unset | |
+| `TSPP_ENABLE_ASAN` | ON for Debug, OFF otherwise | AddressSanitizer for the compiler (not the runtime, not compiled programs) |
+| `TSPP_ENABLE_UBSAN` | OFF | UndefinedBehaviorSanitizer for the compiler, fatal on UB |
 
-```sh
-./scripts/install_deps_macos.sh
+Compiled tspp programs are built without sanitizers unless you pass
+`tspp --asan`. `compile_commands.json` is generated in the build directory
+(`build.sh` symlinks it to the repo root for editors).
+
+## Test
+
+```bash
+tests/run.sh                          # full suite
+tests/run.sh regression               # tests whose path contains "regression"
+TSPP=build-release/src/tspp tests/run.sh   # against the Release build
+TSPP_LEAK_CHECK=1 tests/run.sh        # also fail if the Debug compiler leaks
+scripts/check_doc_samples.sh          # compile the ```tspp samples in the docs
 ```
 
-2. Homebrew installs `llvm@17` as a "keg-only" package. Add the printed PATH/LLVM_DIR to your shell.
-
-Usage (Fedora)
-
-```sh
-sudo ./scripts/install_deps_fedora.sh
-```
-
-Notes and caveats
-
-- The Ubuntu script uses `curl https://apt.llvm.org/llvm.sh` to add the LLVM apt repository for the requested version. Inspect the script before running in restricted environments.
-- Some distributions provide older LLVM packages in their default repos. If you need LLVM 17 specifically, prefer using the apt.llvm.org repo (Ubuntu) or official packages for your distro.
-- After installing LLVM you may need to point CMake to `LLVM_DIR`. Typical values:
-  - `/usr/lib/llvm-17/lib/cmake/llvm`
-  - `/usr/local/opt/llvm/lib/cmake/llvm` (macOS Homebrew)
-
-If you'd like, I can attempt to run the appropriate installer on this machine now (I will need `sudo` permission to install system packages). Alternatively, I can run only the environment helper and help you point CMake at an existing LLVM installation.
+See [tests/README.md](../tests/README.md) for test kinds and how to add one.

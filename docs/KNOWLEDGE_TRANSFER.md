@@ -3,6 +3,17 @@
 > **Audience:** a developer who has never worked on this repository.
 > **Snapshot:** commit `a10b0af` on `master` (last commit dated 2026-01-05). Written 2026-10-07.
 > **Scope:** documents the repository as it exists. Application code and configuration were not changed.
+>
+> **Status update (2026-10-08, branch `docs/truth-pass`).** Phases 1–7 and 9 of
+> [`STABILIZATION_PLAN.md`](STABILIZATION_PLAN.md) have landed on stacked
+> branches (not yet merged into `master`; no PRs yet, so fixes are referenced
+> by branch and commit). [§1.2](#12-core-features-implementation-status) and
+> [§9](#9-known-issues-and-technical-debt) are current: fixed items carry the
+> branch and commit, and bugs found during stabilization have new IDs
+> (H8–H12, M8–M11, L5–L6). Other sections still describe the original
+> snapshot unless marked **[Updated]**. Line numbers cited throughout are from
+> the snapshot and have drifted. For day-to-day work, `CLAUDE.md` and
+> `tests/README.md` are kept current and win where they disagree with this file.
 
 ## How to read this document
 
@@ -15,7 +26,7 @@ Every claim is labeled with how it was established:
 | **Inferred** | Strongly implied by the code, but not executed. Treat it as a hypothesis to confirm. |
 | **Unknown** | Missing from the repository. Needs input from the project owner (see [§12](#12-open-questions)). |
 
-**Major limitation:** the inspection machine had no LLVM development package (no headers, no `LLVMConfig.cmake`), so the compiler could **not be built or run**. Runtime behavior is inferred from source code. The CMake configure failure itself was reproduced (see [§5.6](#56-troubleshooting)).
+**Major limitation (of the original snapshot):** the inspection machine had no LLVM development package (no headers, no `LLVMConfig.cmake`), so the compiler could **not be built or run**. Runtime behavior is inferred from source code. The CMake configure failure itself was reproduced (see [§5.6](#56-troubleshooting)). **[Updated]** The compiler has since been built and run with LLVM 17, 18, 22 and 23, and a test suite (`tests/run.sh`) exercises it; the "Inferred" bugs in §9 were confirmed or fixed by it.
 
 ---
 
@@ -41,58 +52,66 @@ Every claim is labeled with how it was established:
 
 ### 1.1 Purpose
 
-**tspp** is an experimental compiled language with TypeScript-like syntax. Its stated goal is Go-style semantics (`README.md`). The repository contains a single C++17 program, `tspp`. It does four things:
+**tspp** is an experimental compiled language with TypeScript-like syntax. **[Updated]** Positioning (decided in the stabilization plan): *TypeScript syntax with C++-level memory control, compiled to native via LLVM. Safe by default, unsafe when you ask for it.* Go-style concurrency is a "future idea" (`ROADMAP.md`). The repository contains a single C++17 program, `tspp`. It does four things:
 
-1. Lexes, parses, and semantically checks a `.tspp` source file.
-2. Lowers the AST to textual LLVM IR (`<input>.tspp.ll`) through the LLVM C++ API.
-3. Invokes external tools through the shell (`sed`, `llvm-as`, `clang`) to link the IR against a small C++ runtime (`libcore.a`), Boehm GC, and libcurl.
-4. Runs the resulting executable immediately.
+1. Lexes, parses, and semantically checks a `.tspp` source file, reporting errors as `file:line:col`.
+2. Lowers the AST to LLVM IR through the LLVM C++ API and verifies it (`llvm::verifyModule`).
+3. **[Updated]** Starts `llvm-as` and `clang` directly (`llvm::sys::ExecuteAndWait`, no shell) in a private temp directory to link the IR against a small C++ runtime (`libcore.a`, found next to `tspp`), Boehm GC, and libcurl.
+4. Runs the resulting executable (unless `-o` or `--emit-llvm`) and exits with its status.
 
 There is no server, database, or cloud component. "Users" are people who run `tspp` on a source file.
 
 ### 1.2 Core features: implementation status
 
-"Parsed" means the parser builds an AST node. "Lowered" means `LLVMCodeGenerator` emits meaningful IR.
+**[Updated 2026-10-08]** "Parsed" means the parser builds an AST node. "Lowered" means `LLVMCodeGenerator` emits meaningful IR. "Tested by" names a passing test under `tests/` (xfail = pinned known bug). Fix references are `branch` + commit.
 
-| Feature | Parsed | Semantically checked | Lowered to IR | Evidence |
+| Feature | Parsed | Semantically checked | Lowered to IR | Tested by / evidence |
 |---|---|---|---|---|
-| `function` declarations, params, default params, return types | ✅ | ✅ partial (arity, defaults) | ✅ | `DeclarationBuilder::buildFunction`, `SemanticAnalyzerVisitor::visit(CallExpr&)`, `LLVMCodeGenerator::visit(FunctionDecl&)` |
-| `let`/`const` variables (local and global) | ✅ | ✅ (undeclared/const-assign) | ✅ | `visit(VarDecl&)` in both visitors |
-| `int`, `float`, `double`, `bool`, `string` | ✅ | names only | ✅. **`boolean` is not mapped** (see [§9](#9-known-issues-and-technical-debt)) | `LLVMCodeGenerator::getLLVMType` |
-| `if`/`else`, `while`, C-style `for` | ✅ | ✅ | ✅ | `StatementBuilder`, `visit(IfStmt/WhileStmt/ForStmt&)` |
-| `switch`, `do-while`, `break`, `continue`, `try/catch/finally`, `throw`, `for..of` | ✅ | ✅ (scopes, `break`/`continue` placement, duplicate `default`) | ❌ Rejected with a "not yet supported by code generation" semantic error | `SwitchStmt`, `DoWhileStmt`, `ForOfStmt`, `TryStmt`, … in `statement_nodes.h`; `StatementBuilder`; `SemanticAnalyzerVisitor::reportNotLowered` |
-| `++`/`--` (prefix and postfix), compound assignment (`+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `\|=`, `^=`), ternary `?:` | ✅ | ✅ (const/invalid targets) | ✅ `a op= b` and `++`/`--` lower as `a = a op b` (the target expression is evaluated twice). `?:` uses branches + `phi`, so only the taken arm runs. | `UpdateExpr`, `CompoundAssignmentExpr`, `ConditionalExpr` in `expression_nodes.h`; `ExpressionBuilder::buildPostfix/buildBinary`; `LLVMCodeGenerator::emitReadModifyWrite`, `visit(ConditionalExpr&)` |
-| Classes: fields, methods, constructor, `extends`, `implements`, `static {}` | ✅ | ✅ partial | ✅ (struct + `ClassName.method` functions) | `buildClass`, `LLVMCodeGenerator::visit(ClassDecl&)` |
-| Interfaces, generics (`<T extends X>`) | ✅ | names only | Lowered as opaque `ptr` (type erasure) | `FunctionDecl` codegen heuristics around `LLVMCodeGenerator.cpp:1836` |
-| Type aliases (`typedef X = …;` / `type X = …;`) | ✅ | ✅ (alias table) | via resolution | `SemanticAnalyzerVisitor::typeAliases` |
-| Union / intersection / object types | ✅ | Collapsed to a single type name (often `"string"`) | ❌ real support | `SemanticAnalyzerVisitor::resolveType` |
-| Arrays (`[1,2,3]`, `new int[n]`, `a[i]`) | ✅ | Not visited | ✅ **i32 elements only**, no bounds checks | `visit(ArrayLiteralExpr&)`, `visit(IndexAccessExpr&)` |
-| Object literals `{k: v}` | ✅ | ✅ | Stringified (treated as `string`) | `visit(ObjectLiteralExpr&)` |
-| `console.log/error/warn` | n/a | Built-in special case | ✅ calls `tspp_console_*` | `LLVMCodeGenerator.cpp:~2889` |
-| `sys.*` runtime calls (file, env, process, HTTP, TCP, canvas) | n/a | Built-in special case | ✅ calls `tspp_sys_*` | `LLVMCodeGenerator.cpp:~2236`, `src/core/syscall/syscall_wrapper.cpp` |
-| `__builtin_syscall(n, …)` | n/a | Built-in | ✅ x86-64 `syscall` inline asm | `LLVMCodeGenerator.cpp:2084` |
-| `#asm("…" : outs : ins : clobbers)` | ✅ | ✅ | ✅ LLVM inline asm | `StatementBuilder::buildAsm`, `visit(AsmStmt&)` |
-| `import X from "./file"` | ✅ | ignored | Textual merge of the imported AST | `parser/module/ModuleResolver.cpp` |
-| `#stack/#heap/#static` | ✅ | ❌ | `#static` → internal linkage only. `#heap` is ignored (always `alloca`). | `docs/MISSING_FEATURES_REPORT.md` §2, `visit(VarDecl&)` |
-| Smart pointers `#shared/#unique/#weak<T>` | ✅ | ❌ | ❌ (TODO stubs) | `LLVMCodeGenerator.cpp:3607-3616` |
-| `@unsafe`/`@aligned` pointers | ✅ | ❌ | ❌ (TODO) | `LLVMCodeGenerator.cpp:3598-3605` |
-| `#simd`, `#zerocast`, `#prefetch`, `#atomic`, `#pinned`, `#const`, `#constexpr` | ✅ | ❌ | String attribute only (`tspp.simd`, …). No behavior. | `LLVMCodeGenerator.cpp:~1852` |
-| Goroutines, channels, `select`, `defer` | ❌ | ❌ | ❌ | `README.md` TODO, `MISSING_FEATURES_REPORT.md` §4 |
-| REPL / JIT | n/a | n/a | **Not functional as a JIT** (see [§4.3](#43-workflow-b-repl-mode-tspp-with-no-arguments)) | `src/main.cpp:16`, `src/interpreter/JITInterpreter.cpp` |
+| `function` declarations, params, default params, return types, recursion | ✅ | ✅ partial (arity, defaults; too many args rejected) | ✅ | `examples/tour.tspp`, `basics/ints_control_flow.tspp`; `diagnostics/semantic_errors.tspp` |
+| `let`/`const` variables (local and global) | ✅ | ✅ (undeclared/const-assign; same-scope redeclaration **not** reported, M3a) | ✅ | `examples/tour.tspp`, `globals/` |
+| Global initializers, class `#static` initializers, `static {}` blocks, top-level statements | ✅ | ✅ | ✅ run once in source order before `main` (C2 fixed: `fix/global-ctors` 2b424a5) | `globals/*.tspp`, `regression/c2_global_initializer.tspp` |
+| `int`, `bool`/`boolean`, `string` | ✅ | ✅ (one table: `src/tokens/primitive_types.h`) | ✅ `boolean` = `bool` = `i1` (H4 fixed: `fix/quick-wins` 785d307) | `regression/h4_boolean*.tspp` |
+| `float`, `double` | ✅ | names only | ✅ arithmetic; **printing broken** (H8) | 5 xfail tests (e.g. `sample.functions.test.tspp`) |
+| Strings: literals, `+` with int/bool | ✅ | ✅ | ✅ GC-owned results (C1 fixed: `fix/string-ownership` 2ece020); escapes not processed (H10); `==` compares pointers (H11) | `regression/c1_*.tspp` |
+| `if`/`else`, `while`, C-style `for` | ✅ | ✅ | ✅ boolean conditions; an `int` condition is an ICE (H9) | `basics/ints_control_flow.tspp`, `basics/multiline_statements.tspp` |
+| `switch`, `do-while`, `break`, `continue`, `try/catch/finally`, `throw`, `for..of` | ✅ | ✅ (scopes, `break`/`continue` placement, duplicate `default`) | ❌ Rejected with a located "not yet supported by code generation" error | `diagnostics/` |
+| `++`/`--` (prefix and postfix), compound assignment, ternary `?:` | ✅ | ✅ (const/invalid targets) | ✅ `a op= b` and `++`/`--` lower as `a = a op b` (target evaluated twice). `?:` uses branches + `phi`. A string-typed `?:` inside `+` prints a pointer (M9). | `basics/ints_control_flow.tspp` |
+| Operator precedence | ✅ TS/C table (H3 fixed: `fix/quick-wins` 1e87fb9) | | | `regression/h3_precedence_table.tspp` |
+| Classes: fields, methods, constructor, `extends`/`super`, `implements`, `static {}` | ✅ | ✅ partial | ✅ (struct + `ClassName.method` functions) | `basics/classes_strings.tspp`, `examples/tour.tspp`, `globals/static_init.tspp` |
+| Interfaces, generics (`<T extends X>`) | ✅ | names only | Lowered as opaque `ptr` (type erasure); no dispatch through interface types | `basics/classes_strings.tspp` (generic class), `types/generics_parse.tspp` (parse-only) |
+| Type aliases (`typedef X = …;` / `type X = …;`) | ✅ | ✅ (alias table) | via resolution | `examples/tour.tspp` |
+| Union / intersection / object types | ✅ | Collapsed to a single type name (often `"string"`) | ❌ real support; union-typed global with string initializer is invalid IR (M8) | `sample.test.tspp` (xfail) |
+| Arrays (`[1,2,3]`, `new int[n]`, `a[i]`) | ✅ | Not visited | ✅ **i32 elements only**, no bounds checks (H5) | `basics/classes_strings.tspp` |
+| Object literals `{k: v}` | ✅ | ✅ | Stringified (treated as `string`) | — |
+| `console.log/error/warn` | n/a | Built-in special case | ✅ calls `tspp_console_*` | every run test |
+| `sys.*` runtime calls (file, env, process, HTTP, TCP, canvas) | n/a | Built-in special case | ✅ calls `tspp_sys_*`; `sys.get_env` broken (M10) | `sys_test.tspp`, `regression/c1b_*.tspp`; `sys_io_env.tspp` (xfail) |
+| `__builtin_syscall(n, …)` | n/a | Built-in | ✅ x86-64 `syscall` inline asm | — (`examples/system.tspp` xfail on H9) |
+| `#asm("…" : outs : ins : clobbers)` | ✅ | ✅ | ✅ LLVM inline asm | — (same) |
+| `import X from "./file"` | ✅ | n/a | Textual merge of the imported AST; imported startup code runs first | `globals/import_order.tspp`, `diagnostics/import_*.tspp` |
+| `#stack/#heap/#static` | ✅ | ❌ | `#static` → internal linkage only. `#heap` is ignored (always `alloca`). | — (planned, `ROADMAP.md`) |
+| Smart pointers `#shared/#unique/#weak<T>` | ❌ **do not parse** (H12) | ❌ | ❌ (TODO stubs) | `types/pointer_union_smart_types.tspp` (xfail) |
+| `@unsafe`/`@aligned` pointers | ✅ | ❌ | ❌ (TODO) | — (planned) |
+| `#simd`, `#zerocast`, `#prefetch`, `#atomic`, `#pinned`, `#const`, `#constexpr`, class/member modifiers | ✅ | ❌ | String attribute only (`tspp.simd`, …). No behavior. | `modifiers/*.tspp` (parse-only) |
+| Goroutines, channels, `select`, `defer` | ❌ | ❌ | ❌ | Future idea, not planned (`ROADMAP.md`) |
+| Diagnostics | Lexer, parser, import, semantic and codegen errors go through `core::diagnostics()` with `file:line:col`; parser resynchronizes; invalid IR is an internal compiler error (H1, H6 fixed: `fix/diagnostics`) | | | `diagnostics/*.tspp`, `driver/diagnostics.sh` |
+| Driver | No shell, checked exit codes, private temp dir, runtime found next to `tspp`, `-o`/`--emit-llvm`/`--keep-temps`/`--asan`/`--version`/`--help` (C3 fixed: `fix/safe-driver` d920727) | | | `driver/cli.sh`, `driver/shell_injection.sh`, `driver/run_from_other_dir.sh`, `driver/link_failure.sh` |
+| REPL | n/a | n/a | Compiles and runs each chunk as a separate program; no state carries over; no JIT (H2 fixed: `fix/quick-wins` ce1050a) | `driver/repl.sh` |
 
 ### 1.3 Main user workflows
 
 | Workflow | Command | What happens |
 |---|---|---|
-| Compile and run a file | `./build/src/tspp path/to/file.tspp` (from repo root) | Writes `file.tspp.ll`, `temp.bc`, `temp_exec` in the **current directory**, then runs `./temp_exec` |
-| Compile via helper | `./test.sh path/to/file.tspp` | Same as above, plus extra IR patching and filtering of sanitizer noise (see [§4.4](#44-workflow-c-testsh-wrapper)) |
+| Compile and run a file | `./build/src/tspp path/to/file.tspp` (any directory) | **[Updated]** Builds in a private temp dir (removed afterwards unless `--keep-temps`), runs the program, exits with its status. Nothing is written to the CWD. |
+| Build only | `./build/src/tspp -o prog file.tspp`, `--emit-llvm [-o f.ll]` | **[Updated]** Writes the executable or the IR and stops |
+| Compile via helper | `./test.sh path/to/file.tspp` | **[Updated]** Thin wrapper that `exec`s the driver |
+| Test suite | `tests/run.sh` | **[Updated]** Golden-output suite; see `tests/README.md` |
 | REPL | `./build/src/tspp` (no args) | Line-buffered prompt. Each "chunk" is compiled and run as a fresh program. |
 
 ### 1.4 Scope and maturity
 
 - Version `0.1.0` (`CMakeLists.txt: project(tspp VERSION 0.1.0)`). No tags or releases in the repo (**Verified (run)**: `git log` shows no release commits).
 - 67 commits. Development ran roughly July 2025 to January 2026 and was mostly a single author, with some `copilot-swe-agent[bot]` commits.
-- **All tests and examples were deleted** in commit `761708e` ("chore: remove examples and tests"). They can be recovered from `761708e^` (see [§8](#8-testing)).
+- **All tests and examples were deleted** in commit `761708e` ("chore: remove examples and tests"). **[Updated]** Restored with a golden-output harness on `test/harness` (aa9bebe, b46e49a, 50c5758); see [§8](#8-testing) and `tests/README.md`.
 - Treat it as a **prototype**. Large parts of the advertised language are parse-only.
 
 ---
@@ -105,11 +124,11 @@ There is no server, database, or cloud component. "Users" are people who run `ts
 |---|---|---|
 | Language | C++17 (`CMAKE_CXX_STANDARD 17`) | `CMakeLists.txt` |
 | Build | CMake ≥ 3.14, wrapper `build.sh` | `CMakeLists.txt`, `src/CMakeLists.txt` |
-| Backend | LLVM (C++ API). Docs say 17+. CI pins 17. | `find_package(LLVM REQUIRED CONFIG)` in `src/CMakeLists.txt` |
-| Linking / native codegen | External `llvm-as` and `clang` binaries invoked through `std::system` | `src/main.cpp` |
+| Backend | LLVM (C++ API). **[Updated]** Docs say 17+; built with 17, 18, 22, 23; CI uses 18 and 22. | `find_package(LLVM REQUIRED CONFIG)` in `src/CMakeLists.txt` |
+| Linking / native codegen | External `llvm-as` and `clang` binaries, **[Updated]** started with `llvm::sys::ExecuteAndWait` (no shell) | `src/main.cpp` |
 | Runtime GC | Boehm GC (`GC_malloc` emitted in IR, `-lgc`) | `src/CMakeLists.txt` (`find_library(BOEHM_GC_LIB gc)`) |
 | Runtime HTTP | libcurl (`tspp_sys_http_get`) | `find_package(CURL REQUIRED)` |
-| Sanitizers | AddressSanitizer is **always on** for the compiler and for compiled programs | Root `CMakeLists.txt`, `src/main.cpp`, `test.sh` |
+| Sanitizers | **[Updated]** `TSPP_ENABLE_ASAN` (default ON for Debug, OFF for Release) and `TSPP_ENABLE_UBSAN` for the compiler; compiled programs only with `tspp --asan` | Root `CMakeLists.txt`, `src/main.cpp` |
 | Formatting | clang-format (Google-based) | `.clang-format` |
 | CI | GitHub Actions | `.github/workflows/ci.yml` |
 
@@ -127,29 +146,28 @@ flowchart LR
     end
     SRC[".tspp source"] --> LEX --> PAR --> MOD --> SEM --> CG
     CG --> CEE
-    CG -- "writes" --> IR["file.tspp.ll"]
-    IR -- "sed / llvm-as / clang (std::system)" --> EXE["temp_exec"]
+    CG -- "writes" --> IR["program.ll (private temp dir)"]
+    IR -- "llvm-as, clang (ExecuteAndWait, no shell)" --> EXE["program"]
     RT["libcore.a<br/>src/core (runtime C ABI)"] --> EXE
     GC["libgc (Boehm)"] --> EXE
     CURL["libcurl"] --> EXE
-    EXE -- "./temp_exec (std::system)" --> OUT["stdout"]
+    EXE -- "run (ExecuteAndWait)" --> OUT["stdout"]
 ```
 
-**Communication pattern:** in-process, single-threaded, synchronous visitor passes over a shared AST (`std::shared_ptr` nodes). The only "integration" boundary is the **process boundary**: the driver shells out to `sed`, `llvm-as`, `clang`, and finally the produced binary. There are no background jobs, queues, or async processing in the compiler. The runtime has TCP server helpers that use threads (`src/core/syscall/syscall_wrapper.cpp`, `tcp_server_*`), but those run inside the *compiled user program*.
+**Communication pattern:** in-process, single-threaded, synchronous visitor passes over a shared AST (`std::shared_ptr` nodes). The only "integration" boundary is the **process boundary**: **[Updated]** the driver starts `llvm-as`, `clang`, and finally the produced binary as child processes (no shell). There are no background jobs, queues, or async processing in the compiler. The runtime has TCP server helpers that use threads (`src/core/syscall/syscall_wrapper.cpp`, `tcp_server_*`), but those run inside the *compiled user program*.
 
 ### 2.3 CMake target graph
 
-**Verified (code)** from `src/CMakeLists.txt`:
+**[Updated]** from `src/CMakeLists.txt` (`build/cmake-options` 231fd32 removed the interpreter target and untangled `core` ↔ `tokens`; `diagnostics` is its own library):
 
 ```mermaid
 flowchart TD
-    tspp["tspp (executable)"] --> interpreter
-    tspp --> tspp_codegen
+    tspp["tspp (executable)"] --> tspp_codegen
     tspp --> parser
     tspp --> lexer
     tspp --> tokens
     tspp --> core
-    interpreter --> tspp_codegen
+    tspp --> diagnostics
     tspp_codegen --> parser
     tspp_codegen --> core
     tspp_codegen --> LLVM[(LLVM)]
@@ -158,16 +176,16 @@ flowchart TD
     parser --> tokens
     lexer --> core
     lexer --> tokens
-    core --> tokens
-    tokens --> core
+    parser --> diagnostics
+    lexer --> diagnostics
     core --> CURL[(libcurl)]
 ```
 
 Notes:
 
-- `core` and `tokens` depend on each other (a circular static-library dependency). CMake tolerates it, but it makes layering unclear.
+- ~~`core` and `tokens` depend on each other~~ **[Updated]** Fixed in `build/cmake-options` (231fd32): `core` depends on no other tspp library.
 - `libcore.a` has two jobs. It is the compiler's utility library, and it is also the **runtime library linked into every compiled tspp program** (`syscall_wrapper.cpp`). That is why the compiler itself links libcurl.
-- `src/repl/repl.cpp`, `src/types/*`, and `src/ast/*` are **not compiled** by any target (see [§3.3](#33-dead-or-orphaned-code)).
+- `src/types/*` and `src/ast/*` are **not compiled** by any target (see [§3.3](#33-dead-or-orphaned-code)). **[Updated]** `src/repl/` and `src/interpreter/` were deleted (`fix/quick-wins` ce1050a).
 
 ### 2.4 Pass ordering and why it matters
 
@@ -188,19 +206,19 @@ Notes:
 
 ```
 .
-├── CMakeLists.txt            # Root: C++17, -Wall -Wextra -Wpedantic, forces Debug + ASan
-├── build.sh                  # rm -rf build; configure; build; copy compile_commands.json; run --version
-├── test.sh                   # Compile one .tspp, patch IR, link with libcore.a, run (ASan noise filtered)
-├── debug.sh                  # Stale gdb snippets referencing files that no longer exist
-├── lsan.supp                 # LeakSanitizer suppressions (very broad, see §9)
-├── compile_commands.json     # Committed; contains another machine's absolute paths
-├── lib/system.tspp           # tspp-level "stdlib": exit/write/read/strlen/printf via __builtin_syscall + #asm
+├── CMakeLists.txt            # Root: C++17, warnings; [Updated] Debug by default, TSPP_ENABLE_ASAN/UBSAN options
+├── build.sh                  # [Updated] incremental; --release (build-release/), --clean, -- <cmake args>
+├── test.sh                   # [Updated] thin wrapper: exec build/src/tspp "$@"
+├── ROADMAP.md                # [Updated] what comes next, open bugs
+├── lsan.supp                 # [Updated] narrow third-party suppressions only (currently none)
+├── lib/system.tspp           # tspp-level "stdlib": exit/write/read/strlen/printf via __builtin_syscall + #asm (does not compile: H9)
+├── tests/                    # [Updated] golden-output suite, tests/run.sh (see tests/README.md)
 ├── scripts/                  # install_deps_{ubuntu,fedora,arch,macos}.sh, setup_env.sh
 ├── docs/                     # Language docs, roadmap, this file
 ├── .github/                  # CI workflow, issue/PR templates, copilot-instructions.md
-├── .vscode/                  # tasks.json (duplicated entries, references deleted tests)
+├── .vscode/                  # tasks.json ([Updated] deduplicated)
 └── src/
-    ├── main.cpp              # Driver: file mode + REPL mode; shells out to sed/llvm-as/clang
+    ├── main.cpp              # Driver: file mode + REPL mode; [Updated] ExecuteAndWait, no shell
     ├── CMakeLists.txt        # Library/exe targets and external deps
     ├── tokens/               # Token, TokenType enum (token_type.h), TokenStream
     ├── lexer/                # Lexer façade + TokenScanner + specialized scanners
@@ -216,16 +234,14 @@ Notes:
     │   ├── visitors/semantic/                  # SemanticAnalyzerVisitor, SemanticScope, Symbol
     │   └── module/ModuleResolver.cpp           # import resolution + AST merge
     ├── codegen/
-    │   ├── LLVMCodeGenerator.cpp  # 4,869 lines: AST → LLVM IR (the heart of the project)
+    │   ├── LLVMCodeGenerator.cpp  # ~5.1k lines: AST → LLVM IR (the heart of the project)
     │   └── ConstantExpressionEvaluator.cpp     # Folds global initializers to constants
     ├── core/
     │   ├── syscall/syscall_wrapper.cpp         # RUNTIME: tspp_* C ABI used by compiled programs
     │   ├── syscall/syscall_c_bindings.h        # Unused duplicate declarations
-    │   ├── diagnostics/error_reporter.*        # ErrorReporter (defined, never used)
+    │   ├── diagnostics/error_reporter.*        # [Updated] core::diagnostics(), the single sink used by every stage
     │   ├── common/{common_types,macros}.h      # Location, Shared(T), ASSERT, LOG_DEBUG (no-op)
-    │   └── utils/{file,string,log}_utils.*     # FileUtils::readFile used by ModuleResolver
-    ├── interpreter/          # JITInterpreter (ORC LLJIT), constructed by the REPL but never invoked
-    ├── repl/                 # NOT BUILT: alternate REPL main()
+    │   └── utils/{file,string}_utils.*         # FileUtils::readFile used by ModuleResolver
     ├── ast/                  # NOT REFERENCED: AST printers / helpers (header-only)
     └── types/                # NOT BUILT: placeholder files
 ```
@@ -248,24 +264,40 @@ Notes:
 | `sys.*` lowering | `LLVMCodeGenerator::visit(CallExpr&)` ~line 2236 (hard-coded per-function signatures) | runtime `tspp_sys_*` in `syscall_wrapper.cpp` |
 | Runtime helpers (string concat, to_string, file/net) | `src/core/syscall/syscall_wrapper.cpp` (C ABI from line 623) | |
 | Imports | `src/parser/module/ModuleResolver.cpp` | |
-| Driver / toolchain invocation | `src/main.cpp` | `test.sh` |
+| Driver / toolchain invocation | `src/main.cpp` | |
+| Primitive type names | `src/tokens/primitive_types.h` | |
+| Diagnostics | `src/core/diagnostics/error_reporter.*`, parser helpers in `ast_builders/ParseDiagnostics.h` | |
 
 ### 3.3 Dead or orphaned code
 
 | Path | Status | Evidence |
 |---|---|---|
-| `src/repl/repl.cpp` | Not in any CMake target. Defines its own `main()`. | `src/CMakeLists.txt` |
+| ~~`src/repl/repl.cpp`~~ | **[Updated] Deleted** (`fix/quick-wins` ce1050a) | |
 | `src/types/types.{h,cpp}` | Placeholder (`// Placeholder for types header`). Not built. | file contents |
 | `src/ast/*` (ASTBuilder.h, ASTPrinter*.h, ASTTypes.h, ASTMacros.h) | Never `#include`d outside `src/ast/` | `grep` for includes |
-| `src/core/diagnostics/error_reporter.*` | Compiled, never used | no references to `ErrorReporter` outside its files |
+| ~~`src/core/diagnostics/error_reporter.*`~~ | **[Updated] Now the diagnostics sink** (`fix/diagnostics` 19a61b6) | |
 | `src/core/syscall/syscall_c_bindings.h` | Never included. Contains two concatenated header bodies (two `#pragma once`). | `grep` |
-| `interpreter::JITInterpreter::executeLine` and `LLVMCodeGenerator::generateModuleForREPL` | Never called | `src/main.cpp` REPL path shells out instead |
-| `debug.sh` | References `parser/impl/expressions_parser.cpp` and `tokens/stream/vector_stream.cpp`, which do not exist | file contents |
+| ~~`interpreter::JITInterpreter::executeLine` and `LLVMCodeGenerator::generateModuleForREPL`~~ | **[Updated] Deleted** (`fix/quick-wins` ce1050a) | |
+| ~~`debug.sh`~~ | **[Updated] Deleted** (`docs/truth-pass`): it referenced `parser/impl/expressions_parser.cpp` and `tokens/stream/vector_stream.cpp`, which do not exist | |
+| `src/core/utils/log_utils.*` | **[Updated] Deleted** (`build/cmake-options` 231fd32) | |
 | `tspp_sys_int_to_string` | Compatibility shim returning its input | `syscall_wrapper.cpp:790` |
 
 ---
 
 ## 4. Execution and data flow
+
+> **[Updated]** §4.2–§4.4 describe the driver, REPL and `test.sh` **as they were
+> at the snapshot**, kept for history. Today (`fix/safe-driver` d920727,
+> `fix/quick-wins` ce1050a): the driver writes the IR to a private temp dir,
+> runs `llvm-as` and `clang -O3` (no `sed`, no `-no-pie`, ASan only with
+> `--asan`) via `llvm::sys::ExecuteAndWait`, checks every exit status, finds
+> `libcore.a` next to itself, and exits with the program's status. Codegen
+> emits the `i32 main` wrapper (runtime init → `__tspp_global_ctors` → user
+> `main`) itself. The REPL runs each chunk through the same path, with no JIT.
+> `test.sh` just `exec`s the driver. The global-initializer walkthrough below
+> is fixed (C2: `fix/global-ctors` 2b424a5); see
+> [`language_spec.md`](language_spec.md#program-startup-and-initialization-order)
+> for the current startup order.
 
 ### 4.1 Data passed between stages
 
@@ -389,17 +421,17 @@ None in the compiler. The runtime's TCP server helpers (`tcp_server_start/accept
 | LLVM dev package (headers + `LLVMConfig.cmake` + shared `libLLVM`) | build | `find_package(LLVM REQUIRED CONFIG)`. Targets link the plain name `LLVM`, which assumes a monolithic `libLLVM.so` (true for Ubuntu/Arch packages; **Inferred**). |
 | `llvm-as`, `clang` on `PATH` | **every compile** | Invoked by `main.cpp` and `test.sh` |
 | Boehm GC dev (`libgc-dev` / `bdw-gc` / `gc`) | build + every compile | CMake fails with `FATAL_ERROR` if missing |
-| libcurl dev (`libcurl4-openssl-dev` or similar) | build + every compile | **Missing from README, CONTRIBUTING, every `scripts/install_deps_*.sh`, and CI** |
-| `sed` (GNU) | every compile | `sed -i` syntax differs on macOS (BSD sed needs `-i ''`). **Inferred** to break on macOS. |
+| libcurl dev (`libcurl4-openssl-dev` or similar) | build + every compile | **[Updated]** Now in README, CONTRIBUTING, every install script and CI (M7 fixed: `ci/fix` 0eba7d6) |
+| ~~`sed` (GNU)~~ | — | **[Updated]** No longer used (C3 fix) |
 
-**Platform support:** effectively **x86-64 Linux**. `__builtin_syscall` hard-codes x86-64 registers (`LLVMCodeGenerator.cpp:2101`), `lib/system.tspp` uses Linux x86-64 syscall numbers and AT&T asm, and `main.cpp` passes `-no-pie` with GNU `sed`. macOS and Windows scripts exist but have no CI coverage.
+**Platform support:** effectively **x86-64 Linux**. `__builtin_syscall` hard-codes x86-64 registers (`LLVMCodeGenerator.cpp:2101`), `lib/system.tspp` uses Linux x86-64 syscall numbers and AT&T asm, and (at the snapshot) `main.cpp` passed `-no-pie` with GNU `sed` (both gone now). macOS scripts exist but have no CI coverage.
 
 ### 5.2 Install dependencies
 
 | OS | Command | Caveat |
 |---|---|---|
-| Ubuntu/Debian | `sudo ./scripts/install_deps_ubuntu.sh` | Pipes `https://apt.llvm.org/llvm.sh` into bash. Add `libcurl4-openssl-dev` yourself. |
-| Fedora | `sudo ./scripts/install_deps_fedora.sh` | Add `libcurl-devel` |
+| Ubuntu/Debian | `sudo ./scripts/install_deps_ubuntu.sh` | Pipes `https://apt.llvm.org/llvm.sh` into bash. Installs LLVM 17. |
+| Fedora | `sudo ./scripts/install_deps_fedora.sh` | |
 | Arch | `sudo ./scripts/install_deps_arch.sh` | Installs `llvm` (dev headers), `clang`, `bdw-gc`. Arch's LLVM is newer than 17 (see [§12](#12-open-questions)). |
 | macOS | `./scripts/install_deps_macos.sh` | Installs `llvm@17`, keg-only. Run `./scripts/setup_env.sh` and export `LLVM_DIR`/`PATH`. |
 
@@ -407,35 +439,36 @@ Then run `./scripts/setup_env.sh` to print `PATH` and `LLVM_DIR` exports for the
 
 ### 5.3 Environment variables
 
-The compiler reads **no** environment variables. These matter:
+**[Updated]** The driver reads `TSPP_CLANG`, `TSPP_LLVM_AS` (tool overrides) and `TSPP_RUNTIME_LIB` (runtime archive); `tests/run.sh` reads `TSPP`, `TSPP_TEST_TIMEOUT`, `TSPP_LEAK_CHECK`. These also matter:
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `LLVM_DIR` | CMake | Locate `LLVMConfig.cmake` when not in a default prefix |
 | `PATH` | `main.cpp` | Must contain `llvm-as` and `clang` |
-| `ASAN_OPTIONS`, `LSAN_OPTIONS` | `test.sh`, `build.sh`, CI | Silence ASan/LSan in compiled programs. `LSAN_OPTIONS` points at `lsan.supp`. |
+| `ASAN_OPTIONS`, `LSAN_OPTIONS` | `test.sh`, `tests/run.sh` | For the ASan-built (Debug) compiler. `LSAN_OPTIONS` points at `lsan.supp`. |
 
 No secrets or credentials are used anywhere in the repo.
 
 ### 5.4 Build, run, lint, test
 
-There is no database, migration, or seed data.
+**[Updated 2026-10-08]** All verified on the stabilization branches. The snapshot's version of this table (nothing runnable, no tests, no `--version`) is obsolete.
 
-| Task | Command | Verified? |
-|---|---|---|
-| Configure + build (clean) | `./build.sh` | ❌ Not runnable here (no LLVM dev package). Configure failure reproduced. |
-| Manual build | `cmake -S . -B build && cmake --build build -j` | Same as above. Note the root `CMakeLists.txt` **forces** `CMAKE_BUILD_TYPE Debug` and ASan, so `-DCMAKE_BUILD_TYPE=Release` is overridden. |
-| Compile + run a program | `./build/src/tspp file.tspp` (from repo root) | ❌ |
-| Compile + run via wrapper | `./test.sh file.tspp` | ❌ |
-| REPL | `./build/src/tspp` | ❌ |
-| Format check (as CI) | `find src -name "*.cpp" -o -name "*.h" \| xargs clang-format --dry-run --Werror` | ✅ **Verified (run)** with clang-format 22.1.8: **284 warnings in 25 files** (CI pins clang-format-14, so counts may differ) |
-| Format fix | `clang-format -i $(git ls-files 'src/*.cpp' 'src/*.h')` | Not run (it would change code) |
-| Unit tests | **none exist** | See [§8](#8-testing) |
-| `tspp --version` | **unsupported** | `main.cpp` treats `--version` as a filename and prints `Could not open file: --version`. `build.sh` and CI tolerate this. |
+| Task | Command |
+|---|---|
+| Debug build (compiler with ASan), incremental | `./build.sh` → `build/src/tspp` |
+| Release build | `./build.sh --release` → `build-release/src/tspp` |
+| Manual build | `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j` |
+| Compile + run a program (any directory) | `./build/src/tspp file.tspp` |
+| Build only / IR only | `./build/src/tspp -o prog file.tspp`, `./build/src/tspp --emit-llvm file.tspp` |
+| REPL | `./build/src/tspp` |
+| Test suite | `tests/run.sh` (also `ctest` in `build/`; `TSPP_LEAK_CHECK=1` for leaks) |
+| Doc samples | `scripts/check_doc_samples.sh` (also run by the suite as `tests/driver/doc_samples.sh`) |
+| Format check | `clang-format --dry-run --Werror` over `src/` still reports violations (L1, open); CI no longer runs it |
+| `tspp --version` | prints `tspp 0.1.0` (L4 fixed) |
 
-**Minimal program likely to work.** This is **Inferred** from the parser and codegen; it is not executed. It is modeled on the recovered test `tests/grammar/for_forVarDecl.tspp`:
+**Minimal program that works** (it compiles and runs; `scripts/check_doc_samples.sh` checks it):
 
-```typescript
+```tspp
 function add(a: int, b: int): int { return a + b; }
 
 function main(): int {
@@ -448,28 +481,30 @@ function main(): int {
 }
 ```
 
-Avoid the README's "first program". It uses `#stack string …`, `#heap int*`, `#simd float[4]`, `make_shared`, `#private`, and `constructor(val: int)` member syntax, most of which is unimplemented or not in the grammar.
+The old README "first program" (`#stack string …`, `#heap int*`, `#simd float[4]`, `make_shared`) was replaced by `tests/examples/hello.tspp` in `docs/truth-pass`.
 
 ### 5.5 Editor setup
 
-- `compile_commands.json` is committed but points at `/home/hiren/tspp/tspp-compiler/...`. Run `./build.sh` (which copies a fresh one to the root) or delete it before using clangd.
-- `.vscode/tasks.json` has 18 duplicate "Build tspp" tasks and references the deleted `tests/` directory.
+- **[Updated]** `compile_commands.json` is no longer committed; CMake generates it and `build.sh` symlinks it to the root.
+- **[Updated]** `.vscode/tasks.json` is deduplicated (`build/cmake-options` 231fd32).
 
 ### 5.6 Troubleshooting
+
+**[Updated]** Rows marked *(historical)* describe the snapshot driver and no longer happen.
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | `Could not find a package configuration file provided by "LLVM"` (reproduced) | LLVM dev package missing, or not on CMake's search path | Install the dev package. Set `LLVM_DIR=$(llvm-config --cmakedir)` or `-DLLVM_DIR=…`. |
 | `Boehm GC library not found. Please install libgc-dev.` | `find_library(gc)` failed | Install `libgc-dev` / `gc` / `bdw-gc` |
-| `Could NOT find CURL` | libcurl dev headers missing (not in install scripts) | Install `libcurl4-openssl-dev` / `libcurl-devel` |
-| `Output:` printed but nothing runs, or an old program runs | Link failed silently and a stale `temp_exec` from an earlier run was executed | Delete `temp_exec`. Run the `clang` command from `main.cpp:117` by hand to see the error. |
-| `clang: …/build/src/libcore.a: no such file` | `tspp` run from a directory other than the repo root | `cd` to the repo root |
-| Program prints the wrong string or a repeated string | Runtime string helpers return a shared static buffer (see [§9](#9-known-issues-and-technical-debt), C1) | Known bug |
+| `Could NOT find CURL` | libcurl dev headers missing | Install `libcurl4-openssl-dev` / `libcurl-devel` |
+| `Output:` printed but nothing runs, or an old program runs *(historical)* | Link failed silently and a stale `temp_exec` from an earlier run was executed | Delete `temp_exec`. Run the `clang` command from `main.cpp:117` by hand to see the error. |
+| `clang: …/build/src/libcore.a: no such file` *(historical)* | `tspp` run from a directory other than the repo root | `cd` to the repo root |
+| Program prints the wrong string or a repeated string *(historical)* | Runtime string helpers return a shared static buffer (see [§9](#9-known-issues-and-technical-debt), C1) | Known bug |
 | `Semantic error(s): Call to undeclared function 'println'` | `println`, `func`, `print` are not tspp. Use `function` and `console.log`. | Fix the source |
-| Code silently missing from output | Parser skips tokens it doesn't understand, and top-level expression statements (e.g. a bare `foo();`) are dropped | Put code inside `function main()`. Check the generated `.ll`. |
-| `[ERROR] User main() must return i32.` | `function main(): void` | Declare `function main(): int`, or use `test.sh`, which wraps a void main |
-| Flood of `LeakSanitizer` output | ASan always on | `export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=0:exitcode=0"` |
-| `sed: 1: "…": invalid command code` on macOS | BSD `sed -i` | Install GNU sed (`gsed`) and alias it. Not handled by the repo. |
+| Code silently missing from output *(historical)* | Parser skips tokens it doesn't understand, and top-level expression statements (e.g. a bare `foo();`) are dropped | Put code inside `function main()`. Check the generated `.ll`. |
+| `[ERROR] User main() must return i32.` *(historical)* | `function main(): void` | Declare `function main(): int`, or use `test.sh`, which wraps a void main |
+| Flood of `LeakSanitizer` output *(historical)* | ASan always on | `export LSAN_OPTIONS="suppressions=$(pwd)/lsan.supp:report_objects=0:exitcode=0"` |
+| `sed: 1: "…": invalid command code` on macOS *(historical)* | BSD `sed -i` | Install GNU sed (`gsed`) and alias it. Not handled by the repo. |
 
 ---
 
@@ -559,11 +594,11 @@ Defined in `src/parser/nodes/{base_node,meta_nodes,declaration_nodes,statement_n
 | `int`, `i32` | `i32` |
 | `float`, `f32` | `float` |
 | `double`, `f64` | `double` |
-| `bool` | `i1` |
+| `bool`, `boolean` | `i1` (**[Updated]** H4 fixed; names come from `src/tokens/primitive_types.h`) |
 | `string`, `i8*`, anything ending in `*` | `ptr` (opaque) |
 | `void` | `void` |
 | Known class name | its `StructType` (variables of class type are stored as `ptr`) |
-| **Anything else, including `boolean`** | `ptr` (fallback) |
+| Anything else | `ptr` (fallback) |
 
 Function return type defaults to `int` when omitted (`visit(FunctionDecl&)`, line 1780). Union return types are lowered to `string` (line 1784).
 
@@ -586,14 +621,16 @@ From tspp source, these are reached as `sys.<name>(...)`. The compiler maps the 
 
 ### 6.5 Validation and error handling
 
-| Layer | Mechanism | Output | Gaps |
+**[Updated]** (H1, H6 fixed on `fix/diagnostics`: 19a61b6, fe3b22d, 9d56cd8, 7c88c04, e4b92f3, 80c8bf0.)
+
+| Layer | Mechanism | Output | Remaining gaps |
 |---|---|---|---|
-| Lexer | `Lexer::errors_` (strings with line/col) | **Never read by `main.cpp`** | Lexical errors are dropped |
-| Parser | None. Builders return `nullptr` or skip a token on failure. | Nothing | Malformed code is silently dropped. `buildAST` never returns null, so `main.cpp`'s "Parse error" branch is unreachable. |
-| Semantic | `SemanticAnalyzerVisitor::errors` (`std::vector<std::string>`) | Printed by `main.cpp`, exit 1 | No source locations. Binary/unary/assignment/return type checks are TODOs (`SemanticAnalyzerVisitor.cpp:136,141,446,524,699`). |
-| Codegen | `llvm::errs()` messages, `lastValue = nullptr` | stderr. IR still written. | No `llvm::verifyModule`. Unterminated blocks are auto-patched with fall-through branches/default returns (`generate()`, lines 4580-4636), which can hide bugs. |
-| Toolchain | none | | Exit codes ignored |
-| Diagnostics framework | `core::ErrorReporter` (colors, severities, codes) | | **Defined but unused** |
+| All stages | `core::diagnostics()` (`src/core/diagnostics/error_reporter.*`): severities, `file:line:col`, source line + caret, error cap, color only on a terminal | stderr; the driver stops after the first stage with errors and exits 1 | |
+| Lexer | Reports bad characters, unterminated strings, bad escapes | located error, stop | Valid escapes are not *processed* (H10) |
+| Parser | "expected X, found Y", then resynchronizes at the next statement; `enum`/`namespace` → "not supported yet" | located errors | `@` lexes as a binary operator; `<...>` after a binary operator is taken as generic args (L5) |
+| Semantic | Errors carry the AST node's location; extra/missing arguments, undeclared names, const assignment, not-yet-lowered statements | located errors | Binary/unary/assignment/return type checks are still TODOs; same-scope redeclaration not reported (M3a) |
+| Codegen | `llvm::verifyModule` after codegen; each function terminates its own blocks (no patching) | invalid IR → `tspp: internal compiler error` | Silent `lastValue = nullptr` paths remain, so exit 0 proves little |
+| Toolchain | Every child's exit status is checked | failing stage named, exit 1 | |
 
 **Authentication/authorization:** not applicable. **Security note:** the runtime deliberately exposes `sys.system_call` (popen), file I/O, environment, and sockets to tspp programs. That's by design for a systems language, but it means compiling and running untrusted `.tspp` code is equivalent to running an untrusted shell script.
 
@@ -607,12 +644,14 @@ From tspp source, these are reached as `sys.<name>(...)`. The compiler maps the 
 | Cloud resources | None | |
 | Release / versioning | Version string `0.1.0` in CMake. No tags, changelog, or release workflow. | `CMakeLists.txt`, `git log` |
 | Packaging / install | None (`install()` rules absent). Binary used in place at `build/src/tspp`. | `src/CMakeLists.txt` |
-| CI | `.github/workflows/ci.yml`: `build-and-test` matrix (Ubuntu 22.04/20.04 × gcc/clang) and `code-quality` (clang-format-14, TODO grep) | See problems below |
+| CI | **[Updated]** `.github/workflows/ci.yml`: on push/PR to `master`, ubuntu-24.04, Debug (LLVM 18/gcc and LLVM 22/clang, leak-checked) + Release (LLVM 22/clang), each running `tests/run.sh` | `ci/fix` 0eba7d6, `build/cmake-options` 231fd32 |
 | Logging | `std::cerr` / `llvm::errs()`. `LOG_DEBUG`/`LOG_TRACE` macros compile to no-ops (`core/common/macros.h:113-123`). | |
 | Monitoring | None | |
 | Rollback | Not applicable (no deployment). Use `git revert`. | |
 
 ### 7.1 CI problems (Verified (code))
+
+**[Updated]** Items 1–4 and 6 are fixed (C4, M7: `ci/fix` 0eba7d6). The format check (item 5) was dropped from CI rather than fixed; clang-format drift is still open (L1). GitHub runs of the new workflow have not been observed from this machine (nothing pushed yet).
 
 1. **CI never runs on this repo's default branch.** It triggers on `push`/`pull_request` to `main` and `develop`, but the default branch is `master`.
 2. **libcurl is not installed** in the CI job, but `find_package(CURL REQUIRED)` makes configuration fail without it. **Inferred:** the build step would fail. GitHub-hosted Ubuntu images often ship `libcurl` runtime libraries but not always the dev headers, so confirm against a real run.
@@ -626,6 +665,8 @@ From tspp source, these are reached as `sys.<name>(...)`. The compiler maps the 
 ## 8. Testing
 
 ### 8.1 Current state
+
+**[Updated]** Obsolete: `tests/` is restored and extended, with a golden-output runner `tests/run.sh` (PASS/FAIL/XFAIL/XPASS, CTest-wired) that gates CI. See `tests/README.md`. The text below is the snapshot.
 
 - **There are no tests in the working tree.** Commit `761708e` deleted `tests/` (38 files) and `examples/` (5 files). Commit `cfa538b` earlier deleted committed `.ll` IR baselines.
 - There is no test runner or unit-test framework. CONTRIBUTING's `tests/run_tests.sh` does not exist.
@@ -681,76 +722,98 @@ Wire it into CI without `|| echo`.
 
 ## 9. Known issues and technical debt
 
-IDs are referenced in [§10](#10-recommended-improvements). "Verified (code)" means the defect is visible in the cited code. Runtime impact is **Inferred** unless stated otherwise, because nothing could be executed.
+IDs are referenced in [§10](#10-recommended-improvements). "Verified (code)" means the defect is visible in the cited code. Runtime impact is **Inferred** unless stated otherwise, because nothing could be executed at the snapshot.
+
+**[Updated 2026-10-08]** Every row has a **Status**: fixed items name the stabilization branch and commit (no PRs exist yet), open items are tracked in [`ROADMAP.md`](../ROADMAP.md). Bugs found while stabilizing got new IDs in [§9.7](#97-found-during-stabilization). Evidence line numbers are from the snapshot.
 
 ### 9.1 Correctness bugs
 
-| ID | Issue | Evidence |
-|---|---|---|
-| C1 | **Runtime string helpers return a pointer into a single shared `static std::string`.** Any stored string from `+`, int/bool/float/ptr-to-string is overwritten by the next such call. `lib/system.tspp`'s `printf` buffer (`_printf_buffer = _printf_buffer + s`) is affected. | `syscall_wrapper.cpp:778-816` (`tspp_string_concat`, `tspp_int_to_string`, …) |
-| C1b | `tspp_sys_read_file` and `tspp_sys_get_cwd` initialize a function-local `static` **once**. Later calls return the first result (other paths are ignored; cwd is stale after `set_cwd`). | `syscall_wrapper.cpp:634-637, 665-668` |
-| C2 | Non-constant global initializers are collected into `__tspp_global_ctors`, which is never called or registered in `llvm.global_ctors`. | `LLVMCodeGenerator.cpp:362, 4689-4713` |
-| C2b | Global `VarDecl` initializers are evaluated with the builder before the global/local check, so IR may be emitted at a stale insertion point. | `LLVMCodeGenerator.cpp:103-106` (**Inferred**) |
-| C2c | Top-level non-declaration statements are emitted in phase 3 with `currentFunction == nullptr` and no fresh insertion point. | `visit(ProgramNode&)` lines 79-93 (**Inferred**) |
-| H2 | `generateModuleForREPL` has no `return` (UB). The JIT REPL path is unreachable. | `LLVMCodeGenerator.cpp:21-44` |
-| H3 | Expression precedence differs from `docs/grammar.md`. Bitwise `& \| ^` share precedence 4 with comparisons; shifts share 5 with `+ -`. Unary `+` is missing. | `ExpressionBuilder.cpp:412-447` vs `docs/grammar.md` "Expressions" |
-| H4 | `boolean` (the lexer keyword) has no case in `getLLVMType` and falls back to `ptr`. `bool` is handled. | `LLVMCodeGenerator.cpp:4653-4679`, `identifier_scanner.cpp:62` |
-| H5 | Arrays are always `i32`. Floats are `fptosi`-truncated, pointers `ptrtoint` to **32 bits** (address truncation on 64-bit), other types become `0`. No bounds checks. | `LLVMCodeGenerator.cpp:4225-4300` |
-| M3a | `VarDecl` semantic check uses `lookup` (whole scope chain), so a same-scope redeclaration is never reported and an inner shadow keeps the outer's type. | `SemanticAnalyzerVisitor.cpp:438-443` |
-| M3b | The `sys` branch is nested inside `if (objNameLex == "console")`, so it is dead code. | `SemanticAnalyzerVisitor.cpp:166-180` |
-| M3c | Union types resolve to their first/`string` member, and object types resolve to `"string"`. | `SemanticAnalyzerVisitor::resolveType` |
-| M6 | `__builtin_syscall` passes `i32` values in 64-bit registers (upper bits unspecified) and is x86-64-only. | `LLVMCodeGenerator.cpp:2084-2124` (**Inferred**) |
-| M4 | Imports have no namespacing. Missing relative imports only warn. Cycle detection never triggers. | `ModuleResolver.cpp` |
+| ID | Issue | Evidence | Status |
+|---|---|---|---|
+| C1 | **Runtime string helpers return a pointer into a single shared `static std::string`.** Any stored string from `+`, int/bool/float/ptr-to-string is overwritten by the next such call. `lib/system.tspp`'s `printf` buffer (`_printf_buffer = _printf_buffer + s`) is affected. | `syscall_wrapper.cpp:778-816` (`tspp_string_concat`, `tspp_int_to_string`, …) | ✅ Fixed: `fix/string-ownership` 2ece020 (`regression/c1_*.tspp`) |
+| C1b | `tspp_sys_read_file` and `tspp_sys_get_cwd` initialize a function-local `static` **once**. Later calls return the first result (other paths are ignored; cwd is stale after `set_cwd`). | `syscall_wrapper.cpp:634-637, 665-668` | ✅ Fixed: `fix/string-ownership` 2ece020 (`regression/c1b_*.tspp`) |
+| C2 | Non-constant global initializers are collected into `__tspp_global_ctors`, which is never called or registered in `llvm.global_ctors`. | `LLVMCodeGenerator.cpp:362, 4689-4713` | ✅ Fixed: `fix/global-ctors` 2b424a5 (`globals/`, `regression/c2_global_initializer.tspp`) |
+| C2b | Global `VarDecl` initializers are evaluated with the builder before the global/local check, so IR may be emitted at a stale insertion point. | `LLVMCodeGenerator.cpp:103-106` (**Inferred**) | ✅ Fixed: `fix/global-ctors` 2b424a5 |
+| C2c | Top-level non-declaration statements are emitted in phase 3 with `currentFunction == nullptr` and no fresh insertion point. | `visit(ProgramNode&)` lines 79-93 (**Inferred**) | ✅ Fixed: `fix/global-ctors` 2b424a5 (top-level statements run in order before `main`) |
+| H2 | `generateModuleForREPL` has no `return` (UB). The JIT REPL path is unreachable. | `LLVMCodeGenerator.cpp:21-44` | ✅ Fixed: `fix/quick-wins` ce1050a (JIT deleted; REPL compiles + runs each chunk) |
+| H3 | Expression precedence differs from `docs/grammar.md`. Bitwise `& \| ^` share precedence 4 with comparisons; shifts share 5 with `+ -`. Unary `+` is missing. | `ExpressionBuilder.cpp:412-447` vs `docs/grammar.md` "Expressions" | ✅ Fixed: `fix/quick-wins` 1e87fb9 (`regression/h3_precedence_table.tspp`) |
+| H4 | `boolean` (the lexer keyword) has no case in `getLLVMType` and falls back to `ptr`. `bool` is handled. | `LLVMCodeGenerator.cpp:4653-4679`, `identifier_scanner.cpp:62` | ✅ Fixed: `fix/quick-wins` 785d307 (`regression/h4_boolean*.tspp`) |
+| H5 | Arrays are always `i32`. Floats are `fptosi`-truncated, pointers `ptrtoint` to **32 bits** (address truncation on 64-bit), other types become `0`. No bounds checks. | `LLVMCodeGenerator.cpp:4225-4300` | Open (roadmap step 1) |
+| M3a | `VarDecl` semantic check uses `lookup` (whole scope chain), so a same-scope redeclaration is never reported and an inner shadow keeps the outer's type. | `SemanticAnalyzerVisitor.cpp:438-443` | Open (confirmed) |
+| M3b | The `sys` branch is nested inside `if (objNameLex == "console")`, so it is dead code. | `SemanticAnalyzerVisitor.cpp:166-180` | Open |
+| M3c | Union types resolve to their first/`string` member, and object types resolve to `"string"`. | `SemanticAnalyzerVisitor::resolveType` | Open (see M8) |
+| M6 | `__builtin_syscall` passes `i32` values in 64-bit registers (upper bits unspecified) and is x86-64-only. | `LLVMCodeGenerator.cpp:2084-2124` (**Inferred**) | Open |
+| M4 | Imports have no namespacing. Missing relative imports only warn. Cycle detection never triggers. | `ModuleResolver.cpp` | Open; also `import { x } from` unsupported, diamond imports can run a shared module after one importer |
 
 ### 9.2 Error handling and diagnostics
 
-| ID | Issue | Evidence |
-|---|---|---|
-| H1 | Lexer errors are ignored. The parser silently skips unknown tokens and drops top-level expression statements (`isStatementStart` lacks identifiers). `enum`/`namespace` are treated as declaration starts but have no builder, so they are dropped token by token. Semantic errors carry no line/column. `ErrorReporter` is unused. | `main.cpp`, `ast_builder_visitor.cpp:19-95,98-135`, `DeclarationBuilder.cpp:194-221` |
-| H6 | No `llvm::verifyModule`. `generate()` papers over unterminated blocks. | `LLVMCodeGenerator.cpp:4557-4637` |
+| ID | Issue | Evidence | Status |
+|---|---|---|---|
+| H1 | Lexer errors are ignored. The parser silently skips unknown tokens and drops top-level expression statements (`isStatementStart` lacks identifiers). `enum`/`namespace` are treated as declaration starts but have no builder, so they are dropped token by token. Semantic errors carry no line/column. `ErrorReporter` is unused. | `main.cpp`, `ast_builder_visitor.cpp:19-95,98-135`, `DeclarationBuilder.cpp:194-221` | ✅ Fixed: `fix/diagnostics` 19a61b6, fe3b22d, 9d56cd8, 7c88c04, 80c8bf0 (`diagnostics/`) |
+| H6 | No `llvm::verifyModule`. `generate()` papers over unterminated blocks. | `LLVMCodeGenerator.cpp:4557-4637` | ✅ Fixed: `fix/diagnostics` e4b92f3 (invalid IR is an internal compiler error) |
 
 ### 9.3 Security
 
-| ID | Issue | Evidence |
-|---|---|---|
-| C3 | **Shell injection in the driver.** The input filename is concatenated into `std::system` command strings (`sed`, `llvm-as`, `clang`). A filename like `x.tspp; rm -rf ~` executes arbitrary commands. Exit codes are ignored, and fixed output names in CWD (`temp_exec`) can run a stale or planted binary. | `main.cpp:110-126` (same in REPL path, 53-69) |
-| C3b | Compiled programs are linked with `-fsanitize=address` and `-no-pie` (no ASLR for the main binary). | `main.cpp:117-121`, `test.sh` |
-| L3 | `SECURITY.md` has a placeholder `[INSERT SECURITY EMAIL]`. | `SECURITY.md` |
-| — | Ubuntu installer pipes a remote script into bash as root. This is a documented trade-off. | `scripts/install_deps_ubuntu.sh` |
+| ID | Issue | Evidence | Status |
+|---|---|---|---|
+| C3 | **Shell injection in the driver.** The input filename is concatenated into `std::system` command strings (`sed`, `llvm-as`, `clang`). A filename like `x.tspp; rm -rf ~` executes arbitrary commands. Exit codes are ignored, and fixed output names in CWD (`temp_exec`) can run a stale or planted binary. | `main.cpp:110-126` (same in REPL path, 53-69) | ✅ Fixed: `fix/safe-driver` d920727, test 887a687 (`driver/shell_injection.sh`) |
+| C3b | Compiled programs are linked with `-fsanitize=address` and `-no-pie` (no ASLR for the main binary). | `main.cpp:117-121`, `test.sh` | ✅ Fixed: `fix/safe-driver` d920727 (PIE; ASan only with `--asan`) |
+| L3 | `SECURITY.md` has a placeholder `[INSERT SECURITY EMAIL]`. | `SECURITY.md` | ✅ Fixed: `docs/truth-pass` (GitHub private vulnerability reporting) |
+| — | Ubuntu installer pipes a remote script into bash as root. This is a documented trade-off. | `scripts/install_deps_ubuntu.sh` | Accepted trade-off (documented in SECURITY.md) |
 
 ### 9.4 Build, performance, and operations
 
-| ID | Issue | Evidence |
-|---|---|---|
-| M1 | Root CMake **forces** `CMAKE_BUILD_TYPE Debug` and ASan for every build. A Release compiler is impossible without editing CMake. | `CMakeLists.txt:15-18` |
-| M2 | `lsan.supp` suppresses `malloc`, `calloc`, `operator new`, etc., which effectively disables leak detection. CI's "memory leak" step is therefore meaningless. | `lsan.supp` |
-| — | Each compile spawns 4 processes. The program is re-linked with `-O3` every time. `test.sh` runs the program twice. | `main.cpp`, `test.sh` |
-| M7 | libcurl is missing from all install scripts, README, CONTRIBUTING, and CI. | `scripts/*`, `.github/workflows/ci.yml` |
-| C4 | CI branch mismatch, retired runner, non-gating tests, invalid smoke-test syntax ([§7.1](#71-ci-problems-verified-code)). | `.github/workflows/ci.yml` |
+| ID | Issue | Evidence | Status |
+|---|---|---|---|
+| M1 | Root CMake **forces** `CMAKE_BUILD_TYPE Debug` and ASan for every build. A Release compiler is impossible without editing CMake. | `CMakeLists.txt:15-18` | ✅ Fixed: `build/cmake-options` 231fd32 (`TSPP_ENABLE_ASAN`/`UBSAN`, `--release`) |
+| M2 | `lsan.supp` suppresses `malloc`, `calloc`, `operator new`, etc., which effectively disables leak detection. CI's "memory leak" step is therefore meaningless. | `lsan.supp` | ✅ Fixed: `build/cmake-options` 231fd32 (empty; `TSPP_LEAK_CHECK=1` finds no leaks) |
+| — | Each compile spawns 4 processes. The program is re-linked with `-O3` every time. `test.sh` runs the program twice. | `main.cpp`, `test.sh` | Partly fixed: 3 processes (no `sed`), program runs once (`test.sh` is a wrapper); still `-O3` per build |
+| M7 | libcurl is missing from all install scripts, README, CONTRIBUTING, and CI. | `scripts/*`, `.github/workflows/ci.yml` | ✅ Fixed: `ci/fix` 0eba7d6 |
+| C4 | CI branch mismatch, retired runner, non-gating tests, invalid smoke-test syntax ([§7.1](#71-ci-problems-verified-code)). | `.github/workflows/ci.yml` | ✅ Fixed: `ci/fix` 0eba7d6 (Release job: 231fd32) |
 
 ### 9.5 Maintainability
 
-| ID | Issue | Evidence |
-|---|---|---|
-| M5 | `LLVMCodeGenerator.cpp` is 4,869 lines (29% of `src/`). `visit(BinaryExpr&)` is ~1,140 lines, `visit(CallExpr&)` ~1,086 lines. Types are inferred by string-matching names (`"string"`, `"ClassName.method"`), so changes ripple unpredictably. | `wc -l`, function index |
-| — | `core` ↔ `tokens` circular library dependency. The runtime and compiler utilities share one library. | `src/CMakeLists.txt` |
-| L2 | Dead code ([§3.3](#33-dead-or-orphaned-code)). | |
-| L1 | clang-format drift: 284 warnings in 25 files (**Verified (run)**, clang-format 22.1.8). | |
-| L4 | `--version` is not implemented, but `build.sh` and CI call it. | `main.cpp`, `build.sh` |
-| — | Committed `compile_commands.json` with foreign absolute paths. `.vscode/tasks.json` has 18 duplicate tasks. | files |
+| ID | Issue | Evidence | Status |
+|---|---|---|---|
+| M5 | `LLVMCodeGenerator.cpp` is 4,869 lines (29% of `src/`). `visit(BinaryExpr&)` is ~1,140 lines, `visit(CallExpr&)` ~1,086 lines. Types are inferred by string-matching names (`"string"`, `"ClassName.method"`), so changes ripple unpredictably. | `wc -l`, function index | Open (roadmap step 2); now ~5.1k lines |
+| — | `core` ↔ `tokens` circular library dependency. The runtime and compiler utilities share one library. | `src/CMakeLists.txt` | Cycle fixed: `build/cmake-options` 231fd32; runtime and utilities still share `core` |
+| L2 | Dead code ([§3.3](#33-dead-or-orphaned-code)). | | Partly fixed: interpreter/REPL (ce1050a), log_utils (231fd32), `debug.sh` (`docs/truth-pass`) deleted; `src/types`, `src/ast`, `syscall_c_bindings.h` remain (L6) |
+| L1 | clang-format drift: 284 warnings in 25 files (**Verified (run)**, clang-format 22.1.8). | | Open (CI no longer runs the format check) |
+| L4 | `--version` is not implemented, but `build.sh` and CI call it. | `main.cpp`, `build.sh` | ✅ Fixed: `fix/safe-driver` d920727 |
+| — | Committed `compile_commands.json` with foreign absolute paths. `.vscode/tasks.json` has 18 duplicate tasks. | files | ✅ Fixed: `build/cmake-options` 231fd32 |
 
 ### 9.6 Documentation drift
 
-| ID | Doc | Problem |
-|---|---|---|
-| H7a | `README.md` | Hello-world uses unimplemented/ungrammatical features. It claims "Memory Safety", SIMD, smart pointers, and Go concurrency as features. It links `examples/` and `tests/`, which were deleted. It lists `src/types`/`packages` (missing or placeholder). Website/Discord links are unverified. |
-| H7b | `docs/grammar.md` | Starts with chatbot residue ("Got it ✅ Here's your grammar…") and ends with "Would you like me to also add inline examples…". Precedence disagrees with the implementation (H3). `BasicType` lists `bool` while the lexer keyword is `boolean`. |
-| H7c | `docs/language_spec.md` | Titled "currently implemented features" but lists `#simd`, `#prefetch`, smart pointers, `#atomic`, `#pinned`, none of which have behavior. |
-| H7d | `docs/architecture.md` | Says codegen "handles `#heap` (malloc/GC)" and "implements SIMD operations, smart pointers". `MISSING_FEATURES_REPORT.md` and the code say otherwise. It describes `interpreter::JITInterpreter` as handling REPL execution, which it doesn't. |
-| H7e | `.github/copilot-instructions.md` | Describes the project as "a C++ interpreter". |
-| H7f | `CONTRIBUTING.md` | Directory tree mentions `packages/`, `tools/`, `examples/`, plus a `tests/run_tests.sh`. None exist. |
-| H7g | `docs/todo.md`, `docs/todo.ebnf` | Partly obsolete: imports, generics capture, and static blocks are now implemented per git history. `todo.ebnf` is a 4-line stub. |
-| — | `docs/MISSING_FEATURES_REPORT.md` | **Accurate.** Treat it as the most trustworthy status doc. |
+| ID | Doc | Problem | Status |
+|---|---|---|---|
+| H7a | `README.md` | Hello-world uses unimplemented/ungrammatical features. It claims "Memory Safety", SIMD, smart pointers, and Go concurrency as features. It links `examples/` and `tests/`, which were deleted. It lists `src/types`/`packages` (missing or placeholder). Website/Discord links are unverified. | ✅ Fixed: `docs/truth-pass` |
+| H7b | `docs/grammar.md` | Starts with chatbot residue ("Got it ✅ Here's your grammar…") and ends with "Would you like me to also add inline examples…". Precedence disagrees with the implementation (H3). `BasicType` lists `bool` while the lexer keyword is `boolean`. | ✅ Fixed: `docs/truth-pass` |
+| H7c | `docs/language_spec.md` | Titled "currently implemented features" but lists `#simd`, `#prefetch`, smart pointers, `#atomic`, `#pinned`, none of which have behavior. | ✅ Fixed: `docs/truth-pass` |
+| H7d | `docs/architecture.md` | Says codegen "handles `#heap` (malloc/GC)" and "implements SIMD operations, smart pointers". `MISSING_FEATURES_REPORT.md` and the code say otherwise. It describes `interpreter::JITInterpreter` as handling REPL execution, which it doesn't. | ✅ Fixed: `docs/truth-pass` |
+| H7e | `.github/copilot-instructions.md` | Describes the project as "a C++ interpreter". | ✅ Fixed: `docs/truth-pass` |
+| H7f | `CONTRIBUTING.md` | Directory tree mentions `packages/`, `tools/`, `examples/`, plus a `tests/run_tests.sh`. None exist. | ✅ Fixed: `docs/truth-pass` |
+| H7g | `docs/todo.md`, `docs/todo.ebnf` | Partly obsolete: imports, generics capture, and static blocks are now implemented per git history. `todo.ebnf` is a 4-line stub. | ✅ Fixed: `docs/truth-pass` (folded into `ROADMAP.md`) |
+| — | `docs/MISSING_FEATURES_REPORT.md` | **Accurate.** Treat it as the most trustworthy status doc. | Still accurate; smart-pointer parsing corrected (`docs/truth-pass`) |
+
+### 9.7 Found during stabilization
+
+**[Updated 2026-10-08]** New IDs for bugs found while running the restored suite (phases 1–9). All are open; "Pinned by" is the test that shows the bug (xfail tests flip to XPASS when it is fixed).
+
+| ID | Issue | Evidence | Pinned by |
+|---|---|---|---|
+| H8 | **Floats print wrong.** The IR passes a `float` to `tspp_float_to_string`, which takes a `double`, so every float prints `0.000000`; the format is `%f`, not the shortest form the tests expect. (The analogous `tspp_bool_to_string` i1-vs-int mismatch was fixed with `zeroext`.) | `syscall_wrapper.cpp` `tspp_float_to_string(double)` vs codegen's declaration | `sample.functions.test.tspp`, `functions/default_params.test.tspp`, `classes_interface.test.tspp`, `interfaces_statements_expressions.test.tspp`, `final.tspp` (xfail) |
+| H9 | **`int` conditions emit `br i32`.** `if (n)` / `while (n)` with a non-boolean condition is not converted to `i1`; `verifyModule` rejects it (internal compiler error). `lib/system.tspp` fails to compile because of it. | `visit(IfStmt&)`/`visit(WhileStmt&)` | `examples/system.tspp` (xfail); `diagnostics/internal_error_invalid_ir.tspp` pins the ICE and must change when this is fixed |
+| H10 | String escape sequences (`"\n"`, `"\t"`) are validated by the lexer but not processed; they reach the program verbatim. | `string_scanner.cpp` | — |
+| H11 | `==` / `!=` on strings compare pointers, not contents (`"ab" == "a" + "b"` is false). | `visit(BinaryExpr&)` | — |
+| H12 | **Smart-pointer types never parse.** The lexer emits `#shared` as one `SHARED` token but `TypeBuilder` expects `ATTRIBUTE` then `SHARED`; `>>` closing nested generics (`A<B<int>>`) is one `RIGHT_SHIFT` token. Blocks roadmap steps 4–5. | `identifier_scanner.cpp` `scanAttribute`, `TypeBuilder.cpp` | `types/pointer_union_smart_types.tspp`, `sample.test.tspp`, `sample.variable.test.tspp`, `final.tspp` (xfail) |
+| M8 | A union-typed global with a string initializer is invalid IR ("Global variable initializer type does not match"). | `visit(VarDecl&)`, M3c | `sample.test.tspp`, `sample.variable.test.tspp` (xfail, behind H12) |
+| M9 | Some string-valued expressions are converted with `tspp_ptr_to_string` and print an address: a string-typed `?:` inside `+`, static string fields and static methods returning `string` inside `+`. | type-name inference in `visit(BinaryExpr&)` | — |
+| M10 | `sys.get_env` is missing from the `sys.*` parameter table, so `tspp_sys_get_env` is declared without parameters and called with one (internal compiler error). | `visit(CallExpr&)` `sys.*` chain | `sys_io_env.tspp` (xfail) |
+| M11 | `lib/system.tspp` defines `exit`, `write`, `read`, `strlen` as global tspp functions, shadowing the libc symbols the runtime links against. | `lib/system.tspp` | — |
+| L5 | Parser fragility: `@` lexes as a binary operator; a `<...>` after a binary operator is skipped as generic arguments; a parameter typed `#shared<int>` ends the parameter list early. | `ExpressionBuilder.cpp`, `DeclarationBuilder.cpp` | — |
+| L6 | `src/core/syscall/syscall_c_bindings.h` holds two concatenated copies (never included); `src/types/` (placeholder) and `src/ast/` (printers) are not built. | files | — |
+
+Phase 5 also noted "untyped `let w = "v" + f()` prints an address" and "member call on an untyped object global is an undeclared function"; neither reproduces on `docs/truth-pass`, so they have no ID.
 
 ---
 
@@ -760,26 +823,28 @@ Effort scale: **S** ≤ 1 day · **M** 2–4 days · **L** 1–2 weeks · **XL**
 
 ### 10.1 Prioritized list
 
-| # | Priority | Title | Fixes | Effort |
-|---|---|---|---|---|
-| 1 | **Critical** | Safe, correct driver: no shell, checked exit codes, configurable paths | C3, C3b, L4 | M |
-| 2 | **Critical** | Give runtime strings real ownership | C1, C1b | S–M |
-| 3 | **Critical** | Run global initializers | C2, C2b, C2c | S–M |
-| 4 | **Critical** | Restore a gating test suite and fix CI | C4, M7, L1 | M |
-| 5 | High | Fail loudly: wire lexer/parser/semantic errors with locations | H1 | M |
-| 6 | High | Verify IR; stop auto-patching blocks silently | H6 | S |
-| 7 | High | Align operator precedence with the grammar | H3 | S |
-| 8 | High | Map `boolean`; centralize primitive type names | H4 | S |
-| 9 | High | Remove or fix the JIT REPL | H2 | S (remove) / L (real JIT) |
-| 10 | High | Make documentation truthful | H7a–g | M |
-| 11 | Medium | Typed arrays + bounds checks | H5 | L |
-| 12 | Medium | Real types in the semantic layer | M3a–c | XL |
-| 13 | Medium | Split `LLVMCodeGenerator.cpp` | M5 | L |
-| 14 | Medium | Build-type and sanitizer options in CMake | M1, M2 | S |
-| 15 | Medium | Module namespaces and hard errors on missing imports | M4 | M |
-| 16 | Low | Remove dead code and stale tooling files | L2 | S |
-| 17 | Low | Single source of truth for the runtime ABI | §6.4 | M |
-| 18 | Low | Portability: syscall/asm per target, sed-free driver | M6 | M |
+**[Updated 2026-10-08]** Status column added; items 1–10 and 14 were the stabilization plan (`STABILIZATION_PLAN.md`). What comes next is in [`ROADMAP.md`](../ROADMAP.md).
+
+| # | Priority | Title | Fixes | Effort | Status |
+|---|---|---|---|---|---|
+| 1 | **Critical** | Safe, correct driver: no shell, checked exit codes, configurable paths | C3, C3b, L4 | M | ✅ `fix/safe-driver` |
+| 2 | **Critical** | Give runtime strings real ownership | C1, C1b | S–M | ✅ `fix/string-ownership` |
+| 3 | **Critical** | Run global initializers | C2, C2b, C2c | S–M | ✅ `fix/global-ctors` |
+| 4 | **Critical** | Restore a gating test suite and fix CI | C4, M7, L1 | M | ✅ `test/harness`, `ci/fix` (L1 open) |
+| 5 | High | Fail loudly: wire lexer/parser/semantic errors with locations | H1 | M | ✅ `fix/diagnostics` |
+| 6 | High | Verify IR; stop auto-patching blocks silently | H6 | S | ✅ `fix/diagnostics` |
+| 7 | High | Align operator precedence with the grammar | H3 | S | ✅ `fix/quick-wins` |
+| 8 | High | Map `boolean`; centralize primitive type names | H4 | S | ✅ `fix/quick-wins` |
+| 9 | High | Remove or fix the JIT REPL | H2 | S (remove) / L (real JIT) | ✅ `fix/quick-wins` (removed; no real JIT) |
+| 10 | High | Make documentation truthful | H7a–g | M | ✅ `docs/truth-pass` |
+| 11 | Medium | Typed arrays + bounds checks | H5 | L | Next (roadmap step 1) |
+| 12 | Medium | Real types in the semantic layer | M3a–c | XL | Open |
+| 13 | Medium | Split `LLVMCodeGenerator.cpp` | M5 | L | Next (roadmap step 2) |
+| 14 | Medium | Build-type and sanitizer options in CMake | M1, M2 | S | ✅ `build/cmake-options` |
+| 15 | Medium | Module namespaces and hard errors on missing imports | M4 | M | Open |
+| 16 | Low | Remove dead code and stale tooling files | L2 | S | Partly (L2, L6) |
+| 17 | Low | Single source of truth for the runtime ABI | §6.4 | M | Open |
+| 18 | Low | Portability: syscall/asm per target, sed-free driver | M6 | M | Open |
 
 ### 10.2 Details
 
@@ -853,7 +918,7 @@ Effort scale: **S** ≤ 1 day · **M** 2–4 days · **L** 1–2 weeks · **XL**
 #### 10. Truthful docs (High, M)
 - **Files:** `README.md`, `docs/grammar.md`, `docs/language_spec.md`, `docs/architecture.md`, `CONTRIBUTING.md`, `.github/copilot-instructions.md`, `docs/todo.md`.
 - **Change:** use the status table from [§1.2](#12-core-features-implementation-status) as the canonical "what works" list. Replace the hello-world with a verified program. Remove the chatbot text from `grammar.md`. Mark planned features as *planned*.
-- **Validate:** every code block in the README is a test in `tests/docs/` and passes.
+- **Validate:** every code block in the README is a test in `tests/docs/` and passes. **[Updated]** Done differently: the README's programs are tests (`tests/examples/hello.tspp`, `tour.tspp`), and `scripts/check_doc_samples.sh` compiles every ```` ```tspp ```` block in README/ROADMAP/CONTRIBUTING/`docs/*.md` (planned syntax is fenced `tspp-planned` and skipped); the suite runs it as `tests/driver/doc_samples.sh`.
 
 #### 11–18 (summary)
 
@@ -888,6 +953,8 @@ Effort scale: **S** ≤ 1 day · **M** 2–4 days · **L** 1–2 weeks · **XL**
 
 ### 11.1 First-day checklist
 
+**[Updated]** Much of this list is obsolete after stabilization. Today: install deps, `./build.sh`, `tests/run.sh` (expect only PASS and XFAIL), read `CLAUDE.md`, `tests/README.md`, and [`ROADMAP.md`](../ROADMAP.md). The snapshot list follows.
+
 - [ ] Install dependencies for your OS ([§5.2](#52-install-dependencies)). **Add libcurl dev headers.**
 - [ ] `./scripts/setup_env.sh` and export `LLVM_DIR`/`PATH`.
 - [ ] `./build.sh`. Confirm `build/src/tspp` and `build/src/libcore.a` exist.
@@ -900,7 +967,7 @@ Effort scale: **S** ≤ 1 day · **M** 2–4 days · **L** 1–2 weeks · **XL**
 
 ### 11.2 Recommended reading order
 
-1. `src/main.cpp` (132 lines). The whole pipeline in one place.
+1. `src/main.cpp` (132 lines at the snapshot, ~460 now). The whole pipeline in one place.
 2. `src/parser/nodes/*.h`. The AST vocabulary.
 3. `src/parser/visitors/ast_builder/ast_builder_visitor.cpp`, then `StatementBuilder.cpp` and `ExpressionBuilder.cpp`.
 4. `src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp`. Read `visit(ProgramNode&)` (hoisting) and `visit(CallExpr&)` (default args, built-ins).
@@ -910,6 +977,8 @@ Effort scale: **S** ≤ 1 day · **M** 2–4 days · **L** 1–2 weeks · **XL**
 8. `lib/system.tspp`. An example of tspp using `__builtin_syscall` and `#asm`.
 
 ### 11.3 Starter tasks
+
+**[Updated]** All of the tasks below are done. Good starter tasks now are the small open bugs in [§9.7](#97-found-during-stabilization): M10 (`sys.get_env` signature), H10 (escape sequences), H9 (`int` conditions), H8 (float ABI).
 
 | Task | Why it's a good first task | Size |
 |---|---|---|
@@ -926,6 +995,8 @@ Effort scale: **S** ≤ 1 day · **M** 2–4 days · **L** 1–2 weeks · **XL**
 ## 12. Open questions
 
 These need input from the project owner.
+
+**[Updated 2026-10-08]** Answered so far: (1) tests are restored and extended; (2) the repo is `github.com/tspp-io/tspp-compiler`, default branch `master`, CI triggers on it; (3) LLVM 17+; built with 17, 18, 22, 23, CI on 18 and 22; (4) the parser is the source of truth, `grammar.md` follows it; (6) compiled programs are not ASan-instrumented unless `--asan`; (8) the REPL simply recompiles (no JIT); (12) security reports go through GitHub private vulnerability reporting, and the unverified website/Discord links were removed. Still open: 5, 7, 9, 10, 11, 13.
 
 | # | Question | Why it matters |
 |---|---|---|
@@ -948,6 +1019,8 @@ These need input from the project owner.
 ## Appendix: file and symbol index
 
 ### `src/codegen/LLVMCodeGenerator.cpp` function map
+
+**[Updated]** Line numbers are from the snapshot; `generateModuleForREPL` is deleted, `emitPendingGlobalInits` became `emitModuleInit`, and `generate()` no longer patches blocks. Use `grep -n` for current locations.
 
 | Line | Symbol | Notes |
 |---|---|---|

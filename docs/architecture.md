@@ -1,81 +1,77 @@
 # tspp Compiler Architecture
 
-This document provides a high-level overview of the tspp compiler architecture and its compilation pipeline.
+A high-level map of the compiler. For the long version (data flow, runtime
+ABI, known issues), read [KNOWLEDGE_TRANSFER.md](KNOWLEDGE_TRANSFER.md).
 
 ## Overview
 
-The tspp compiler is a modular system written in C++17 that compiles tspp source code into LLVM IR, which is then compiled to native machine code using Clang/LLVM.
+`tspp` is a single C++17 program built against the LLVM C++ API. It compiles a
+`.tspp` file to LLVM IR, has `llvm-as` check the IR, links it with `clang`
+against the tspp runtime (`libcore.a`), Boehm GC and libcurl, and by default
+runs the result. There is no interpreter and no JIT; the REPL compiles and
+runs each input as its own program.
 
-## Compilation Pipeline
+## Compilation pipeline
 
-The compilation process follows a standard pipeline:
+| # | Stage | Code | Output |
+|---|---|---|---|
+| 1 | Lexer | `src/lexer/` (specialized scanners in `scanner/specialized/`), tokens in `src/tokens/` | token vector; inserts `;` at line ends |
+| 2 | Parser | `src/parser/parser.cpp` → `visitors/ast_builder/` (`parseTopLevel`) → `ast_builders/{Declaration,Statement,Expression,Type}Builder.cpp`; nodes in `src/parser/nodes/` | `ast::ProgramNode` |
+| 3 | Imports | `src/parser/module/ModuleResolver.cpp` | imported files' ASTs merged in front (no namespaces) |
+| 4 | Semantic analysis | `src/parser/visitors/semantic/SemanticAnalyzerVisitor.cpp`, `SemanticScope.cpp` | name/arity/const checks, default arguments filled in |
+| 5 | Code generation | `src/codegen/LLVMCodeGenerator.cpp`, `ConstantExpressionEvaluator.cpp` | `llvm::Module`, checked with `llvm::verifyModule` |
+| 6 | Driver | `src/main.cpp` | IR in a private temp dir → `llvm-as` → `clang -O3` link → run |
+| — | Diagnostics | `src/core/diagnostics/error_reporter.*` (`core::diagnostics()`) | `file:line:col: error: ...` from every stage; the driver stops after the first failing stage |
+| — | Runtime | `src/core/syscall/syscall_wrapper.cpp` (`extern "C" tspp_*`), built into `libcore.a` | linked into every compiled program |
 
-1.  **Lexical Analysis (Lexer)**
-2.  **Parsing (Parser & AST Construction)**
-3.  **Semantic Analysis**
-4.  **Code Generation (LLVM IR)**
-5.  **Native Compilation (Clang)**
+Details that matter when changing things:
 
-### 1. Lexical Analysis (`src/lexer`, `src/tokens`)
+- **Primitive types** come from one table, `src/tokens/primitive_types.h`
+  (lexer keywords, semantic types, `getLLVMType`).
+- **Types in codegen** are often inferred by matching type-name strings
+  (`"string"`, `"ClassName.method"`). Changes there ripple.
+- **Program startup**: codegen emits an `i32 main()` that calls
+  `tspp_runtime_init()` (GC init), then `__tspp_global_ctors()` (global
+  initializers, class static initializers and blocks, top-level statements,
+  in source order), then the user's `main`. See
+  [language_spec.md](language_spec.md#program-startup-and-initialization-order).
+- **Strings** returned by the runtime are fresh GC-owned buffers.
+- **Child processes** are started with `llvm::sys::ExecuteAndWait` and an argv
+  vector, never through a shell. `clang`/`llvm-as` are found on `PATH`
+  (`TSPP_CLANG`, `TSPP_LLVM_AS` override); `libcore.a` next to the `tspp`
+  executable (`TSPP_RUNTIME_LIB` overrides).
+- **Optimization** is `clang -O3` on the IR; the compiler runs no LLVM passes
+  of its own.
 
-The **Lexer** (`lexer::Lexer`) takes the raw source code string and converts it into a stream of **Tokens**.
--   **Tokens** (`tokens::Token`) represent atomic units like keywords, identifiers, literals, and operators.
--   The lexer handles comments, whitespace, and pre-processing of attributes (e.g., `#stack`, `#heap`).
--   It uses specialized scanners (`IdentifierScanner`, `NumberScanner`, etc.) for different token types.
+Not implemented in codegen (parsed only): `#heap`/`#stack` storage, pointer
+and smart-pointer semantics, `#simd` and the other performance attributes
+(recorded as LLVM string attributes only). See [ROADMAP.md](../ROADMAP.md).
 
-### 2. Parsing (`src/parser`)
-
-The **Parser** (`parser::Parser`) consumes the stream of tokens and builds an **Abstract Syntax Tree (AST)**.
--   The parser uses a recursive descent approach.
--   **AST Nodes** (`src/parser/nodes`) represent the syntactic structure of the program (e.g., `FunctionDecl`, `VarDecl`, `BinaryExpr`).
--   The `ASTBuilder` visitors (`src/parser/visitors/ast_builder`) are responsible for constructing specific parts of the AST.
-
-### 3. Semantic Analysis (`src/parser/visitors/semantic`)
-
-Before code generation, the **Semantic Analyzer** (`ast::SemanticAnalyzerVisitor`) traverses the AST to ensure correctness.
--   **Type Checking**: Verifies that types match (e.g., assigning a string to an int).
--   **Scope Resolution**: Resolves variable and function names to their declarations.
--   **Symbol Table**: Manages scopes and symbol definitions.
--   **Error Reporting**: Collects and reports semantic errors (e.g., "undefined variable").
-
-### 4. Code Generation (`src/codegen`)
-
-The **Code Generator** (`codegen::LLVMCodeGenerator`) traverses the validated AST and generates **LLVM IR** (Intermediate Representation).
--   It uses the LLVM C++ API to build instructions.
--   **Memory Management**: Handles `#stack` (alloca), `#heap` (malloc/GC), and `#static` (global variables) allocations.
--   **Control Flow**: Generates IR for loops (`for`, `while`), conditionals (`if`, `switch`), and function calls.
--   **Features**: Implements SIMD operations, smart pointers, and other language features.
-
-### 5. Native Compilation
-
-The generated LLVM IR (`.ll` file) is passed to `llvm-as` to create a bitcode file (`.bc`), which is then linked and compiled by `clang` to produce the final executable.
--   **Runtime Library**: The compiler links against `libcore.a` (tspp runtime) and `libgc` (Boehm GC).
-
-## Project Structure
+## Source tree
 
 ```
 src/
-├── ast/            # AST node definitions and printers
-├── codegen/        # LLVM code generation logic
-├── core/           # Common utilities, diagnostics, and syscall wrappers
-├── interpreter/    # JIT interpreter (REPL)
-├── lexer/          # Lexical analysis
-├── parser/         # Parsing and AST construction
-├── tokens/         # Token definitions
-└── main.cpp        # Compiler entry point
+├── main.cpp        # driver + REPL
+├── tokens/         # Token, TokenType, primitive_types.h
+├── lexer/          # Lexer and scanners
+├── parser/         # AST nodes, builders, semantic analysis, imports
+├── codegen/        # LLVMCodeGenerator (~5k lines), constant folding
+├── core/           # diagnostics, file/string utils, runtime (syscall/)
+├── ast/            # AST printers; not used by the build
+└── types/          # placeholder; not built
 ```
 
-## Key Classes
+## Build targets
 
--   `lexer::Lexer`: Main entry point for lexing.
--   `parser::Parser`: Main entry point for parsing.
--   `ast::BaseNode`: Base class for all AST nodes.
--   `ast::SemanticAnalyzerVisitor`: Performs semantic checks.
--   `codegen::LLVMCodeGenerator`: Generates LLVM IR.
--   `interpreter::JITInterpreter`: Handles REPL execution.
+`src/CMakeLists.txt`: libraries `diagnostics`, `core` (utilities + runtime;
+`libcore.a` is also the runtime archive, built without sanitizers), `tokens`,
+`lexer`, `parser`, `tspp_codegen`, and the `tspp` executable. Build types and
+sanitizer options (`TSPP_ENABLE_ASAN`, `TSPP_ENABLE_UBSAN`) are described in
+[dev-setup.md](dev-setup.md).
 
 ## Dependencies
 
--   **LLVM**: Backend for code generation.
--   **Clang**: Used for linking and final binary creation.
--   **Boehm GC**: Conservative garbage collector for managed memory.
+- **LLVM 17 or newer**: IR generation (C++ API), plus the `llvm-as` and
+  `clang` tools at run time.
+- **Boehm GC**: allocation of objects, arrays and strings in compiled programs.
+- **libcurl**: the runtime's `sys.http_get` call.
